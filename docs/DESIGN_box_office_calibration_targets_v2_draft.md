@@ -663,6 +663,22 @@ suspicion — §12.2 is on the record about what that costs. The finding is
 recorded so it can be ratified or rejected on its own evidence rather than
 folded into a change that benefits from it.
 
+**Ratified 2026-11-06 for the $500M and $1B bands**
+(`DESIGN_REVIEW_box_office_variance_diagnosis.md` §4.1, §6): they are now
+per-industry-year counts, `wideOver500PerYear` 10–15 and `wideOver1000PerYear`
+2–5, and both pass (12.1 and 4.1) with no model change. `wideOver100Pct` has
+the same defect but currently passes as a share, and was left as it is.
+
+**Ratified 2026-11-10 for the $100M band, and a decision on break-even**
+(`DESIGN_REVIEW_box_office_variance_diagnosis.md` §13):
+- `wideOver100Pct` is now `wideOver100PerYear`, 55–70. Unlike the two above,
+  the switch did **not** turn it green. It reads 51.8 / 55.0 / 53.0 across three
+  seed sets, a few films a year under the real figure. The share used to read
+  high and the count reads slightly low for the same underlying reason: the
+  model's wide field (~85 a year) is smaller than the real ~110.
+- `breakevenPct` is **left failing by decision**: smooth distribution, a
+  quarter-turn band, a share drawn from twelve films. Not tuned towards.
+
 ### 13.2 One model finding closed
 
 §12.4's open finding — Mid-Size putting 59% of its films wide at a $15M median

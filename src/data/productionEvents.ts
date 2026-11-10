@@ -1,4 +1,5 @@
 import type { ChemistryDimension, Genre, EventChoiceTemplate, EventSeverity, PersonTrait, ProductionExecutionImpact, ProductionRole } from '../types';
+import { craftFacetForEventId } from './eventImpactRouting';
 
 // Templates for randomized production events. The engine picks a handful of
 // these per shoot, biased by an overall risk score, then rolls a concrete
@@ -123,7 +124,11 @@ export type ProductionEventTemplate = SimpleProductionEventTemplate | Interactiv
 
 /** Assigns a default `impact` (department) to every template in a bank; an inline `impact` on a template still wins. */
 function tagImpact(impact: ProductionExecutionImpact, templates: ProductionEventTemplate[]): ProductionEventTemplate[] {
-  return templates.map((t) => ({ impact, ...t }));
+  // A bank's default department is a fallback, not an override: an event that
+  // is unambiguously about a craft facet (a squib, a VFX redo, a set collapse)
+  // goes to that facet's execution swing (data/eventImpactRouting.ts). An inline
+  // `impact` on the template still wins over both, being spread last.
+  return templates.map((t) => ({ impact: craftFacetForEventId(t.id) ?? impact, ...t }));
 }
 
 export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
@@ -288,7 +293,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     qualityRange: [-13, -4],
     buzzRange: [0, 0],
     delayDaysRange: [1, 3],
-    impact: 'visual',
+    impact: 'vfx', // was 'visual', set before the VFX facet existed - it is a VFX sequence failing
     escalates: 0.5,
   },
   {

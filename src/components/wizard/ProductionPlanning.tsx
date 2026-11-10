@@ -1,3 +1,5 @@
+import { describeBetExposure } from '../../engine/ambitionPresentation';
+import { computeBetExposure } from '../../engine/scoring';
 import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { SHOOTING_BUDGET_RANGE } from '../../data/production';
@@ -390,6 +392,8 @@ export function ProductionPlanning() {
   // granted prep time + the designer's skill - drives the designer's live
   // confidence read below.
   const setsFacet = computeSetsFacet({ ambition: setsAmbition, moneyAmount: currentChoices.setQualityAmount, prepDays: designPrepDays, designerSkill });
+  // How much this plan is betting on its ambition (engine/scoring.ts:computeBetExposure).
+  const betRead = describeBetExposure(computeBetExposure(script, currentChoices, genre, draft.talent));
   const setsConfidence = designerConfidence(setsFacet);
   // The boom-or-bust read: an over-reaching plan becomes a gamble the designer's
   // skill tips (spec §3.3). Only voiced when the plan actually is a gamble (the
@@ -673,6 +677,23 @@ export function ProductionPlanning() {
       />
 
       {!canAfford && <p style={{ color: 'var(--red)' }}>This plan costs more than the studio has on hand.</p>}
+
+      {/* How much this film is betting (docs/DESIGN_REVIEW_ambition_and_delivery.md
+          §2.4): the reception swing its ambition puts in play - concept,
+          structure, and spectacle beyond its budget. The Risk Profile below is
+          what may go wrong on set; this is how much rides on how it goes. Read
+          from the same exposure the variance gate asserts against, so the
+          readout can't disagree with what the film actually does. */}
+      <div className="card stack">
+        <h3 style={{ margin: 0 }}>How Much Is Riding On This</h3>
+        <p style={{ margin: 0, fontWeight: 600 }}>{betRead.headline}</p>
+        {betRead.drivers.length > 0 && (
+          <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>
+            What it's reaching for: {betRead.drivers.join(', ')}. A bet like this pays off when it's delivered and
+            costs when it isn't - safer plans narrow the range, ambitious ones widen it both ways.
+          </p>
+        )}
+      </div>
 
       {/* The detailed breakdown, in normal flow (no longer pinned to the bottom,
           where the full-height card blocked most of the page). Live awareness now

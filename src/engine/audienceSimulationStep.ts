@@ -42,6 +42,8 @@
 // simulation, not tuned numbers.
 
 import {
+  uniqueViewers,
+  deriveWeeklyUniqueAdmissions,
   createAudienceSimulationWeekState,
   deriveWeeklyAdmissions,
   deriveWordOfMouthActivity,
@@ -49,6 +51,10 @@ import {
   type AudienceSimulationFixedState,
   type AudienceSimulationWeekState,
 } from './audienceSimulation';
+import { REVIEW_WAITERS_LOST_SHARE } from '../data/reviewSensitivity';
+import { HOME_WINDOW_WEEKS } from '../data/theatricalWindow';
+import { REPEAT_BASE_RATE, REPEAT_MAX_EXTRA_RATE, REPEAT_RECEPTION_EXPONENT, REPEAT_RECEPTION_FLOOR, REPEAT_RECEPTION_FULL } from '../data/repeatViewing';
+import { EXPECTATION_FACTOR_MAX, EXPECTATION_FACTOR_MIN, EXPECTATION_GAP_SPAN, EXPECTATION_GAP_WEIGHT } from '../data/wordOfMouth';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -193,7 +199,35 @@ const RECEPTION_EXPONENT = 2;
 export function computeReceptionResponseMultiplier(fixed: AudienceSimulationFixedState): number {
   const weighted = (fixed.audienceScore * AUDIENCE_SCORE_WEIGHT + fixed.criticScore * CRITIC_SCORE_WEIGHT) / 100;
   const above = clamp((weighted - RECEPTION_PIVOT) / (1 - RECEPTION_PIVOT), 0, 1);
-  return RECEPTION_FLOOR + (1 - RECEPTION_FLOOR) * Math.pow(above, RECEPTION_EXPONENT);
+  const absolute = RECEPTION_FLOOR + (1 - RECEPTION_FLOOR) * Math.pow(above, RECEPTION_EXPONENT);
+  return absolute * computeExpectationGapFactor(fixed);
+}
+
+/**
+ * Repeat viewing (docs/domain/10 §16, data/repeatViewing.ts): the share of last
+ * week's first-time viewers who come back this week. A small base for every
+ * film, plus a repeatable film's extra, gated on how much audiences loved it -
+ * the same 70/30 delivered-reception blend word of mouth reads, but absolute,
+ * not against expectation: people re-watch what they love, whatever they were
+ * promised. 0 when the fixed state carries no repeatability.
+ */
+export function computeRepeatViewingRate(fixed: AudienceSimulationFixedState): number {
+  if (fixed.repeatability === undefined) return 0;
+  const delivered = fixed.audienceScore * AUDIENCE_SCORE_WEIGHT + fixed.criticScore * CRITIC_SCORE_WEIGHT;
+  const love = clamp((delivered - REPEAT_RECEPTION_FLOOR) / (REPEAT_RECEPTION_FULL - REPEAT_RECEPTION_FLOOR), 0, 1);
+  return REPEAT_BASE_RATE + REPEAT_MAX_EXTRA_RATE * fixed.repeatability * Math.pow(love, REPEAT_RECEPTION_EXPONENT);
+}
+
+/**
+ * The expectation gap (docs/domain/16 §8.1, data/wordOfMouth.ts): word of mouth
+ * scaled by how far delivered reception beat or missed what the film's Buzz
+ * promised. 1 when the fixed state carries no promise (expectedReception absent).
+ */
+export function computeExpectationGapFactor(fixed: AudienceSimulationFixedState): number {
+  if (fixed.expectedReception === undefined) return 1;
+  const delivered = fixed.audienceScore * AUDIENCE_SCORE_WEIGHT + fixed.criticScore * CRITIC_SCORE_WEIGHT;
+  const gap = delivered - fixed.expectedReception;
+  return clamp(1 + EXPECTATION_GAP_WEIGHT * (gap / EXPECTATION_GAP_SPAN), EXPECTATION_FACTOR_MIN, EXPECTATION_FACTOR_MAX);
 }
 
 /**
@@ -821,6 +855,8 @@ export interface WeekDiagnostics {
   competitivePressure: number;
   /** Rushed-release screen collapse - true once exhibitors are pulling this film (latched; see isScreenCollapse). */
   screensPulled: boolean;
+  /** Repeat viewing - this week's admissions by people who had already seen the film (included in weeklyAdmissions). */
+  repeatAdmissions: number;
   weeklyAdmissions: number;
   cumulativeTicketsSold: number;
   /**
@@ -850,7 +886,7 @@ export function advanceOneWeekWithDiagnostics(
 ): { next: AudienceSimulationWeekState; diagnostics: WeekDiagnostics } {
   const priorWeek = weeks.length > 0 ? weeks[weeks.length - 1] : WEEK_ZERO;
   const nextWeekNumber = priorWeek.week + 1;
-  let totalEverInterested = priorWeek.interestedRemaining + priorWeek.cumulativeTicketsSold;
+  let totalEverInterested = priorWeek.interestedRemaining + uniqueViewers(priorWeek);
 
   // Step 0: the release-day awareness lump, only on week 1.
   const awareAfterSeed = applyReleaseDayAwarenessSeed(fixed, priorWeek.awareCount, weeks.length);
@@ -903,7 +939,7 @@ export function advanceOneWeekWithDiagnostics(
   // week's post-growth numbers (see pullForwardCeilingMultiplier's doc
   // comment).
   const baselineAttendanceProbability = getBaselineAttendanceProbability(fixed);
-  const priorTotalEverInterested = priorWeek.interestedRemaining + priorWeek.cumulativeTicketsSold;
+  const priorTotalEverInterested = priorWeek.interestedRemaining + uniqueViewers(priorWeek);
   const backlogFreshnessFactor = priorTotalEverInterested > 0 ? priorWeek.interestedRemaining / priorTotalEverInterested : 1;
   const womPullForwardBoost = pullForwardUrgencySignal(womInfluence);
   const attendanceProbability = applyWomPullForward(baselineAttendanceProbability, womInfluence, nextWeekNumber, backlogFreshnessFactor);
@@ -936,12 +972,33 @@ export function advanceOneWeekWithDiagnostics(
   // stay interested, exactly like attention competition above - whether they
   // ever get a ticket is decided by whether the film keeps its screens.
   const rushFactor = weeks.length === 0 ? (fixed.openingRushMultiplier ?? 1) : 1;
+  // Step 8.7: reviews on the opening (docs/domain/16 §6) - week 1 only, like the
+  // rush penalty. A poorly reviewed film's undecided viewers wait (they stay in
+  // the pool, and whether they ever come is word of mouth's job); a well
+  // reviewed one licenses the marginal viewer now. Never sells more than the
+  // pool holds.
+  const reviewFactor = weeks.length === 0 ? (fixed.openingReviewMultiplier ?? 1) : 1;
   // Applied to the tickets, not the probability: a strong film's pulled-forward
   // probability can exceed 1 before the clamp, which would silently absorb most
   // of the cut.
-  const ticketsFromExistingPool = sellTicketsThisWeek(priorWeek.interestedRemaining, attendanceProbability * attentionFactor) * rushFactor;
-  const ticketsFromNewInterest = sellTicketsThisWeek(newInterestThisWeek, baselineAttendanceProbability * attentionFactor) * rushFactor;
+  const ticketsFromExistingPool = Math.min(priorWeek.interestedRemaining, sellTicketsThisWeek(priorWeek.interestedRemaining, attendanceProbability * attentionFactor) * rushFactor * reviewFactor);
+  const ticketsFromNewInterest = Math.min(newInterestThisWeek, sellTicketsThisWeek(newInterestThisWeek, baselineAttendanceProbability * attentionFactor) * rushFactor * reviewFactor);
   const unconstrainedDemand = ticketsFromExistingPool + ticketsFromNewInterest;
+  // Of the opening viewers a pan held back, a share wait for the home window
+  // and leave the theatrical pool (data/reviewSensitivity.ts:REVIEW_WAITERS_LOST_SHARE).
+  // Zero unless this is week 1 of a film reviewed below the market median.
+  const reviewWaitersLost = reviewFactor < 1 && reviewFactor > 0
+    ? (unconstrainedDemand / reviewFactor - unconstrainedDemand) * REVIEW_WAITERS_LOST_SHARE
+    : 0;
+  // Step 8.8: repeat viewing (docs/domain/10 §16, data/repeatViewing.ts) - a
+  // share of last week's first-time viewers come back once. They take seats
+  // like anyone else (so they count against capacity, and a film people return
+  // to holds its screens), compete for attention like anyone else, but are never
+  // drawn from - or returned to - the interested pool: they are the same people
+  // again, "a second audience at zero acquisition cost".
+  const lastWeekFirstTimers = weeks.length > 0 ? deriveWeeklyUniqueAdmissions(weeks, weeks.length - 1) : 0;
+  const repeatDemand = lastWeekFirstTimers * computeRepeatViewingRate(fixed) * attentionFactor;
+  const totalDemand = unconstrainedDemand + repeatDemand;
 
   // Step 9.5: availability gates unconstrained demand down to what this
   // film can physically serve this week - see the availability step's own
@@ -954,8 +1011,13 @@ export function advanceOneWeekWithDiagnostics(
   // attendance, it does not shrink the interested pool independently."
   const availabilityThisWeek = currentAvailabilityFraction(fixed, priorWeek, weeks.length);
   const maxServiceableDemand = computeAvailabilityCapacity(fixed, availabilityThisWeek);
-  const ticketsThisWeek = Math.min(unconstrainedDemand, maxServiceableDemand);
-  const demandUtilisation = computeDemandUtilisation(unconstrainedDemand, maxServiceableDemand);
+  const ticketsThisWeek = Math.min(totalDemand, maxServiceableDemand);
+  // When capacity binds, first-timers and repeat viewers are turned away in
+  // proportion.
+  const servedShare = totalDemand > 0 ? ticketsThisWeek / totalDemand : 0;
+  const firstTimeTickets = unconstrainedDemand * servedShare;
+  const repeatTickets = repeatDemand * servedShare;
+  const demandUtilisation = computeDemandUtilisation(totalDemand, maxServiceableDemand);
   const performanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
   const screensPulled = isScreenCollapse(fixed, priorWeek, weeks.length, demandUtilisation);
   const nextAvailabilityFraction = screensPulled
@@ -968,10 +1030,17 @@ export function advanceOneWeekWithDiagnostics(
   // throw over an epsilon-scale rounding error.
   const ceiling = maxInterestedAudience(fixed);
   const clampedAwareCount = clamp(awareCount, 0, fixed.totalAddressableAudience);
-  const interestedRemaining = clamp(interestedBeforeSales - ticketsThisWeek, 0, Math.min(clampedAwareCount, ceiling));
-  const cumulativeTicketsSold = clamp(priorWeek.cumulativeTicketsSold + ticketsThisWeek, 0, fixed.totalAddressableAudience);
+  // Past the exclusive theatrical window (data/theatricalWindow.ts), a share of
+  // whoever is still interested waits for the home release instead.
+  const homeWindowWaiters =
+    nextWeekNumber > HOME_WINDOW_WEEKS ? Math.max(0, interestedBeforeSales - firstTimeTickets - reviewWaitersLost) * (fixed.homeWindowAttrition ?? 0) : 0;
+  const interestedRemaining = clamp(interestedBeforeSales - firstTimeTickets - reviewWaitersLost - homeWindowWaiters, 0, Math.min(clampedAwareCount, ceiling));
+  const priorUnique = uniqueViewers(priorWeek);
+  const uniqueAfter = clamp(priorUnique + firstTimeTickets, 0, fixed.totalAddressableAudience);
+  const cumulativeRepeatAdmissions = (priorWeek.cumulativeRepeatAdmissions ?? 0) + repeatTickets;
+  const cumulativeTicketsSold = uniqueAfter + cumulativeRepeatAdmissions;
   const crossoverCeiling = fixed.crossoverCapacityFraction * fixed.totalAddressableAudience;
-  const clampedCumulativeCrossoverRealized = clamp(cumulativeCrossoverRealized, 0, crossoverCeiling);
+  const clampedCumulativeCrossoverRealized = clamp(cumulativeCrossoverRealized, 0, Math.min(crossoverCeiling, interestedRemaining + uniqueAfter));
 
   const next = createAudienceSimulationWeekState(fixed, {
     week: nextWeekNumber,
@@ -981,6 +1050,7 @@ export function advanceOneWeekWithDiagnostics(
     availabilityFraction: nextAvailabilityFraction,
     cumulativeCrossoverRealized: clampedCumulativeCrossoverRealized,
     ...(screensPulled ? { screensPulled: true } : {}),
+    ...(cumulativeRepeatAdmissions > 0 ? { cumulativeRepeatAdmissions } : {}),
   });
 
   // Diagnostics are read from the *actual* resulting week state (post-clamp)
@@ -1012,6 +1082,7 @@ export function advanceOneWeekWithDiagnostics(
     nextAvailabilityFraction,
     competitivePressure,
     screensPulled,
+    repeatAdmissions: repeatTickets,
     weeklyAdmissions: next.cumulativeTicketsSold - priorWeek.cumulativeTicketsSold,
     cumulativeTicketsSold: next.cumulativeTicketsSold,
     womReproductionRatio: NaN,
@@ -1051,20 +1122,22 @@ export function computeWomReproductionRatio(fixed: AudienceSimulationFixedState,
   if (weekIndex < 0 || weekIndex >= weeks.length) {
     throw new Error(`AudienceSimulation: weekIndex ${weekIndex} is out of range for a ${weeks.length}-week history`);
   }
-  const weekTAdmissions = deriveWeeklyAdmissions(weeks, weekIndex);
+  const weekTAdmissions = deriveWeeklyUniqueAdmissions(weeks, weekIndex);
   if (weekTAdmissions <= 0) return 0;
   // No week (t+1) exists yet to measure - nothing to compare against.
   if (weekIndex === weeks.length - 1) return NaN;
 
   const historyUpToT = weeks.slice(0, weekIndex + 1);
-  const actualNextWeekAdmissions = deriveWeeklyAdmissions(weeks, weekIndex + 1);
+  const actualNextWeekAdmissions = deriveWeeklyUniqueAdmissions(weeks, weekIndex + 1);
 
   const actualRawActivity = deriveWordOfMouthActivity(weeks, weekIndex + 1);
   const counterfactualRawActivity = Math.max(0, actualRawActivity - weekTAdmissions);
   const counterfactualActivityFraction = clamp(counterfactualRawActivity / maxInterestedAudience(fixed), 0, 1);
   const counterfactualWomInfluence = counterfactualActivityFraction * computeReceptionResponseMultiplier(fixed);
 
-  const counterfactualNextWeekAdmissions = advanceOneWeekWithDiagnostics(fixed, historyUpToT, counterfactualWomInfluence).diagnostics.weeklyAdmissions;
+  // First-time viewers only, both sides: reproduction is how many NEW people each viewer brings, and repeat visits are neither cause nor effect of that.
+  const counterfactualDiagnostics = advanceOneWeekWithDiagnostics(fixed, historyUpToT, counterfactualWomInfluence).diagnostics;
+  const counterfactualNextWeekAdmissions = counterfactualDiagnostics.weeklyAdmissions - counterfactualDiagnostics.repeatAdmissions;
 
   const additionalAdmissionsCausedByWeekT = Math.max(0, actualNextWeekAdmissions - counterfactualNextWeekAdmissions);
   return additionalAdmissionsCausedByWeekT / weekTAdmissions;

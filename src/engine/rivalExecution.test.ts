@@ -57,7 +57,7 @@ describe('resolveRivalExecution - synthesized history', () => {
     expect(events.length).toBeGreaterThan(0);
     for (const e of events) {
       expect(e.impact).toBeDefined();
-      expect(['performances', 'coverage', 'visual', 'pacing', 'script', 'general']).toContain(e.impact);
+      expect(['performances', 'coverage', 'sets', 'vfx', 'practical', 'visual', 'pacing', 'script', 'general']).toContain(e.impact);
     }
   });
 
@@ -159,7 +159,7 @@ describe('resolveRivalProduction - the shared finished-film pipeline', () => {
     const outcome = film.results.productionExecution!;
     for (const cause of outcome.causes) {
       expect(film.events.some((e) => e.description === cause.text)).toBe(true);
-      expect(['performances', 'coverage', 'visual', 'pacing', 'script', 'general']).toContain(cause.department);
+      expect(['performances', 'coverage', 'sets', 'vfx', 'practical', 'visual', 'pacing', 'script', 'general']).toContain(cause.department);
     }
   });
 

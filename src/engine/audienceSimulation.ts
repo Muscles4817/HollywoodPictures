@@ -136,6 +136,37 @@ export interface AudienceSimulationFixedState {
    * availability keeps its asymptotic floor, exactly as before.
    */
   screenCollapseArmed?: boolean;
+  /**
+   * Reviews on the opening (docs/domain/16 §6; data/reviewSensitivity.ts):
+   * multiplier on week-1 attendance only, above 1 for a film reviewed better
+   * than the market median, below for worse, scaled by how review-sensitive
+   * this film's genre, audience and release pattern are and damped when it is
+   * pre-sold. Absent = 1.
+   */
+  openingReviewMultiplier?: number;
+  /**
+   * The reception (0-100, same audience-weighted blend word of mouth reads) this
+   * film's pre-release Buzz promised (data/wordOfMouth.ts). Word of mouth is
+   * scaled by how far the film beat or missed it - the expectation gap
+   * (docs/domain/16 §8.1). Absent = no modulation, word of mouth reads absolute
+   * reception exactly as before.
+   */
+  expectedReception?: number;
+  /**
+   * 0-1: how repeatable this film is - spectacle, density, family obligation,
+   * fandom (data/repeatViewing.ts, docs/domain/10 §16.2). Combined in the weekly
+   * step with how much audiences loved it to set the share of last week's
+   * first-time viewers who come back. Absent = no repeat viewing at all, the
+   * one-ticket-per-person model exactly as before.
+   */
+  repeatability?: number;
+  /**
+   * Home-window attrition (data/theatricalWindow.ts): once the film is past its
+   * exclusive theatrical window, this share of its remaining interested
+   * audience waits for home release each week. Absent = 0, no window - the run
+   * exactly as before.
+   */
+  homeWindowAttrition?: number;
 }
 
 /**
@@ -163,6 +194,12 @@ export function createAudienceSimulationFixedState(input: AudienceSimulationFixe
   assertUnitInterval(input.availabilityBaseWeeklyDecay, 'availabilityBaseWeeklyDecay');
   assertUnitInterval(input.criticLedExpansionWeight, 'criticLedExpansionWeight');
   if (input.openingRushMultiplier !== undefined) assertUnitInterval(input.openingRushMultiplier, 'openingRushMultiplier');
+  if (input.expectedReception !== undefined) assertScoreRange(input.expectedReception, 'expectedReception');
+  if (input.repeatability !== undefined) assertUnitInterval(input.repeatability, 'repeatability');
+  if (input.homeWindowAttrition !== undefined) assertUnitInterval(input.homeWindowAttrition, 'homeWindowAttrition');
+  if (input.openingReviewMultiplier !== undefined && !(input.openingReviewMultiplier > 0)) {
+    throw new Error(`AudienceSimulation: openingReviewMultiplier must be > 0, got ${input.openingReviewMultiplier}`);
+  }
   if (input.baseInterestFraction + input.crossoverCapacityFraction > 1) {
     throw new Error(
       'AudienceSimulation: baseInterestFraction + crossoverCapacityFraction must not exceed 1 - the base pool plus its maximum crossover expansion cannot exceed the whole addressable audience',
@@ -234,6 +271,18 @@ export interface AudienceSimulationWeekState {
    * Absent = false.
    */
   screensPulled?: boolean;
+  /**
+   * Repeat viewing (docs/domain/10 §16): running total of admissions by people
+   * who had already seen the film, INCLUDED in cumulativeTicketsSold (money is
+   * tickets, not people) but excluded from every count of distinct viewers -
+   * see uniqueViewers(). Absent = 0.
+   */
+  cumulativeRepeatAdmissions?: number;
+}
+
+/** Distinct people who have seen the film: tickets sold less repeat visits. Interest headroom, the crossover subset check and word of mouth's activity all count people, not tickets. */
+export function uniqueViewers(week: Pick<AudienceSimulationWeekState, 'cumulativeTicketsSold' | 'cumulativeRepeatAdmissions'>): number {
+  return week.cumulativeTicketsSold - (week.cumulativeRepeatAdmissions ?? 0);
 }
 
 /**
@@ -268,14 +317,18 @@ export function createAudienceSimulationWeekState(
   if (input.interestedRemaining > ceiling) {
     throw new Error(`AudienceSimulation: interestedRemaining (${input.interestedRemaining}) cannot exceed this film's maximum possible interested audience (${ceiling})`);
   }
-  if (input.cumulativeTicketsSold > fixed.totalAddressableAudience) {
-    throw new Error('AudienceSimulation: cumulativeTicketsSold cannot exceed totalAddressableAudience - repeat viewing is not modeled yet');
+  assertNonNegative(input.cumulativeRepeatAdmissions ?? 0, 'cumulativeRepeatAdmissions');
+  if ((input.cumulativeRepeatAdmissions ?? 0) > input.cumulativeTicketsSold + 1e-6) {
+    throw new Error('AudienceSimulation: cumulativeRepeatAdmissions cannot exceed cumulativeTicketsSold - repeat visits are a subset of tickets');
+  }
+  if (uniqueViewers(input) > fixed.totalAddressableAudience + 1e-6) {
+    throw new Error('AudienceSimulation: distinct viewers (tickets less repeat visits) cannot exceed totalAddressableAudience');
   }
   const crossoverCeiling = fixed.crossoverCapacityFraction * fixed.totalAddressableAudience;
   if (input.cumulativeCrossoverRealized > crossoverCeiling + 1e-6) {
     throw new Error(`AudienceSimulation: cumulativeCrossoverRealized (${input.cumulativeCrossoverRealized}) cannot exceed this film's crossover capacity (${crossoverCeiling}) - Milestone 12's whole point is that this ceiling is crossover-only, not the combined one`);
   }
-  if (input.cumulativeCrossoverRealized > input.interestedRemaining + input.cumulativeTicketsSold + 1e-6) {
+  if (input.cumulativeCrossoverRealized > input.interestedRemaining + uniqueViewers(input) + 1e-6) {
     throw new Error('AudienceSimulation: cumulativeCrossoverRealized cannot exceed everyone ever interested - crossover is a subset of total interest, not an additional pool');
   }
 
@@ -340,6 +393,15 @@ export function deriveWeeklyAdmissions(weeks: AudienceSimulationWeekState[], wee
   return weeks[weekIndex].cumulativeTicketsSold - previous;
 }
 
+/** This week's FIRST-TIME admissions - weekly admissions less repeat visits (docs/domain/10 §16). Word of mouth is people talking, and the repeat channel returns a share of last week's new viewers, so both read this. */
+export function deriveWeeklyUniqueAdmissions(weeks: AudienceSimulationWeekState[], weekIndex: number): number {
+  if (weekIndex < 0 || weekIndex >= weeks.length) {
+    throw new Error(`AudienceSimulation: weekIndex ${weekIndex} is out of range for a ${weeks.length}-week history`);
+  }
+  const previous = weekIndex > 0 ? uniqueViewers(weeks[weekIndex - 1]) : 0;
+  return uniqueViewers(weeks[weekIndex]) - previous;
+}
+
 // Placeholder recency weights - week-just-passed first, tapering to
 // negligible by ~5 weeks back, matching the shape discussed in design (not
 // yet tuned; the actual curve is equations work for a later milestone).
@@ -370,7 +432,7 @@ export function deriveWordOfMouthActivity(weeks: AudienceSimulationWeekState[], 
   for (let lookback = 0; lookback < WOM_LOOKBACK_WEIGHTS.length; lookback++) {
     const weekIndex = asOfWeekIndex - 1 - lookback;
     if (weekIndex < 0) break;
-    activity += deriveWeeklyAdmissions(weeks, weekIndex) * WOM_LOOKBACK_WEIGHTS[lookback];
+    activity += deriveWeeklyUniqueAdmissions(weeks, weekIndex) * WOM_LOOKBACK_WEIGHTS[lookback];
   }
   return activity;
 }

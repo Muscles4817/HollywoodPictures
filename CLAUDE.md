@@ -87,7 +87,20 @@ recalibration work lands — that is their purpose). One shared flag:
 ```bash
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeDistribution.diagnostic.test.ts --disable-console-intercept  # §2/§3/§5 whole-year distribution & profitability
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/buzzCalibration.diagnostic.test.ts --disable-console-intercept        # §6 buzz bands, fixtures, non-purchasability
-BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeVariance.diagnostic.test.ts --disable-console-intercept      # §4 endogenous outcome variance
+BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeVariance.diagnostic.test.ts --disable-console-intercept      # §4 outcome spread follows each plan's risk (16 plans; pooled bands reported)
+```
+
+Why the gates read what they read (docs/DESIGN_REVIEW_box_office_variance_diagnosis.md).
+Observational, same flag. The anatomy harness shows what separates a plan's outcomes:
+
+```bash
+BOX_OFFICE_DIAGNOSTIC=1 PLAN_SEEDS=7000,7001,7002 N=120 \
+  npx vitest run src/engine/boxOfficeVarianceAnatomy.diagnostic.test.ts --disable-console-intercept
+DUMP_OUT=/tmp/bo.json BOX_OFFICE_DIAGNOSTIC=1 \
+  npx vitest run src/engine/boxOfficeDistribution.diagnostic.test.ts --disable-console-intercept
+node scripts/analyseBoxOfficeDump.mjs /tmp/bo.json   # per-film cuts: S-curve, spend, star power
+BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/starPower.diagnostic.test.ts --disable-console-intercept  # controlled: lead fame only
+BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/receptionSpread.diagnostic.test.ts --disable-console-intercept  # per-plan spread vs ambition (docs/DESIGN_REVIEW_ambition_and_delivery.md)
 ```
 
 Populated save dump (for looking at screens with real content in them, rather
@@ -96,7 +109,7 @@ than at the empty states an unpopulated fixture renders):
 ```bash
 DUMP_FIXTURE=1 DUMP_PATH=/tmp/pop.json npx vitest run \
   src/state/renderFixtures.diagnostic.test.ts --disable-console-intercept
-# then inject the file as localStorage['hollywood-pictures-save-v93']
+# then inject the file as localStorage['hollywood-pictures-save-v98']
 ```
 
 Observational (not an assertion suite) — dumps two simulated in-game years of

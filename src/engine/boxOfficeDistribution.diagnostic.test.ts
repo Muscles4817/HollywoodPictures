@@ -19,6 +19,10 @@
  * top so ratifying/adjusting a target is a one-line edit.
  */
 import { describe, it, expect } from 'vitest';
+import { writeFileSync } from 'fs';
+import { maxInterestedAudience, uniqueViewers } from './audienceSimulation';
+import { replaySettledWeeksWithDiagnostics } from './audienceSimulationStep';
+import { computeTalentCost } from './cost';
 import { generateRivalStudios, settleRivalMarket, studioShareOf, type RivalMarketUpdate } from './rivalStudios';
 import { settleTheatricalMarket } from './marketSettlement';
 import { generateTalentPool } from './talentGenerator';
@@ -40,9 +44,20 @@ const TARGETS = {
   wideMedianGrossM: [120, 190] as [number, number],
   wideMeanGrossM: [200, 300] as [number, number],
   wideUnprofitablePct: [40, 52] as [number, number],
-  wideOver100Pct: [45, 60] as [number, number],
-  wideOver500Pct: [6, 12] as [number, number],
-  wideOver1000Pct: [1, 3] as [number, number],
+  // Counts per industry-year, not shares of the wide field. As shares these
+  // were not scale-invariant: the same number of $500M films reads as a bigger
+  // share of a smaller field, and the model's field (~82 wide releases a year)
+  // is smaller than the real ~110 they were derived against. Ratified as counts
+  // against the real ~10-15 and ~2-5 a year (targets v2/v3 draft §13.1;
+  // docs/DESIGN_REVIEW_box_office_variance_diagnosis.md §4.1, §6). The same
+  // correction §11.3 made for top-10 share by moving to a decile. This made
+  // two failing gates pass without the model moving - recorded, not hidden.
+  // The $100M band followed on 2026-11-10 (diagnosis §12-13): as a share it read
+  // 61-64% against 45-60 while its count sat inside the real ~55-70 range - the
+  // same defect - and was left as a share only because nobody had decided it.
+  wideOver100PerYear: [55, 70] as [number, number],
+  wideOver500PerYear: [10, 15] as [number, number],
+  wideOver1000PerYear: [2, 5] as [number, number],
   // The top decile of wide releases' share of wide-release gross. Real: the top
   // ten of roughly 110 US wide releases take a bit over 40% of wide gross.
   topDecileWideSharePct: [35, 50] as [number, number],
@@ -95,6 +110,11 @@ const TARGETS = {
   // twelve-film sample can support, not that the model has improved.
   bombPct: [4, 14] as [number, number], // return < 0.4x
   lossPct: [28, 45] as [number, number], // 0.4-1.0x
+  // Left failing BY DECISION (2026-11-10, diagnosis §4.2, §12-13): the return
+  // distribution is smooth, this band is a quarter-turn wide, and its share was
+  // read off a twelve-film slate where three films landed in it. Tuning the
+  // model towards a local bump at exactly 1.0-1.25x would be tuning to the test.
+  // A red here is expected; re-derive the band before treating it as a defect.
   breakevenPct: [14, 35] as [number, number], // 1.0-1.25x
   modestPct: [15, 38] as [number, number], // 1.25-2.5x
   majorPct: [2, 14] as [number, number], // 2.5-5x
@@ -103,6 +123,9 @@ const TARGETS = {
 
 const YEARS = 8;
 const SEEDS = 6;
+// The industries the gate measures. Overridable (SEED_BASE=5000) to measure the gate's own run-to-run noise:
+// near-identical code reads about +-1 point apart on several bands, so a miss smaller than that is not a signal.
+const SEED_BASE = Number(process.env.SEED_BASE ?? 4000);
 const DAYS_PER_YEAR = 365;
 const HORIZON = YEARS * DAYS_PER_YEAR;
 
@@ -118,6 +141,8 @@ interface Rec {
   seed: number;
   /** The tier of the studio that released it - see the profitability bands' own note on population scope. */
   tier: StudioTier;
+  /** Per-film detail for the DUMP_OUT analysis only - no gate reads it. */
+  detail: Record<string, number | string>;
 }
 
 function recordFinished(film: Film, seed: number, tier: StudioTier): Rec {
@@ -148,6 +173,40 @@ function recordFinished(film: Film, seed: number, tier: StudioTier): Rec {
     releaseType: film.marketingChoices.releaseType,
     runWeeks: weeks.length,
     openingMultiple: opening > 0 ? total / opening : 0,
+    detail: (() => {
+      const fx = film.boxOfficeRun.fixed;
+      const sw = film.boxOfficeRun.simWeeks;
+      const ceil = maxInterestedAudience(fx);
+      const leads = film.talent.filter((t) => t.role === 'Lead Actor');
+      const dir = film.talent.find((t) => t.role === 'Director');
+      const fameOf = (t: { person?: { reputation?: { fame?: number } } } | undefined) => t?.person?.reputation?.fame ?? 0;
+      const talentCost = computeTalentCost(film.talent);
+      return {
+        critic: r.criticScore, aud: r.audienceScore, buzz: r.buzzScore ?? 0, simAud: fx.audienceScore,
+        scale: film.script.scale, genre: film.genre,
+        costM: cost / M, openingM: opening / M, ancM: ancillary / M, rentalsM: (r.studioRevenue ?? 0) / M,
+        soldShare: sw.length ? uniqueViewers(sw[sw.length - 1]) / ceil : 0,
+        repeatShare: sw.length && sw[sw.length - 1].cumulativeTicketsSold > 0 ? (sw[sw.length - 1].cumulativeRepeatAdmissions ?? 0) / sw[sw.length - 1].cumulativeTicketsSold : 0,
+        franchise: film.script.franchiseRecognition ?? 0,
+        weeklyGrossM: film.boxOfficeRun.weeks.map((w) => (w.gross / M).toFixed(3)).join(','),
+        ...(() => {
+          // Week-by-week mechanics (availability, seat utilisation, interest left),
+          // replayed from the settled run's own fixed state and competition - the
+          // run-shape analysis in docs/DESIGN_REVIEW_box_office_variance_diagnosis.md §10.2.
+          const { diagnostics } = replaySettledWeeksWithDiagnostics(fx, film.boxOfficeRun.weeks.map((w) => w.competitivePressure ?? 0));
+          return {
+            availW: diagnostics.map((d) => d.availabilityFraction.toFixed(3)).join(','),
+            utilW: diagnostics.map((d) => d.demandUtilisation.toFixed(2)).join(','),
+            interestW: diagnostics.map((d) => (d.interestedRemaining / ceil).toFixed(3)).join(','),
+          };
+        })(),
+        audience: film.targetAudience,
+        crossCap: fx.crossoverCapacityFraction, baseInt: fx.baseInterestFraction, tam: fx.totalAddressableAudience,
+        leadFame: leads.length ? leads.reduce((a, t) => a + fameOf(t as never), 0) / leads.length : 0,
+        dirFame: fameOf(dir as never), talentCostM: talentCost / M, mkt: film.marketingChoices.marketingSpend / M,
+        prodBudgetM: ((film.productionChoices as unknown as Record<string, number>).shootingBudgetAmount ?? 0) / M,
+      };
+    })(),
     year: yearOf(film.releasedOnDay),
     seed,
     tier,
@@ -298,7 +357,10 @@ const enabled = Boolean(
 describe.skipIf(!enabled)('box office whole-year distribution & profitability calibration', () => {
   it('lands in the ratified target bands', () => {
     const all: Rec[] = [];
-    for (let s = 0; s < SEEDS; s++) all.push(...runOneSeed(4000 + s));
+    for (let s = 0; s < SEEDS; s++) all.push(...runOneSeed(SEED_BASE + s));
+    // Per-film dump for offline analysis (scripts/analyseBoxOfficeDump.mjs) -
+    // only when asked for. See docs/DESIGN_REVIEW_box_office_variance_diagnosis.md.
+    if (process.env.DUMP_OUT) writeFileSync(process.env.DUMP_OUT, JSON.stringify(all));
     // Per-studio rates are divided by the number of studios ACTUALLY in that
     // tier, read off the generated roster rather than assumed. The roster used
     // to be a flat four per tier and these divisors were the literal 4; it is
@@ -322,9 +384,9 @@ describe.skipIf(!enabled)('box office whole-year distribution & profitability ca
       wideMedianGrossM: median(wideGross),
       wideMeanGrossM: mean(wideGross),
       wideUnprofitablePct: share(wide.filter((r) => !r.profitable).length, wide.length),
-      wideOver100Pct: share(wide.filter((r) => r.grossM > 100).length, wide.length),
-      wideOver500Pct: share(wide.filter((r) => r.grossM > 500).length, wide.length),
-      wideOver1000Pct: share(wide.filter((r) => r.grossM > 1000).length, wide.length),
+      wideOver100PerYear: wide.filter((r) => r.grossM > 100).length / (SEEDS * YEARS),
+      wideOver500PerYear: wide.filter((r) => r.grossM > 500).length / (SEEDS * YEARS),
+      wideOver1000PerYear: wide.filter((r) => r.grossM > 1000).length / (SEEDS * YEARS),
       topDecileWideSharePct: topDecileWideShare(all),
       wideRunWeeks: mean(wide.map((r) => r.runWeeks)),
       limitedRunWeeks: mean(limited.map((r) => r.runWeeks)),

@@ -1,3 +1,4 @@
+import { describeBetOutcomes } from '../../engine/ambitionPresentation';
 import { useStudio } from '../../state/StudioContext';
 import { deriveFocusedFilm, collectFilmStats, milestoneFactsFromFilm } from '../../state/selectors';
 import {
@@ -92,6 +93,9 @@ function WhyItLanded({ results, genre }: { results: FilmResults; genre: Genre })
   const reception = deriveReceptionRead(results.criticScore, results.audienceScore);
   const { strengths, weaknesses } = deriveFilmInsights(results, genre);
   const balanced = strengths.length === 0 && weaknesses.length === 0;
+  // Which of the film's ambition bets clearly paid off or clearly didn't
+  // (docs/DESIGN_REVIEW_ambition_and_delivery.md §2.4). Empty for a safe film.
+  const betNotes = describeBetOutcomes(results);
 
   return (
     <div className="card stack">
@@ -108,6 +112,14 @@ function WhyItLanded({ results, genre }: { results: FilmResults; genre: Genre })
         </div>
       </div>
       {reception.divergence && <p className="reception-divergence">{reception.divergence}</p>}
+
+      {betNotes.length > 0 && (
+        <ul className="bet-outcomes" style={{ margin: 0, paddingLeft: '1.1em' }}>
+          {betNotes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      )}
 
       {balanced ? (
         <p className="insight-empty" style={{ marginTop: 4 }}>

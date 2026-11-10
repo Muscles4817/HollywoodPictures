@@ -1591,6 +1591,14 @@ export interface FilmResults {
   audienceScore: number; // 0-100
   buzzScore: number; // 0-100
   qualityScore: number; // 0-100, internal weighted quality
+  /**
+   * How each ambition bet actually landed, -1 (it failed) .. +1 (it paid off):
+   * the bet's reach times its delivery (engine/scoring.ts:computeBetOutcomes,
+   * docs/DESIGN_REVIEW_ambition_and_delivery.md). 0 where nothing was at stake.
+   * Read only by presentation (engine/ambitionPresentation.ts) - never shown as
+   * a number. Absent on hand-built results.
+   */
+  ambitionBets?: { concept: number; structure: number; spectacle: number };
   // Per-department breakdown behind qualityScore, surfaced on the results
   // screen so the player can see WHY the film scored the way it did instead
   // of just a single number.

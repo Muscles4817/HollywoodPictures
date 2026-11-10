@@ -31,6 +31,18 @@ import { RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS, MARKETING_S
 import { logT, interpolateScale, type Range, type ScaleAnchor } from './interpolate';
 import { createAudienceSimulationFixedState, type AudienceSimulationFixedState } from './audienceSimulation';
 import { isScreenCollapseArmed, openingRushMultiplier, rushSeverity } from './marketing';
+import {
+  AUDIENCE_REVIEW_MULTIPLIER,
+  GENRE_REVIEW_SENSITIVITY,
+  PRESOLD_REVIEW_DAMPING,
+  OPENING_REVIEW_WEIGHT,
+  AWARENESS_REVIEW_WEIGHT,
+  REVIEW_SIGNAL_PIVOT,
+  REVIEW_SIGNAL_SPAN,
+} from '../data/reviewSensitivity';
+import { EXPECTED_RECEPTION_BASE, EXPECTED_RECEPTION_PER_BUZZ } from '../data/wordOfMouth';
+import { AUDIENCE_REPEATABILITY, GENRE_REPEATABILITY, REPEATABILITY_WEIGHTS } from '../data/repeatViewing';
+import { HOME_WINDOW_WEEKLY_ATTRITION } from '../data/theatricalWindow';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -165,6 +177,8 @@ export interface ReleaseSimulationInputs {
    * armed, behaviour identical to before.
    */
   marketingRunwayWeeks?: number;
+  /** Script.franchiseRecognition, 0-100 (absent = an original). A pre-sold audience has decided before the reviews land - damps the opening's review sensitivity (data/reviewSensitivity.ts). */
+  scriptFranchiseRecognition?: number;
 }
 
 // --- Total addressable audience -------------------------------------------
@@ -202,7 +216,14 @@ export interface ReleaseSimulationInputs {
 // billion-scale top end too (calibration doc §1). Paired with a word-of-mouth
 // re-tune (audienceSimulationStep.ts) so the smaller pools don't amplify the
 // reproduction loop.
-const BASE_ADDRESSABLE_POPULATION = 200_000_000;
+// Trimmed again 200M -> 190M (docs/DESIGN_REVIEW_box_office_variance_diagnosis.md
+// §12) after the reception, word-of-mouth, repeat-viewing and platform-run fixes
+// each added a little revenue: measured on three seed sets, the market sat 1-2
+// points too profitable (majorPct over, lossPct at its floor). The level lever on
+// purpose - RECEPTION_PIVOT was swept first and moved nothing beyond the gate's
+// own ~1-point noise, and the new mechanisms are each calibrated against the
+// domain reference, so they are not the place to take the level back out.
+const BASE_ADDRESSABLE_POPULATION = 190_000_000;
 
 // Franchise/IP marketability expands the *eligible* pool - the audience already
 // pre-disposed to want this - which is the calibration doc's §1.1 "franchise
@@ -674,11 +695,17 @@ const DISTRIBUTION_PROFILES: Record<SupportedReleaseType, DistributionProfile> =
     initialAvailabilityFraction: 0.95, availabilityBaseWeeklyDecay: 0.18, criticLedExpansionWeight: 0,
   },
   Limited: {
-    conversionPacingBaseline: 0.06,
-    initialAvailabilityFraction: 0.1, availabilityBaseWeeklyDecay: 0.02, criticLedExpansionWeight: 0,
+    conversionPacingBaseline: 0.12,
+    // Was 0.1, which opened a platform release on more screens than its demand
+    // filled (seats ~27% full in week 1), so no film ever expanded - every one
+    // only contracted. A platform release opens small enough for a good film to
+    // play to full houses and expand on its per-screen average (docs/domain/09
+    // §7.2); a weak one contracts. Pacing is deliberately NOT raised (see the
+    // note above: that amplifies gross through the expansion loop).
+    initialAvailabilityFraction: 0.05, availabilityBaseWeeklyDecay: 0.02, criticLedExpansionWeight: 0,
   },
   'Festival First': {
-    conversionPacingBaseline: 0.05,
+    conversionPacingBaseline: 0.10,
     initialAvailabilityFraction: 0.02, availabilityBaseWeeklyDecay: 0.015, criticLedExpansionWeight: 0.65,
   },
 };
@@ -1002,7 +1029,7 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     marketingEfficiency,
     crossoverCapacityFraction,
     conversionPacingBaseline,
-    externalWeeklyAwarenessRate,
+    externalWeeklyAwarenessRate: clamp(externalWeeklyAwarenessRate * computeReviewAwarenessMultiplier(inputs, eventScale), 0, 1),
     criticScore: inputs.criticScore,
     audienceScore: inputs.audienceScore,
     initialAwareCount,
@@ -1010,8 +1037,65 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     availabilityBaseWeeklyDecay: distribution.availabilityBaseWeeklyDecay,
     criticLedExpansionWeight: distribution.criticLedExpansionWeight,
     ...(rush === undefined ? {} : { openingRushMultiplier: openingRushMultiplier(rush), screenCollapseArmed: isScreenCollapseArmed(rush) }),
+    openingReviewMultiplier: computeOpeningReviewMultiplier(inputs, eventScale),
+    expectedReception: computeExpectedReception(inputs.buzzScore),
+    repeatability: computeRepeatability(inputs, eventScale),
+    homeWindowAttrition: HOME_WINDOW_WEEKLY_ATTRITION,
   });
 }
+
+/**
+ * 0..1 how repeatable a film is (data/repeatViewing.ts, docs/domain/10 §16.2):
+ * genre (spectacle, density, emotion), audience (family obligation, fandom),
+ * spectacle that rewards a better screen (the script's own spectacle, lifted by
+ * event scale), and fandom from a pre-sold franchise.
+ */
+export function computeRepeatability(
+  inputs: Pick<ReleaseSimulationInputs, 'genre' | 'targetAudience' | 'scriptSpectacle' | 'scriptFranchiseRecognition'>,
+  eventScale: number,
+): number {
+  const spectacle = clamp(inputs.scriptSpectacle / 100, 0, 1) * (0.5 + 0.5 * clamp(eventScale, 0, 1));
+  const fandom = clamp((inputs.scriptFranchiseRecognition ?? 0) / 100, 0, 1);
+  return clamp(
+    REPEATABILITY_WEIGHTS.genre * GENRE_REPEATABILITY[inputs.genre] +
+      REPEATABILITY_WEIGHTS.audience * AUDIENCE_REPEATABILITY[inputs.targetAudience] +
+      REPEATABILITY_WEIGHTS.spectacle * spectacle +
+      REPEATABILITY_WEIGHTS.fandom * fandom,
+    0,
+    1,
+  );
+}
+
+/** The reception a film's Buzz promised (data/wordOfMouth.ts): the bar word of mouth measures delivery against. */
+export function computeExpectedReception(buzzScore: number): number {
+  return clamp(EXPECTED_RECEPTION_BASE + EXPECTED_RECEPTION_PER_BUZZ * clamp(buzzScore, 0, 100), 0, 100);
+}
+
+type ReviewInputs = Pick<ReleaseSimulationInputs, 'genre' | 'targetAudience' | 'scriptFranchiseRecognition' | 'criticScore'>;
+
+/** How much this film reads its reviews before release pattern decides how - genre x audience, damped when pre-sold. See data/reviewSensitivity.ts for the reference behind each term. */
+export function computeReviewSensitivity(inputs: Omit<ReviewInputs, 'criticScore'>, eventScale: number): number {
+  const preSold = Math.max(clamp((inputs.scriptFranchiseRecognition ?? 0) / 100, 0, 1), clamp(eventScale, 0, 1));
+  return GENRE_REVIEW_SENSITIVITY[inputs.genre] * AUDIENCE_REVIEW_MULTIPLIER[inputs.targetAudience] * (1 - PRESOLD_REVIEW_DAMPING * preSold);
+}
+
+/** -1..+1: how far the reviews sit from the market's median critic score. */
+export function reviewSignal(criticScore: number): number {
+  return clamp((criticScore - REVIEW_SIGNAL_PIVOT) / REVIEW_SIGNAL_SPAN, -1, 1);
+}
+
+/** Wide releases: week-1 attendance multiplier from reviews as permission. 1 for other release types. */
+export function computeOpeningReviewMultiplier(inputs: ReviewInputs & { releaseType: SupportedReleaseType }, eventScale: number): number {
+  return 1 + OPENING_REVIEW_WEIGHT[inputs.releaseType] * computeReviewSensitivity(inputs, eventScale) * reviewSignal(inputs.criticScore);
+}
+
+/** Limited releases: multiplier on the ongoing outside-awareness rate from reviews as awareness. 1 for other release types. */
+export function computeReviewAwarenessMultiplier(inputs: ReviewInputs & { releaseType: SupportedReleaseType }, eventScale: number): number {
+  return 1 + AWARENESS_REVIEW_WEIGHT[inputs.releaseType] * computeReviewSensitivity(inputs, eventScale) * reviewSignal(inputs.criticScore);
+}
+
+/** The opening screen share below which a release counts as a platform release for the rush penalty (Limited's opening share when the penalty was calibrated). */
+const RUSH_BREADTH_PLATFORM_AVAILABILITY = 0.1;
 
 /**
  * 0..1 breadth of a release for the rush penalty: 0 at (or below) a Limited
@@ -1020,7 +1104,9 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
  * deal (or a weak package) is proportionally less exposed.
  */
 export function computeRushBreadth(uncrowdedAvailabilityFraction: number): number {
-  const platform = distributionProfile('Limited').initialAvailabilityFraction;
+  // Its own reference rather than Limited's opening share, so retuning how
+  // platform releases open never shifts the rush penalty on wide ones.
+  const platform = RUSH_BREADTH_PLATFORM_AVAILABILITY;
   const full = distributionProfile('Wide').initialAvailabilityFraction;
   return Math.min(1, Math.max(0, (uncrowdedAvailabilityFraction - platform) / (full - platform)));
 }

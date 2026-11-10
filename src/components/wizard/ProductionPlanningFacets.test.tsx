@@ -35,6 +35,13 @@ describe('ProductionPlanning — craft-facet conversation cards', () => {
     expect(screen.getByText('Stunts & Practical Effects')).toBeInTheDocument();
   });
 
+  it('says how much the plan is betting, in words', () => {
+    renderPlanningWithStuntPool();
+    expect(screen.getByText('How Much Is Riding On This')).toBeInTheDocument();
+    // One of the four qualitative readings, never a number.
+    expect(screen.getByText(/safe, dependable|Some creative risk|An ambitious swing|A high-wire act/)).toBeInTheDocument();
+  });
+
   it('offers the world Stunt Team roster to hire, and attaching one sticks', () => {
     const pool = renderPlanningWithStuntPool();
     const select = screen.getByLabelText('Stunt Team') as HTMLSelectElement;

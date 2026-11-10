@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { deriveAudienceSimulationFixedState, type ReleaseSimulationInputs } from './audienceSimulationInputs';
 import { advanceToWeek, advanceToWeekWithDiagnostics, MAX_SIMULATION_WEEKS, hasSimulationEnded } from './audienceSimulationStep';
-import { maxInterestedAudience, deriveWeeklyAdmissions, type AudienceSimulationWeekState } from './audienceSimulation';
+import { maxInterestedAudience, deriveWeeklyAdmissions, uniqueViewers, type AudienceSimulationWeekState } from './audienceSimulation';
 
 /**
  * Every constant here (buzz/marketing/reception levels, release types) was
@@ -48,7 +48,8 @@ function totalAdmissions(weeks: AudienceSimulationWeekState[]): number {
 }
 
 function maxEverInterested(weeks: AudienceSimulationWeekState[]): number {
-  return Math.max(0, ...weeks.map((w) => w.interestedRemaining + w.cumulativeTicketsSold));
+  // People, not tickets: repeat visits (docs/domain/10 §16) are the same people again.
+  return Math.max(0, ...weeks.map((w) => w.interestedRemaining + uniqueViewers(w)));
 }
 
 describe('deriveAudienceSimulationFixedState - basic construction', () => {
@@ -422,8 +423,13 @@ describe('named archetype diagnostics', () => {
     // "Small opening" relative to this film's own addressable audience, not a hardcoded headcount - stays true regardless of how BASE_ADDRESSABLE_POPULATION (engine/audienceSimulationInputs.ts) is calibrated.
     expect(admissions[0]).toBeLessThan(fixed.totalAddressableAudience * 0.005);
     expect(weeks.length).toBeGreaterThanOrEqual(8); // a real, sustained run, not a quick flame-out
-    const laterWeek = admissions[Math.min(9, admissions.length - 1)];
-    expect(laterWeek).toBeGreaterThanOrEqual(admissions[0]); // week 10 (or the last available) at least matches week 1 - genuine growth
+    // Genuine growth: the run builds to a peak well after week 1. This used to
+    // ask week 10 to still match week 1; with the home window taking the tail
+    // after week 6 (data/theatricalWindow.ts) a sleeper builds, peaks and fades,
+    // as the reference's platform shape does (docs/domain/10 §2.7).
+    const peakIndex = admissions.indexOf(Math.max(...admissions));
+    expect(peakIndex).toBeGreaterThanOrEqual(2);
+    expect(admissions[peakIndex]).toBeGreaterThan(admissions[0] * 1.2);
   });
 
   it('3. huge opening with exceptional reception: a genuine phenomenon - both a big opening and a big total', () => {

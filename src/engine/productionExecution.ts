@@ -13,6 +13,7 @@
 // There is no new randomness at release (the randomness already happened, day
 // by day, during the shoot). This is the whole point - see
 // SIMULATION_PHILOSOPHY.md Principles 1 & 2.
+import { CRAFT_FACET_KEYWORDS } from '../data/eventImpactRouting';
 import type {
   CraftFacet,
   ProductionChoices,
@@ -51,9 +52,11 @@ const CLASSIFICATION_RULES: KeywordRule[] = [
   // 'safety', which would catch 'setpiece'/'sound-design' or sweep in the generic
   // risk-safety/risk-technical incidents (those stay in general execution, below).
   // The genuine genre templates also carry an explicit `impact`, which wins.
-  { impact: 'sets', keywords: ['set-collapse', 'ambitious-set', 'design-breakthrough', 'worldbuilding', 'scenic', 'set-design', 'set-dressing', 'backdrop', 'production-design'] },
-  { impact: 'vfx', keywords: ['vfx', 'greenscreen', 'green-screen', 'scope-creep', 'design-ambition', 'cgi'] },
-  { impact: 'practical', keywords: ['practical', 'stunt-gag', 'stunt-reshoot', 'stunt-double', 'squib', 'rig-slow', 'signature-oner', 'double-injury', 'creature', 'prop-malfunction', 'setpiece', 'set-piece', 'animatronic', 'pyro'] },
+  // The token lists live in data/eventImpactRouting.ts, shared with
+  // data/productionEvents.ts:tagImpact so a bank default can't pre-empt them.
+  { impact: 'sets', keywords: [...CRAFT_FACET_KEYWORDS.sets] },
+  { impact: 'vfx', keywords: [...CRAFT_FACET_KEYWORDS.vfx] },
+  { impact: 'practical', keywords: [...CRAFT_FACET_KEYWORDS.practical] },
   { impact: 'visual', keywords: ['safety', 'stunt', 'explosion', 'rig', 'injury', 'near-miss', 'hazard', 'technical', 'vfx', 'equipment', 'render', 'effects', 'set', 'prop', 'design', 'gore', 'creature', 'scifi', 'fantasy', 'horror', 'action'] },
   { impact: 'general', keywords: ['budget', 'financing', 'contingency', 'corners', 'reserve', 'discount', 'exchange', 'vendor', 'insurance'] },
   { impact: 'performances', keywords: ['actor', 'lead', 'cast', 'chemistry', 'improv', 'raw-take', 'coach', 'performance', 'nailed'] },
