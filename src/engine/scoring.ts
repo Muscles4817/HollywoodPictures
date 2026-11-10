@@ -18,8 +18,22 @@ import { deriveCommercialProfile } from './commercialProfile';
 import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
 import { getActorCareer, getDirectorCareer, getCrewCareer } from './person';
 import { computeSetsAmbition, computeSetsFacet, defaultDesignPrepDays, realiseSetsQuality, NO_DESIGNER_SKILL } from './setsFacet';
-import { computeVfxFacet, realiseVfxQuality, vfxSupervisorSkill } from './vfxFacet';
-import { computePracticalFacet, realisePracticalQuality, NO_STUNT_TEAM_SKILL } from './practicalFacet';
+import {
+  AUD_CONFUSION,
+  AUD_SPECTACLE_GAIN,
+  CRITIC_SPECTACLE_GAIN,
+  CRITIC_STRUCTURE_GAIN,
+  SPECTACLE_DELIVERY_SPAN,
+  SPECTACLE_REACH_FLOOR,
+  SPECTACLE_REACH_SPAN,
+  STRUCTURE_DELIVERY_SPAN,
+  STRUCTURE_PERFORMANCE_MEDIAN,
+  STRUCTURE_POST_MEDIAN,
+  STRUCTURE_REACH_FLOOR,
+  STRUCTURE_REACH_SPAN,
+} from '../data/ambitionBets';
+import { computeVfxAmbition, computeVfxFacet, realiseVfxQuality, vfxSupervisorSkill } from './vfxFacet';
+import { computePracticalAmbition, computePracticalFacet, realisePracticalQuality, NO_STUNT_TEAM_SKILL } from './practicalFacet';
 import { computeCinematographyFacet } from './cinematographyFacet';
 import { computeScoreFacet } from './scoreFacet';
 import { computeEditFacet } from './editFacet';
@@ -398,6 +412,17 @@ export interface QualityBreakdown {
   postProductionScore: number;
   eventsScore: number;
   qualityScore: number;
+  /**
+   * Ambition bets (data/ambitionBets.ts, docs/DESIGN_REVIEW_ambition_and_delivery.md):
+   * how far the plan reached on each dimension (0..1) and how that specific thing
+   * came out on the shoot (-1..+1, the median shoot is 0). Read by
+   * computeCriticScore / computeAudienceScore. Optional so a hand-built breakdown
+   * (tests, forecasts) reads as "no bet" - exactly the old behaviour.
+   */
+  structureReach?: number;
+  structureDelivery?: number;
+  spectacleReach?: number;
+  spectacleDelivery?: number;
 }
 
 // Per-link independence floors for the soft-ceiling dependency chain below -
@@ -687,8 +712,142 @@ export function computeQualityBreakdown(
 
   const qualityScore = clamp(shaped * postRealisation + QUALITY_COMPOSITION_LEVEL + developmentQualityDelta, 0, 100);
 
-  return { scriptScore, directionScore, actingScore, productionScore, productionDesignScore, postProductionScore, eventsScore, qualityScore };
+  const structure = computeStructureBet(script, execution);
+  const spectacle = computeSpectacleBet(productionChoices, genre, shootingRatio, talent, script, execution, stuntTeamSkill);
+
+  return {
+    scriptScore,
+    directionScore,
+    actingScore,
+    productionScore,
+    productionDesignScore,
+    postProductionScore,
+    eventsScore,
+    qualityScore,
+    structureReach: structure.reach,
+    structureDelivery: structure.delivery,
+    spectacleReach: spectacle.reach,
+    spectacleDelivery: spectacle.delivery,
+  };
 }
+
+const unit = (x: number) => clamp(x, -1, 1);
+
+/**
+ * Structure bet: an intricate script (complexity) realised through the
+ * performances and the cut. Delivery is the captured performances and the post
+ * execution, each measured from the median shoot.
+ */
+export function computeStructureBet(script: Script, execution: ExecutionProfile): { reach: number; delivery: number } {
+  const reach = clamp((script.complexity - STRUCTURE_REACH_FLOOR) / STRUCTURE_REACH_SPAN, 0, 1);
+  const performance = unit((execution.performanceCapture - STRUCTURE_PERFORMANCE_MEDIAN) / STRUCTURE_DELIVERY_SPAN);
+  const cut = unit((execution.postExecution - STRUCTURE_POST_MEDIAN) / STRUCTURE_DELIVERY_SPAN);
+  return { reach, delivery: (performance + cut) / 2 };
+}
+
+/**
+ * Spectacle bet: how much the plan's effects and design reached for (each
+ * facet's ambition, weighted by how much the genre cares about it) and how they
+ * came out - each facet's realised quality less its planned base, i.e. the facet
+ * execution swing the shoot's own effects events produced. That swing is bounded
+ * by the facet's funding stretch, so a well-funded spectacle stays dependable
+ * (facetModel.ts: "comfortably-funded is dependable, over-reaching is a
+ * gamble") and only an over-reaching one becomes a real bet.
+ */
+export function computeSpectacleBet(
+  choices: ProductionChoices,
+  genre: Genre,
+  shootingRatio: number,
+  talent: TalentAssignment[],
+  script: Script,
+  execution: ExecutionProfile,
+  stuntTeamSkill: number = NO_STUNT_TEAM_SKILL,
+): { reach: number; delivery: number } {
+  const profile = GENRE_PROFILES[genre];
+  const vfxSkill = vfxSupervisorSkill(talent);
+  const vfxFacet = computeVfxFacet(choices.vfxAmount, talent, genre, script);
+  const practicalFacet = computePracticalFacet(choices.practicalEffectsAmount, genre, script, shootingRatio, stuntTeamSkill);
+  const facets = [
+    {
+      weight: profile.vfxImportance,
+      ambition: computeVfxAmbition(genre, script),
+      swing: realiseVfxQuality(vfxFacet, vfxSkill, execution.facetSignals.vfx ?? 0) - realiseVfxQuality(vfxFacet, vfxSkill, 0),
+    },
+    {
+      weight: profile.practicalEffectsImportance,
+      ambition: computePracticalAmbition(genre, script),
+      swing: realisePracticalQuality(practicalFacet, stuntTeamSkill, execution.facetSignals.practical ?? 0) - realisePracticalQuality(practicalFacet, stuntTeamSkill, 0),
+    },
+    {
+      weight: SPECTACLE_SETS_WEIGHT,
+      ambition: computeSetsAmbition(script),
+      swing: computeSetsFacetQuality(choices, talent, script, execution.facetSignals.sets ?? 0) - computeSetsFacetQuality(choices, talent, script, 0),
+    },
+  ];
+  const totalWeight = facets.reduce((a, f) => a + f.weight, 0);
+  if (totalWeight <= 0) return { reach: 0, delivery: 0 };
+  const ambition = facets.reduce((a, f) => a + f.weight * f.ambition, 0) / totalWeight;
+  const swing = facets.reduce((a, f) => a + f.weight * f.swing, 0) / totalWeight;
+  return {
+    reach: clamp((ambition - SPECTACLE_REACH_FLOOR) / SPECTACLE_REACH_SPAN, 0, 1),
+    delivery: unit(swing / SPECTACLE_DELIVERY_SPAN),
+  };
+}
+
+/**
+ * How much a PLAN is betting - the reception swing its ambition puts in play,
+ * in reception points, before a frame is shot (docs/DESIGN_REVIEW_ambition_and_delivery.md
+ * §2.4, §4). Each dimension's reach times the size of its bet: concept (the
+ * originality bet, ±18 critic / −22 audience), structure (±10 / −12) and
+ * spectacle (±3 / ±10). The single source for both the planning readout and the
+ * variance gate's "spread follows reach" assertion, so the two cannot disagree.
+ * Spectacle reach counts only as far as the plan over-reaches its funding: a
+ * well-funded spectacle is dependable (facetModel.ts), so it is not a bet.
+ */
+export function computeBetExposure(
+  script: Script,
+  choices: ProductionChoices,
+  genre: Genre,
+  talent: TalentAssignment[],
+): { concept: number; structure: number; spectacle: number; total: number } {
+  const concept = Math.max(0, conceptDistinctiveness(script));
+  const structure = computeStructureBet(script, NEUTRAL_EXECUTION).reach;
+  const vfxStretch = computeVfxFacet(choices.vfxAmount, talent, genre, script).stretch;
+  const practicalStretch = computePracticalFacet(choices.practicalEffectsAmount, genre, script, 1).stretch;
+  const spectacleReach = computeSpectacleBet(choices, genre, 1, talent, script, NEUTRAL_EXECUTION).reach;
+  const spectacle = spectacleReach * clamp(Math.max(vfxStretch, practicalStretch) / SPECTACLE_STRETCH_FOR_FULL_BET, 0, 1);
+  const total = EXPOSURE_CONCEPT_POINTS * concept + EXPOSURE_STRUCTURE_POINTS * structure + EXPOSURE_SPECTACLE_POINTS * spectacle;
+  return { concept, structure, spectacle, total };
+}
+
+/** Reception points each dimension can swing a film by (the mean of its critic and audience bet sizes). */
+const EXPOSURE_CONCEPT_POINTS = 20;
+const EXPOSURE_STRUCTURE_POINTS = 11;
+const EXPOSURE_SPECTACLE_POINTS = 6.5;
+/** Facet stretch at which a spectacle plan counts as fully over-reaching (facetModel.ts calls 0.35+ "wide"). */
+const SPECTACLE_STRETCH_FOR_FULL_BET = 0.35;
+/** A shoot with no events - every multiplier 1, no facet signals. Reach never depends on the shoot; this just satisfies the signatures. */
+const NEUTRAL_EXECUTION: ExecutionProfile = computeExecutionProfile({
+  events: [],
+  shootingRatio: 1,
+  talent: [],
+  productionChoices: { shootingBudgetAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0.5 },
+});
+
+/** How each ambition bet landed for a finished film, -1..+1 (reach x delivery) - recorded on FilmResults for the "which bet paid off" readout. */
+export function computeBetOutcomes(quality: QualityBreakdown, script: Script): { concept: number; structure: number; spectacle: number } {
+  // Rounded (only presentation reads these) and normalised so a zero is never
+  // -0, which JSON saves as 0 and would break a save round-trip's equality.
+  const tidy = (x: number) => Math.round(x * 1000) / 1000 + 0;
+  return {
+    concept: tidy(Math.max(0, conceptDistinctiveness(script)) * ambitionRealised(quality.qualityScore)),
+    structure: tidy((quality.structureReach ?? 0) * (quality.structureDelivery ?? 0)),
+    spectacle: tidy((quality.spectacleReach ?? 0) * (quality.spectacleDelivery ?? 0)),
+  };
+}
+
+/** Sets' weight in the spectacle blend, against the genre's 0-1 VFX / practical importances - production design is part of what's on screen, but rarely the reason people buy the ticket. */
+const SPECTACLE_SETS_WEIGHT = 0.4;
 
 /** Critic Score: craft-driven - quality, originality, direction, edit style. */
 // --- Reception: two different readings of the same film --------------------
@@ -799,7 +958,11 @@ export function computeCriticScore(
     CRITIC_FRANCHISE_FATIGUE * (clamp(script.franchiseRecognition ?? 0, 0, 100) / 100) -
     CRITIC_GENRE_PRESTIGE * (GENRE_PROFILES[genre].popularity - AVG_GENRE_POPULARITY) +
     CRITIC_WRITING_TILT * (quality.scriptScore - quality.productionScore) +
-    CRITIC_EDIT_GAIN * (criticalEditScore - 50);
+    CRITIC_EDIT_GAIN * (criticalEditScore - 50) +
+    // The other two bets (data/ambitionBets.ts): an intricate film that held
+    // together or didn't, and - far less, for critics - spectacle that landed or not.
+    CRITIC_STRUCTURE_GAIN * (quality.structureReach ?? 0) * (quality.structureDelivery ?? 0) +
+    CRITIC_SPECTACLE_GAIN * (quality.spectacleReach ?? 0) * (quality.spectacleDelivery ?? 0);
 
   return clamp(softBound(raw, CRITIC_KNEE, CRITIC_KNEE_SCALE, CRITIC_CEILING), 0, 100);
 }
@@ -855,7 +1018,12 @@ export function computeAudienceScore(
     AUD_FAMILIARITY * Math.max(0, -distinct) +
     AUD_SPECTACLE_TILT * (quality.productionScore - quality.scriptScore) +
     AUD_SELF_SELECTION * selfSelection +
-    AUD_EDIT_GAIN * (audienceEditingScore - 50);
+    AUD_EDIT_GAIN * (audienceEditingScore - 50) -
+    // Ambition bets (data/ambitionBets.ts): audiences punish a film that confuses
+    // them (one-sided, like alienation), and read spectacle both ways - the
+    // effects were the draw, or they looked unfinished.
+    AUD_CONFUSION * (quality.structureReach ?? 0) * Math.max(0, -(quality.structureDelivery ?? 0)) +
+    AUD_SPECTACLE_GAIN * (quality.spectacleReach ?? 0) * (quality.spectacleDelivery ?? 0);
 
   return clamp(topCompressed(raw, AUDIENCE_KNEE, AUDIENCE_KNEE_SCALE), 0, 100);
 }

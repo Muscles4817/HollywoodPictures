@@ -118,6 +118,25 @@ describe('ReleaseResults - story-ordered redesign moves raw numbers into a dev p
     expect(screen.getByText('Studio Impact')).toBeInTheDocument();
   });
 
+  it('names an ambition bet that paid off, and stays quiet about one that landed as planned', () => {
+    const released = studioReducer(buildStateWithReadyDraft(7), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
+    const withBets: GameState = {
+      ...finished,
+      projects: finished.projects.map((p) =>
+        p.kind === 'released' ? { ...p, film: { ...p.film, results: { ...p.film.results, ambitionBets: { concept: 0.8, structure: 0.05, spectacle: 0 } } } } : p,
+      ),
+    };
+    saveState(withBets);
+    render(
+      <StudioProvider>
+        <ReleaseResults />
+      </StudioProvider>,
+    );
+    expect(screen.getByText(/The bold concept came off/)).toBeInTheDocument();
+    expect(screen.queryByText(/intricate structure/)).not.toBeInTheDocument();
+  });
+
   it('surfaces a per-actor casting verdict for each cast member', () => {
     const released = studioReducer(buildStateWithReadyDraft(7), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);

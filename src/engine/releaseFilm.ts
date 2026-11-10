@@ -11,7 +11,7 @@ import type {
   Tone,
 } from '../types';
 import { applyDirectorToneShift } from './directorPitch';
-import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown, combineProductionEvents } from './scoring';
+import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown, combineProductionEvents, computeBetOutcomes } from './scoring';
 import { computeExecutionProfile, summarizeExecution } from './productionExecution';
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { deriveAudienceSimulationFixedState, type SupportedReleaseType } from './audienceSimulationInputs';
@@ -468,6 +468,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     audienceScore: Math.round(audienceScore),
     buzzScore: Math.round(buzzScore),
     qualityScore: Math.round(quality.qualityScore),
+    ambitionBets: computeBetOutcomes(quality, script),
     scriptScore: Math.round(quality.scriptScore),
     directionScore: Math.round(quality.directionScore),
     actingScore: Math.round(quality.actingScore),
