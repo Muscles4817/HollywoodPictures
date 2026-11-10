@@ -690,6 +690,30 @@ market-level problem:**
    than a market-level one, worth its own look if it should clear the floor
    reliably.
 
+## 13. Decisions on the last two bands (2026-11-10)
+
+- **`wideOver100Pct` → `wideOver100PerYear` (55–70)**, as the $500M/$1B bands
+  were. It does not pass cleanly:
+
+  | | seeds 4000 | 5000 | 6000 |
+  |---|--:|--:|--:|
+  | $100M+ wide releases a year | 51.8 | 55.0 | 53.0 |
+
+  It is a few films a year short of the real ~55–70. Before step 3's 5% audience
+  trim it was ~55. Neither the model nor the band was adjusted to make it pass.
+  It is the same root as the share reading high: the model's field of wide
+  releases (~85 a year) is smaller than the real ~110. Growing that field is a
+  rival-slate question (`DESIGN_REVIEW_slate_width.md`), not a level one.
+- **`breakevenPct` left failing by decision.** The reasons are recorded in the
+  harness next to the band and in §4.2.
+
+**Distribution gate now:** 18/21, 19/21 and 18/21 on the three seed sets. The
+misses:
+- `breakevenPct`, by decision;
+- `wideOver100PerYear` on two sets, a few films short;
+- `specialtyFilmsPerYear` on two sets, at its floor;
+- `wideOpeningMultiple` on one set, at its edge.
+
 ## 7. Proposed fix order (for a separate, greenlit pass)
 
 1. ~~**Star sweep**~~ **Done (§5.3): underpowered.** Fame moves gross 1–10%

@@ -44,7 +44,6 @@ const TARGETS = {
   wideMedianGrossM: [120, 190] as [number, number],
   wideMeanGrossM: [200, 300] as [number, number],
   wideUnprofitablePct: [40, 52] as [number, number],
-  wideOver100Pct: [45, 60] as [number, number],
   // Counts per industry-year, not shares of the wide field. As shares these
   // were not scale-invariant: the same number of $500M films reads as a bigger
   // share of a smaller field, and the model's field (~82 wide releases a year)
@@ -53,6 +52,10 @@ const TARGETS = {
   // docs/DESIGN_REVIEW_box_office_variance_diagnosis.md §4.1, §6). The same
   // correction §11.3 made for top-10 share by moving to a decile. This made
   // two failing gates pass without the model moving - recorded, not hidden.
+  // The $100M band followed on 2026-11-10 (diagnosis §12-13): as a share it read
+  // 61-64% against 45-60 while its count sat inside the real ~55-70 range - the
+  // same defect - and was left as a share only because nobody had decided it.
+  wideOver100PerYear: [55, 70] as [number, number],
   wideOver500PerYear: [10, 15] as [number, number],
   wideOver1000PerYear: [2, 5] as [number, number],
   // The top decile of wide releases' share of wide-release gross. Real: the top
@@ -107,6 +110,11 @@ const TARGETS = {
   // twelve-film sample can support, not that the model has improved.
   bombPct: [4, 14] as [number, number], // return < 0.4x
   lossPct: [28, 45] as [number, number], // 0.4-1.0x
+  // Left failing BY DECISION (2026-11-10, diagnosis §4.2, §12-13): the return
+  // distribution is smooth, this band is a quarter-turn wide, and its share was
+  // read off a twelve-film slate where three films landed in it. Tuning the
+  // model towards a local bump at exactly 1.0-1.25x would be tuning to the test.
+  // A red here is expected; re-derive the band before treating it as a defect.
   breakevenPct: [14, 35] as [number, number], // 1.0-1.25x
   modestPct: [15, 38] as [number, number], // 1.25-2.5x
   majorPct: [2, 14] as [number, number], // 2.5-5x
@@ -376,7 +384,7 @@ describe.skipIf(!enabled)('box office whole-year distribution & profitability ca
       wideMedianGrossM: median(wideGross),
       wideMeanGrossM: mean(wideGross),
       wideUnprofitablePct: share(wide.filter((r) => !r.profitable).length, wide.length),
-      wideOver100Pct: share(wide.filter((r) => r.grossM > 100).length, wide.length),
+      wideOver100PerYear: wide.filter((r) => r.grossM > 100).length / (SEEDS * YEARS),
       wideOver500PerYear: wide.filter((r) => r.grossM > 500).length / (SEEDS * YEARS),
       wideOver1000PerYear: wide.filter((r) => r.grossM > 1000).length / (SEEDS * YEARS),
       topDecileWideSharePct: topDecileWideShare(all),
