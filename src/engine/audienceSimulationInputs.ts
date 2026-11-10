@@ -216,7 +216,14 @@ export interface ReleaseSimulationInputs {
 // billion-scale top end too (calibration doc §1). Paired with a word-of-mouth
 // re-tune (audienceSimulationStep.ts) so the smaller pools don't amplify the
 // reproduction loop.
-const BASE_ADDRESSABLE_POPULATION = 200_000_000;
+// Trimmed again 200M -> 190M (docs/DESIGN_REVIEW_box_office_variance_diagnosis.md
+// §12) after the reception, word-of-mouth, repeat-viewing and platform-run fixes
+// each added a little revenue: measured on three seed sets, the market sat 1-2
+// points too profitable (majorPct over, lossPct at its floor). The level lever on
+// purpose - RECEPTION_PIVOT was swept first and moved nothing beyond the gate's
+// own ~1-point noise, and the new mechanisms are each calibrated against the
+// domain reference, so they are not the place to take the level back out.
+const BASE_ADDRESSABLE_POPULATION = 190_000_000;
 
 // Franchise/IP marketability expands the *eligible* pool - the audience already
 // pre-disposed to want this - which is the calibration doc's §1.1 "franchise

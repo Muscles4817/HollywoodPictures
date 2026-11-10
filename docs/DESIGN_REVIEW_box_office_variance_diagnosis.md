@@ -634,6 +634,62 @@ These are the market-level step (§10.2's step 3).
 They now assert real growth after week 1, runs ending before the cap, and a
 multiple at the top of the Limited band. Save key v97 → v98.
 
+## 12. Step 3: the market level (2026-11-10)
+
+**The gate's own noise, measured first.** The distribution harness now takes
+`SEED_BASE` (default 4000). The same code, run on seed sets 4000 / 5000 / 6000,
+reads up to about ±1 point apart on several bands. So a miss smaller than that
+is not a signal on its own, and a lever is only judged by what moves across all
+three.
+
+**`RECEPTION_PIVOT` (swept 0.19 → 0.22) moved nothing beyond that noise.** It
+was the lever the reception doc named for trading scale against profitability,
+but with the S-curve plateau, repeat viewing and the expectation gap in place it
+no longer has that reach. It is left at 0.19.
+
+**What was consistent across all three seed sets:** the market sat 1–2 points
+too profitable.
+
+| Band | 4000 / 5000 / 6000 | Target |
+|---|---|--:|
+| `majorPct` | 14.7 / 15.5 / 15.3 | 2–14 |
+| `lossPct` | 28.2 / 27.7 / 27.9 | 28–45 |
+| `wideUnprofitablePct` | at 40.4–41.4 | floor 40 |
+| `modestPct` | at 35.8–38.3 | ceiling 38 |
+
+That is the sum of four fixes that each added a little revenue. The level lever
+for it is the overall market size, which scales every film's gross equally and
+leaves every new mechanism's calibration against the reference intact.
+
+**`BASE_ADDRESSABLE_POPULATION` 200M → 190M (−5%).** −8% overshoots: the opening
+multiple drifts to 3.2 and the $500M count nears its floor.
+
+| | seeds 4000 | 5000 | 6000 |
+|---|--:|--:|--:|
+| Distribution gate | **18/21** | **18/21** | **18/21** |
+| `majorPct` | 12.0 | 13.0 | 12.8 |
+| `lossPct` | 28.6 | 29.9 | 30.6 |
+| `wideUnprofitablePct` | 45.5 | 43.0 | 45.2 |
+| Mean wide gross | $259M | $271M | $259M |
+
+Variance gate unchanged and passing (0.426 / 0.084, corr 0.93); buzz gate
+passing; full suite green.
+
+**The three that remain, the same on every seed set, and none of them a
+market-level problem:**
+1. **`wideOver100Pct` 61–64% (band 45–60).** As a count it is ~52–55 a year,
+   against the real ~55–70. This is the same scale-invariance defect v3 §13.1
+   found and the $500M/$1B bands were restated for; this one was left as a
+   share. **Decision needed:** restate it as a count, as was done for those two.
+2. **`breakevenPct` 10.7–12 (band 14–35).** §4.2: the return distribution is
+   smooth, and the band is a quarter-turn wide, drawn from a twelve-film slate.
+   The recommendation stands: don't tune towards it. **Decision needed:** leave
+   it failing, or re-derive it as §12.2 did the others.
+3. **`specialtyFilmsPerYear` 4.8–5.1 (floor 5).** Indie studios' own output,
+   set by their cash and greenlight behaviour. A rival-behaviour question rather
+   than a market-level one, worth its own look if it should clear the floor
+   reliably.
+
 ## 7. Proposed fix order (for a separate, greenlit pass)
 
 1. ~~**Star sweep**~~ **Done (§5.3): underpowered.** Fame moves gross 1–10%

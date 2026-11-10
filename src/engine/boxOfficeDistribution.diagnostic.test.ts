@@ -115,6 +115,9 @@ const TARGETS = {
 
 const YEARS = 8;
 const SEEDS = 6;
+// The industries the gate measures. Overridable (SEED_BASE=5000) to measure the gate's own run-to-run noise:
+// near-identical code reads about +-1 point apart on several bands, so a miss smaller than that is not a signal.
+const SEED_BASE = Number(process.env.SEED_BASE ?? 4000);
 const DAYS_PER_YEAR = 365;
 const HORIZON = YEARS * DAYS_PER_YEAR;
 
@@ -346,7 +349,7 @@ const enabled = Boolean(
 describe.skipIf(!enabled)('box office whole-year distribution & profitability calibration', () => {
   it('lands in the ratified target bands', () => {
     const all: Rec[] = [];
-    for (let s = 0; s < SEEDS; s++) all.push(...runOneSeed(4000 + s));
+    for (let s = 0; s < SEEDS; s++) all.push(...runOneSeed(SEED_BASE + s));
     // Per-film dump for offline analysis (scripts/analyseBoxOfficeDump.mjs) -
     // only when asked for. See docs/DESIGN_REVIEW_box_office_variance_diagnosis.md.
     if (process.env.DUMP_OUT) writeFileSync(process.env.DUMP_OUT, JSON.stringify(all));
