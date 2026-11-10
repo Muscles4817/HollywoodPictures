@@ -495,8 +495,10 @@ In rough order of predictive power:
 2. **Pre-sold IP** — a known franchise, sequel, or brand.
 3. **Screen count and format footprint** (IMAX/PLF allocation).
 4. **Genre** — horror and event action over-index on opening; drama does not.
-5. **Star power** — real but weaker than it was; a star reliably raises the
-   floor of interest more than the ceiling of gross.
+5. **Star power** — real but weaker than it was, and concentrated in a small
+   top tier. A star cushions a weak film's opening somewhat and wins it
+   screens, but in absolute dollars adds most to films that already look
+   strong (`17` §4).
 6. **Date and competition**.
 7. **Reviews** — matter enormously for adult and prestige films, and barely at
    all for pre-sold franchise openings (they show up in week two instead).
@@ -543,14 +545,22 @@ audience is older, decides on reviews and conversation, and does not consider
 the first weekend meaningful. This is why an $8M horror film can open to $30M
 and a $60M drama can open to $9M and both be working as designed.
 
-**Stars → floor, not ceiling.** A star's mechanism is *risk reduction for the
-undecided*: a recognisable lead gives an unconvinced viewer a reason to
-believe the film will be competently entertaining. That reliably lifts the
-floor of interest, which is why stars still command their quotes
-(`12-talent-labor-and-careers.md`). It does not create urgency, which is why
-star power no longer produces enormous openings by itself, and why the
-strongest star effects now appear internationally (§9) where a familiar face
-substitutes for cultural context.
+**Stars → screens, a cushion, and a multiplier.** A star's mechanism is *risk
+reduction for the undecided*: a recognisable lead gives an unconvinced viewer
+a reason to believe the film will be competently entertaining. The research
+splits what that buys into three effects (`17` §4). First, the most robust
+measured effect is on **screen allocation**: exhibitors book star films wider.
+Second, a star **cushions a weak film's opening** somewhat, relative to what
+its reviews would predict. Third, and largest in absolute dollars, a star acts
+as a **multiplier** of roughly 1.08–1.13 on the film's other draws, so the gain
+is biggest on films that already look strong. None of it survives bad word of
+mouth, and the effect is concentrated in the opening. A star does not create
+urgency by itself, which is why star power alone no longer produces enormous
+openings; the recent star-associated hits pair a top-tier name with an event
+premise and a premium-format release (`17` §3.3). The older claim that the
+strongest star effects now appear abroad holds for **pre-sales of genre
+packages** (`12` §3.2) but not for box office as a whole, where Hollywood's
+share in the biggest overseas markets has fallen sharply (`17` §6).
 
 **Date and competition → share of a fixed market.** Competition acts through
 two channels that are worth separating: **attention** (two campaigns for the

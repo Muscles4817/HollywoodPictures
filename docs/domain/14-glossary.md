@@ -123,7 +123,7 @@ a real location is not. `04` §14.2
 writing assignment. `02` §4.1
 
 **Bankability** — The extent to which a name reliably changes what a film can
-raise or open. `12` §3
+raise or open. `12` §3; the evidence on how much it does is in `17` §4
 
 **Beat sheet** — The scene-by-scene outline of an action sequence before it is
 shot. `08` §3.4
@@ -405,6 +405,9 @@ territories, rather than sequentially. `09` §7.2
 
 **DCP** — Digital Cinema Package, the encrypted deliverable cinemas play.
 `07` §6.1
+
+**Death of the movie star** — The trade shorthand for original star-led films
+losing their place at the top of the box office since the late 2000s. `17` §1
 
 **Deal memo** — The short binding document setting the deal's key terms,
 signed long before the long form. `12` §6.1
