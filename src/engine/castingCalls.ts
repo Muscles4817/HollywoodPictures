@@ -6,6 +6,7 @@
 // was due three weeks ago still only produces one fresh batch the next
 // time it's checked, exactly like settleOpportunities's own behavior, not
 // three retroactive ones).
+import { nextSequence } from './identity';
 import type { CastingApplicant, FilmDraft, GameDay, Money, Person, Script, ScriptCharacter, Studio, TalentAssignment } from '../types';
 import { ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole, findAssignedPerson } from '../data/helpers';
@@ -90,12 +91,10 @@ const DISCOVERY_SUITABILITY_FLOOR = 60;
 const INTERESTED_TALENT_SAMPLE_SIZE = 6;
 const INTERESTED_TALENT_MAX_HITS = 1;
 
-let nextCallId = 1;
-
 /** A fresh, empty casting call for one Character. */
 export function openCastingCall(characterId: string, role: 'Lead Actor' | 'Supporting Actor', openedOnDay: GameDay): FilmDraft['castingCalls'][number] {
   return {
-    id: `casting-call-${nextCallId++}`,
+    id: `casting-call-${nextSequence('castingCall')}`,
     characterId,
     role,
     openedOnDay,

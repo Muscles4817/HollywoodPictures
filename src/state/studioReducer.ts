@@ -2436,10 +2436,13 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
 
       // The resolved production is updatedTarget; the focused project passes
       // through untouched when this was answered from the Inbox for a different
-      // (backgrounded) prep.
+      // (backgrounded) prep. Nothing may be focused at all (answered from the
+      // Dashboard with no project open): `focusedDraft!` here used to push a
+      // null draft into the slate, which crashed the next action
+      // (found by state/playerBot.ts, the first caller to take that path).
       const playerDrafts = isFocused
         ? [updatedTarget, ...productionsInProgress]
-        : [focusedDraft!, updatedTarget, ...productionsInProgress];
+        : [...(focusedDraft ? [focusedDraft] : []), updatedTarget, ...productionsInProgress];
       return {
         ...state,
         rngSeed: nextSeed,
