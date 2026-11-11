@@ -19,7 +19,7 @@ import {
   recommendEnvironmentStrategy,
 } from '../engine/recommendation';
 import { footageLowerBound } from '../engine/production';
-import { computeDailyPrepBurn } from '../engine/cost';
+import { computeDailyPrepBurn, PREP_DAILY_BURN_FRACTION } from '../engine/cost';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
@@ -266,9 +266,9 @@ function scriptQuality(script: Script): number {
 }
 
 /**
- * Pre-production burns a fixed overhead every day whatever the film cost
- * (engine/cost.ts), so it has to come off the top before anything else is
- * budgeted - on a small film it is the largest single line.
+ * Pre-production burns overhead every day in proportion to the film's negative,
+ * up to a ceiling for its scale (engine/cost.ts), so it has to be allowed for
+ * before anything else is budgeted.
  */
 const PREP_DAYS_ALLOWANCE = 55;
 
@@ -278,8 +278,13 @@ const PREP_DAYS_ALLOWANCE = 55;
  * overhead, less the marketing that has to be left for the release.
  */
 function negativeBudgetFor(cash: number, strategy: BotStrategy, scale: Script['scale'], share = strategy.filmBudgetShare): number {
-  const overhead = strategy.budgetsForOverhead ? computeDailyPrepBurn(scale) * PREP_DAYS_ALLOWANCE : 0;
-  return (cash * share - overhead) / (1 + strategy.marketingRatio);
+  const allIn = cash * share;
+  if (!strategy.budgetsForOverhead) return allIn / (1 + strategy.marketingRatio);
+  // Overhead is a fraction of the negative until it hits the scale's ceiling,
+  // so the negative is whichever of the two regimes leaves more.
+  const proportional = allIn / (1 + strategy.marketingRatio + PREP_DAILY_BURN_FRACTION * PREP_DAYS_ALLOWANCE);
+  const capped = (allIn - computeDailyPrepBurn(scale, Infinity) * PREP_DAYS_ALLOWANCE) / (1 + strategy.marketingRatio);
+  return Math.max(proportional, capped);
 }
 
 /**

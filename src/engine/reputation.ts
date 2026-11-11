@@ -41,6 +41,16 @@ interface BrandChangeInputs {
  * as a true blockbuster would blur the exact distinction Brand/Prestige
  * exists to draw.
  */
+/** The gross at which a film is widely enough seen for its result to move Brand in full. */
+export const BRAND_FULL_VISIBILITY_GROSS = 8_000_000;
+/** Even a film almost nobody saw says a little about the studio that made it. */
+export const BRAND_MIN_VISIBILITY = 0.15;
+
+/** 0.15..1 - how much of a film's commercial result registers with the public, by how many saw it. */
+export function brandVisibility(totalBoxOffice: number): number {
+  return Math.min(1, Math.max(BRAND_MIN_VISIBILITY, totalBoxOffice / BRAND_FULL_VISIBILITY_GROSS));
+}
+
 export function computeBrandChange({
   profit,
   totalCost,
@@ -80,11 +90,16 @@ export function computeBrandChange({
     3,
   );
 
-  return (
-    profitabilityChange +
-    reachChange +
-    audienceAdjustment
-  );
+  // Brand is name recognition, so how far a result moves it depends on how many
+  // people saw the film - in both directions. A release that played to a few
+  // thousand people cannot erase a studio's name, and a small success cannot
+  // build one the way a film seen by millions does. Unscaled, every flop cost
+  // 8 points whatever its size, which drove every small studio to Brand 0
+  // (docs/DESIGN_REVIEW_player_economy.md §3.4).
+  const visibility = brandVisibility(totalBoxOffice);
+  // Scaled together and rounded once, so a small film's audience warmth can
+  // soften a commercial miss but never round it into a gain on its own.
+  return Math.round((profitabilityChange + audienceAdjustment) * visibility) + reachChange;
 }
 
 function clampInteger(

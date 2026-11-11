@@ -22,6 +22,7 @@ import {
   GENRE_INTERNATIONAL_APPEAL,
   INTERNATIONAL_DISTRIBUTION_MAX_TIER,
   INTERNATIONAL_KEEP_SHARE,
+  SALES_AGENT_FEE,
   INTERNATIONAL_REACH_BY_TIER,
   INTERNATIONAL_UPGRADE_COST_BY_TIER,
   SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER,
@@ -267,6 +268,20 @@ export function internationalReachForTier(tier: number): number {
   return INTERNATIONAL_REACH_BY_TIER[tier] ?? 0;
 }
 
+/**
+ * What the studio keeps of its overseas gross at a tier: the standard
+ * international share, less a sales agent's commission when it has no operation
+ * of its own (tier 0).
+ */
+export function internationalKeepShareForTier(tier: number): number {
+  return tier <= 0 ? INTERNATIONAL_KEEP_SHARE * (1 - SALES_AGENT_FEE) : INTERNATIONAL_KEEP_SHARE;
+}
+
+/** The overseas keep share frozen on a film, or the standard one for a film that carries none (rivals, older films). */
+export function internationalKeepShareForFilm(internationalKeepShare: number | undefined): number {
+  return internationalKeepShare ?? INTERNATIONAL_KEEP_SHARE;
+}
+
 /** The international reach an established rival studio commands. First pass: always full - rivals are majors and shouldn't be nerfed. The seam for future rival identities (majors vs indies) with narrower overseas coverage. */
 export function internationalReachForRivalStudio(_rivalStudio: RivalStudio): number {
   return 1;
@@ -318,6 +333,7 @@ export function splitBoxOfficeGross(
   internationalAppeal: number,
   internationalReachFraction: number,
   domesticKeepShare: number,
+  internationalKeepShare: number = INTERNATIONAL_KEEP_SHARE,
 ): MarketGrossSplit {
   const worldwide = Math.max(0, simulatedWorldwideGross);
   const appeal = clamp(internationalAppeal, 0, 1);
@@ -329,7 +345,7 @@ export function splitBoxOfficeGross(
   const internationalGross = internationalPotentialGross * reach;
   const internationalLostGross = internationalPotentialGross - internationalGross;
   const headlineGross = domesticGross + internationalGross;
-  const studioCredit = studioCreditFromMarkets(domesticGross, internationalGross, domesticKeep);
+  const studioCredit = studioCreditFromMarkets(domesticGross, internationalGross, domesticKeep, internationalKeepShare);
 
   return {
     worldwidePotentialGross: worldwide,
@@ -354,6 +370,11 @@ export function feeFractionFromKeepShare(keepShare: number | undefined): number 
 }
 
 /** Studio cash from a domestic + realised-international gross pair, applying each market's keep. The one place the international keep constant is spent. */
-export function studioCreditFromMarkets(domesticGross: number, internationalGross: number, domesticKeepShare: number): number {
-  return Math.max(0, domesticGross) * clamp(domesticKeepShare, 0, 1) + Math.max(0, internationalGross) * INTERNATIONAL_KEEP_SHARE;
+export function studioCreditFromMarkets(
+  domesticGross: number,
+  internationalGross: number,
+  domesticKeepShare: number,
+  internationalKeepShare: number = INTERNATIONAL_KEEP_SHARE,
+): number {
+  return Math.max(0, domesticGross) * clamp(domesticKeepShare, 0, 1) + Math.max(0, internationalGross) * clamp(internationalKeepShare, 0, 1);
 }

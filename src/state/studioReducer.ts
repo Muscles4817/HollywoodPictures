@@ -16,7 +16,7 @@ import { campaignWriteOff, commitmentAfterMove } from '../engine/campaignCommitm
 import { promoteFilmToIp, ipForSourceFilm, recordFranchiseEntries } from '../engine/intellectualProperty';
 import { generateSequelScript } from '../engine/scriptGenerator';
 import { SEQUEL_DEVELOPMENT_SETUP_DAYS, makePendingSequelDevelopment, settlePendingSequelDevelopments } from '../engine/sequelDevelopment';
-import { computeDailyShootBurn, computeDailyPrepBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
+import { computeDailyShootBurn, computeDailyPrepBurn, draftNegativeCost, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { computeSetsAmbition, defaultDesignPrepDays, NO_DESIGNER_SKILL } from '../engine/setsFacet';
 import { assignmentCost, getActorCareer, getCrewCareer, getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, latestCastBookingEnd, withCommitment, withReputationChange } from '../engine/person';
 import { computeActorAppeal } from '../engine/castingAppeal';
@@ -82,6 +82,7 @@ import {
   distributionArmUpgradeCost,
   distributorOffersForFilm,
   internationalReachForTier,
+  internationalKeepShareForTier,
   internationalTier,
   internationalUpgradeCost,
   isDistributionArmUnlocked,
@@ -2315,7 +2316,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
 
       if (result.kind === 'pendingChoice') {
         // The situation still consumes its prep day, which still burns overhead.
-        const dayBurn = computeDailyPrepBurn(d.script.scale);
+        const dayBurn = computeDailyPrepBurn(d.script.scale, draftNegativeCost(d));
         const updatedFocused: FilmDraft = {
           ...d,
           preProduction: { ...d.preProduction, status: 'awaiting-choice', daysElapsed: d.preProduction.daysElapsed + 1, runningCost: d.preProduction.runningCost + dayBurn, pendingChoice: result.pendingChoice },
@@ -2348,7 +2349,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // design build in progress - scaled by the film's scale) plus any event
       // cost swing. This is what makes granting the designer more prep days a
       // real, felt cost (docs/DESIGN_REVIEW_production_redesign.md, cost-of-time).
-      const prepCost = computeDailyPrepBurn(d.script.scale) * daysAdvanced + (event?.costDelta ?? 0);
+      const prepCost = computeDailyPrepBurn(d.script.scale, draftNegativeCost(d)) * daysAdvanced + (event?.costDelta ?? 0);
       const advancedPrep = {
         ...d.preProduction,
         daysElapsed: d.preProduction.daysElapsed + daysAdvanced,
@@ -2416,7 +2417,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // equivalent (resolveChoiceOnDraft) already do. Previously only the
       // world calendar moved (totalDaysAfter) while the prep phase's own
       // daysElapsed and overhead were left untouched, making delay days free.
-      const prepDelayBurn = computeDailyPrepBurn(target.script.scale) * event.delayDaysDelta;
+      const prepDelayBurn = computeDailyPrepBurn(target.script.scale, draftNegativeCost(target)) * event.delayDaysDelta;
       const resolvedPrep = {
         ...target.preProduction,
         status: 'in-progress' as const,
@@ -3063,7 +3064,12 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // disables its button on the same condition, but this makes the rule true
       // regardless of how the action was dispatched.
       const studioMarketingCharge = (isDistributorDeal ? 0 : computeMarketingCost(d.marketingChoices)) + pressTourCost(d.talent, d.marketingChoices.pressTourCast);
-      if (studioMarketingCharge > state.studio.cash) return state;
+      // Compared against cash floored at zero, not raw cash: a studio that is
+      // overdrawn (daily production overhead is charged without a check, so it
+      // can be) must still be able to put a finished film out with no campaign.
+      // Against raw cash a zero charge "exceeded" a negative balance, so the
+      // film could never release and the studio could never earn its way back.
+      if (studioMarketingCharge > Math.max(0, state.studio.cash)) return state;
       const totalDaysAfter = Math.max(state.totalDays, d.postProductionFinalReadyDay!);
       const daysAdvanced = totalDaysAfter - state.totalDays;
       // releaseDay is a discrete calendar day everywhere else in this
@@ -3107,8 +3113,9 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
           ...(distributorChannelSpend ? { channelSpend: distributorChannelSpend, marketingSpend: acceptedOffer!.pAndA } : {}),
           // Freeze the international reach from the studio's current
           // International Distribution tier - immune to later upgrades, exactly
-          // like the domestic deal terms above. Absent tier => 0 => hard gate.
+          // like the domestic deal terms above. No tier => sales-agent reach and keep.
           internationalReachFraction: internationalReachForTier(internationalTier(state.studio)),
+          internationalKeepShare: internationalKeepShareForTier(internationalTier(state.studio)),
           // Freeze the studio's identity in this film's genre so a rival choosing
           // its release day reads this on-brand release as the stronger presence and
           // steers around it (engine/scheduledReleases.ts:asUpcomingRelease). Frozen

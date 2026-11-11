@@ -2,11 +2,13 @@ import type { BoxOfficeWeek, Film, Genre } from '../types';
 import { advanceOneWeekWithDiagnostics, hasSimulationEnded } from './audienceSimulationStep';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
 import { determineOutcome } from './outcome';
+import { ancillaryAttributesFromFilm, deriveAncillaryProfile } from './ancillary';
 import { computeBrandChange, computePrestigeChange } from './reputation';
 import { computeGenreIdentityChange } from './studioIdentity';
 import {
   computeInternationalAppeal,
   domesticKeepShareForFilm,
+  internationalKeepShareForFilm,
   splitBoxOfficeGross,
   studioCreditFromMarkets,
 } from './distribution';
@@ -44,6 +46,7 @@ function settleWeekMoney(film: Film, simulatedWorldwideGross: number): {
     computeInternationalAppeal({ genre: film.genre }),
     film.results.internationalReachFraction ?? 0,
     domesticKeepShareForFilm(film.results.distributionKeepShare),
+    internationalKeepShareForFilm(film.results.internationalKeepShare),
   );
   const domesticGross = Math.round(split.domesticGross);
   const internationalGross = Math.round(split.internationalGross);
@@ -51,7 +54,7 @@ function settleWeekMoney(film: Film, simulatedWorldwideGross: number): {
   // unrounded figure) so a stored week's cash is exactly reconstructable from
   // its displayed domestic/international breakdown - one consistent set of numbers.
   const cashCredit = Math.round(
-    studioCreditFromMarkets(domesticGross, internationalGross, domesticKeepShareForFilm(film.results.distributionKeepShare)),
+    studioCreditFromMarkets(domesticGross, internationalGross, domesticKeepShareForFilm(film.results.distributionKeepShare), internationalKeepShareForFilm(film.results.internationalKeepShare)),
   );
   return {
     gross: domesticGross + internationalGross,
@@ -71,8 +74,9 @@ function settleWeekMoney(film: Film, simulatedWorldwideGross: number): {
  */
 function recoupWithheldThisWeek(film: Film, priorWeeks: BoxOfficeWeek[], thisWeekCredit: number, recoupTotal: number): number {
   const keepShare = domesticKeepShareForFilm(film.results.distributionKeepShare);
+  const overseasKeepShare = internationalKeepShareForFilm(film.results.internationalKeepShare);
   const creditBefore = priorWeeks.reduce(
-    (sum, w) => sum + Math.round(studioCreditFromMarkets(w.domesticGross ?? 0, w.internationalGross ?? 0, keepShare)),
+    (sum, w) => sum + Math.round(studioCreditFromMarkets(w.domesticGross ?? 0, w.internationalGross ?? 0, keepShare, overseasKeepShare)),
     0,
   );
   const outstanding = Math.max(0, recoupTotal - creditBefore);
@@ -174,13 +178,16 @@ export interface BoxOfficeSettlement {
 }
 
 /** A run that just crossed into 'finished' - computes totalBoxOffice/studioRevenue/profit/outcome/brandChange/prestigeChange/genreIdentityChange from whatever its weeks actually added up to, the same job RELEASE_FILM used to do in one shot at release time. */
+/** The studio standing assumed when estimating a film's after-market at the end of its run. */
+const NEUTRAL_STUDIO_PRESTIGE = 30;
+
 function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChange: number; genreIdentityChange: number } {
   const totalBoxOffice = film.boxOfficeRun.cumulativeGross;
   // studioRevenue from the run's actual per-market cumulative, each market's
   // keep applied - the exact total of the weekly credits already banked.
   const markets = cumulativeMarketGross(film.boxOfficeRun.weeks);
   const grossCredit = Math.round(
-    studioCreditFromMarkets(markets.domestic, markets.international, domesticKeepShareForFilm(film.results.distributionKeepShare)),
+    studioCreditFromMarkets(markets.domestic, markets.international, domesticKeepShareForFilm(film.results.distributionKeepShare), internationalKeepShareForFilm(film.results.internationalKeepShare)),
   );
   // A distributor recoups its fronted P&A in full off the top of the studio's
   // keep (engine/distribution.ts) - netted here the same way it was withheld
@@ -190,8 +197,36 @@ function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChan
   const studioRevenue = grossCredit - Math.min(recoupTotal, grossCredit);
   const profit = studioRevenue - film.results.totalCost;
 
+  // A film's commercial verdict - its outcome label - is passed on everything
+  // it is expected to earn, not on cinemas alone. That is how the industry
+  // judges a film ("ultimates", docs/domain/11 §5.1): most films recoup after
+  // theatrical, and for a small drama cinemas are under half of lifetime
+  // revenue. Judged on cinemas only, a small film that would earn its money
+  // back was labelled a Flop (docs/DESIGN_REVIEW_player_economy.md §3.3).
+  // `profit` itself stays the theatrical figure; the after-market arrives later
+  // as its own income.
+  //
+  // Brand, below, deliberately still reads the theatrical result: Brand is what
+  // the public knows of a studio, and the public sees box office, not a
+  // ten-year revenue statement. (It also keeps rival Brands, and with them the
+  // calibrated wide market, where they were - judging Brand on all income
+  // lifted every rival and pulled the share of wide releases that lose money
+  // out of its band.) What protects a small studio's name is that Brand moves
+  // in proportion to how many people saw the film (engine/reputation.ts).
+  //
+  // The expectation is taken at a neutral studio standing and before any
+  // awards, so it is the same for a player's film and a rival's and is known
+  // the moment the run ends.
+  const expectedAfterMarket = Math.round(
+    deriveAncillaryProfile(
+      ancillaryAttributesFromFilm(film, { studioPrestige: NEUTRAL_STUDIO_PRESTIGE, awards: { wins: 0, nominations: 0 } }),
+      totalBoxOffice,
+    ).lifetimeTotal,
+  );
+  const allWindowsProfit = profit + expectedAfterMarket;
+
   const outcome = determineOutcome({
-    profit,
+    profit: allWindowsProfit,
     totalCost: film.results.totalCost,
     totalBoxOffice,
     qualityScore: film.results.qualityScore,
@@ -224,7 +259,7 @@ function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChan
   return {
     film: {
       ...film,
-      results: { ...film.results, totalBoxOffice, studioRevenue, profit, outcome, brandChange, prestigeChange },
+      results: { ...film.results, totalBoxOffice, studioRevenue, profit, expectedAfterMarket, outcome, brandChange, prestigeChange },
     },
     brandChange,
     prestigeChange,

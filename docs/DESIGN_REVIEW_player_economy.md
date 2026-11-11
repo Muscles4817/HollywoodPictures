@@ -1,7 +1,8 @@
 # Design review: the player economy
 
-**Status:** findings and proposals. No balance change has been applied; every
-number under "Trials" comes from a scratch copy of the engine.
+**Status:** items 1 to 4 of section 7 are applied (see section 10). Everything
+else is findings and proposals; the numbers under "Trials" come from a scratch
+copy of the engine.
 
 **Question:** the player-economy harness showed a cliff. Below about £25M
 starting cash every strategy bleeds out; from £80M a plain scripted player
@@ -440,7 +441,63 @@ studio's real advantage. Which is the real business.
   generation (older people have more credits and a higher fee floor), since
   today they are unrelated to everything.
 
-## 10. Reproducing this
+## 10. What was applied
+
+Items 1 to 4 of section 7, without the skill change (withdrawn, section 9) and
+without the awards change (item 6, not yet done).
+
+| Fix | Where | Rule |
+|---|---|---|
+| Release lock | `state/studioReducer.ts` (SCHEDULE_RELEASE), `MarketingRelease.tsx` | The campaign is checked against cash floored at zero, so an overdrawn studio can release with no campaign. |
+| Prep overhead | `engine/cost.ts` | Daily burn is 0.4% of the film's committed negative, floor £2k, capped at the old per-scale rate. Prep is now part of the film's reported cost. |
+| Verdict on all income | `engine/boxOfficeRun.ts` | The outcome label uses cinema profit plus the after-market expected at a neutral studio standing. The profit figure shown is unchanged. The expectation is stored on the film. |
+| Brand by reach | `engine/reputation.ts` | Brand's profit and audience terms scale with `clamp(gross ÷ £8M, 0.15, 1)`, both directions. |
+| Overseas sales | `data/distribution.ts`, `engine/distribution.ts` | Reach by tier is `{0: 0.3, 1: 0.5, 2: 0.75, 3: 1.0}`. With no operation of its own a studio pays a sales agent 20% of its overseas share. |
+
+Two things differ from the trial, both found while applying it.
+
+- **Brand still reads the cinema result, not all income.** Judging Brand on all
+  income lifted every rival's Brand too, which inflated the wide market: the
+  share of wide releases losing money fell from 45.5% to 35.6%, out of its
+  band. It is also the more realistic rule, since the public sees box office
+  and not a ten-year revenue statement. The label alone moves to all income.
+- **Full visibility is reached at £8M gross, not £30M.** At £30M, small rival
+  films kept enough Brand to push three market bands just past their edges. At
+  £8M the whole-year gate passes the same 18 of 21 bands as before, with the
+  same three misses. The price is weaker protection for small studios. It is
+  one constant (`BRAND_FULL_VISIBILITY_GROSS`) if that trade should go the
+  other way.
+
+Measured on the applied code, Careful strategy, three seeds, ten years:
+
+| | Indie before | Indie after | Boutique before | Boutique after | Grassroots before | Grassroots after |
+|---|--:|--:|--:|--:|--:|--:|
+| Careers stalled | 3 of 3 | 0 of 3 | 2 of 3 | 0 of 3 | 3 of 3 | 3 of 3 |
+| A finished film could not be released | 2 of 3 | 0 of 3 | 3 of 3 | 0 of 3 | 0 of 3 | 0 of 3 |
+| Films made | 4 | 14 | 10 | 16 | 0 | 4 |
+| Brand at year 10 | 1 | 13 | 0 | 16 | 10 | 9 |
+| Cash at year 3 | £0.8M | £3.6M | £8.8M | £14.8M | £2.0M | £0.4M |
+| Cash at year 10 | £0.7M | £0.4M | £1.2M | £5.3M | £2.0M | £0.2M |
+
+Reading it:
+
+- **The spiral is gone; the difficulty is not.** Small studios no longer lock
+  or stall, and they make three to four times as many films. A plain player
+  still loses money slowly at Indie and Boutique, because its films still
+  score around 40 to 54 and most still lose money in cinemas.
+- **Steady (two films at once) is worse than Careful at Indie:** all three
+  careers eventually stalled. Running two films on £8M is overreach.
+- **Grassroots can now make films** and ends near zero after four of them.
+- **Mid-Major is unchanged**, as expected: none of these four touches the top.
+
+Calibration after the change: whole-year gate 18 of 21 (same three misses as
+before), buzz gate passes, variance gate passes, budget-tier gate 4 misses
+(was 5).
+
+What the remaining decline at the bottom is waiting on: who a small studio can
+hire (section 9), a way to sell a film (item 7), and awards cash (item 6).
+
+## 11. Reproducing this
 
 ```bash
 PLAYER_ECONOMY_DIAGNOSTIC=1 TIERS=indie STRATEGIES=Careful,Steady DUMP_OUT=/tmp/indie.json \
@@ -448,5 +505,5 @@ PLAYER_ECONOMY_DIAGNOSTIC=1 TIERS=indie STRATEGIES=Careful,Steady DUMP_OUT=/tmp/
 ```
 
 The harness prints, per strategy, the money-out and money-in lines used in
-section 2. The trial edits are described exactly in section 6; none is in the
-repository.
+section 2. The trial edits are described exactly in section 6; only those listed in
+section 10 are in the repository.

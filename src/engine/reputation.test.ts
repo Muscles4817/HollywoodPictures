@@ -20,6 +20,23 @@ describe('computeBrandChange', () => {
     expect(lovedFlop).toBeLessThan(0);
   });
 
+  it('a miss costs Brand in proportion to how many people saw it', () => {
+    const miss = { profit: -30_000_000, totalCost: 50_000_000, audienceScore: 50 };
+    const unseen = computeBrandChange({ ...miss, totalBoxOffice: 1_000_000 });
+    const widelySeen = computeBrandChange({ ...miss, totalBoxOffice: 40_000_000 });
+    expect(unseen).toBeLessThan(0);
+    expect(unseen).toBeGreaterThan(widelySeen);
+    expect(unseen).toBeGreaterThanOrEqual(-2);
+  });
+
+  it('a small success builds less Brand than the same return seen by millions', () => {
+    const hit = { profit: 2_000_000, totalCost: 1_000_000, audienceScore: 80 };
+    const tiny = computeBrandChange({ ...hit, totalBoxOffice: 3_000_000 });
+    const seen = computeBrandChange({ ...hit, totalBoxOffice: 30_000_000 });
+    expect(tiny).toBeGreaterThan(0);
+    expect(tiny).toBeLessThan(seen);
+  });
+
   it('a bigger total box office (reach) produces a more positive change than a smaller one, holding profit ratio and audienceScore fixed', () => {
     const nicheHit = computeBrandChange({ profit: 5_000_000, totalCost: 10_000_000, totalBoxOffice: 20_000_000, audienceScore: 50 });
     const blockbusterHit = computeBrandChange({ profit: 5_000_000, totalCost: 10_000_000, totalBoxOffice: 800_000_000, audienceScore: 50 });

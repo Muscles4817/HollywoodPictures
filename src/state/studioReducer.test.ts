@@ -5,7 +5,7 @@ import { createInitialStudio } from './gameState';
 import { withRng } from '../engine/random';
 import { studioCreditFromMarkets, domesticKeepShareForFilm } from '../engine/distribution';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
-import { computeTalentCost, computeProductionBudgetCost, computeDailyPrepBurn } from '../engine/cost';
+import { computeTalentCost, computeProductionBudgetCost, computeDailyPrepBurn, draftNegativeCost } from '../engine/cost';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, footageLowerBound, footageUpperBound } from '../engine/production';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
@@ -908,7 +908,7 @@ describe('GREENLIGHT_PROJECT - enters the live pre-production phase', () => {
     // runningCost = the daily prep-overhead burn over every elapsed prep day,
     // plus any prep event cost swings (Production Redesign, cost-of-time model).
     const eventCostSum = draft.preProduction!.events.reduce((sum, e) => sum + e.costDelta, 0);
-    const expectedBurn = computeDailyPrepBurn(draft.script!.scale) * draft.preProduction!.daysElapsed;
+    const expectedBurn = computeDailyPrepBurn(draft.script!.scale, draftNegativeCost(draft)) * draft.preProduction!.daysElapsed;
     expect(draft.preProduction!.runningCost).toBe(expectedBurn + eventCostSum);
   });
 

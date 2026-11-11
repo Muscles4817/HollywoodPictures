@@ -41,18 +41,39 @@ export function computeEventsCostDelta(events: ProductionEvent[]): number {
 
 // Pre-production overhead burned per day — the production office, department
 // heads prepping, scouts, the design build in progress (docs/DESIGN_REVIEW_production_redesign.md,
-// cost-of-time model). Scales with the film's scale so a bigger show costs more
-// to keep in prep, which is what makes "grant the designer more weeks" a real,
-// felt trade-off rather than free time. First-draft, tunable.
+// cost-of-time model). It follows the size of the film being prepped: real prep
+// runs 15-25% of a budget (docs/domain/11 §8.1), and a micro-budget film preps
+// with a handful of people for a few weeks (docs/domain/04 §1). The per-scale
+// rates below are the CEILING - what a fully-funded production of that scale
+// burns - not a flat charge. As a flat charge an Intimate film paid ~£1.4M of
+// prep whatever it cost, which was more than the two cheapest starting tiers
+// owned and two thirds of everything an Indie studio spent on making its films
+// (docs/DESIGN_REVIEW_player_economy.md §3.1).
 const PREP_DAILY_BURN_BY_SCALE: Record<'Intimate' | 'Medium' | 'Epic', number> = {
   Intimate: 25_000,
   Medium: 55_000,
   Epic: 95_000,
 };
 
-/** Cash burned per day of pre-production, by the film's scale. */
-export function computeDailyPrepBurn(scale: 'Intimate' | 'Medium' | 'Epic'): number {
-  return PREP_DAILY_BURN_BY_SCALE[scale];
+/** A day of prep costs this share of the film's committed negative: ~20% of budget over a typical 50-day prep. */
+export const PREP_DAILY_BURN_FRACTION = 0.004;
+/** However small the film, someone is being paid to prepare it. */
+export const PREP_DAILY_BURN_FLOOR = 2_000;
+
+/**
+ * Cash burned per day of pre-production: a share of the film's committed
+ * negative, floored, and capped at what a full production of its scale burns.
+ */
+export function computeDailyPrepBurn(scale: 'Intimate' | 'Medium' | 'Epic', negativeCost: number): number {
+  return Math.min(PREP_DAILY_BURN_BY_SCALE[scale], Math.max(PREP_DAILY_BURN_FLOOR, Math.round(negativeCost * PREP_DAILY_BURN_FRACTION)));
+}
+
+/** What a draft has committed to its negative: cast and crew, the production plan, and the shooting budget. */
+export function draftNegativeCost(draft: { talent: TalentAssignment[]; productionChoices: ProductionChoices | null }): number {
+  return (
+    computeTalentCost(draft.talent) +
+    (draft.productionChoices ? computeProductionBudgetCost(draft.productionChoices) + draft.productionChoices.shootingBudgetAmount : 0)
+  );
 }
 
 /** Marketing spend scaled by how expensive the chosen release type is to support. */

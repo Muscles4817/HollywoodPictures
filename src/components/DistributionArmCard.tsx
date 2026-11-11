@@ -8,6 +8,7 @@ import {
   distributionArmTier,
   distributionArmUpgradeCost,
   internationalReachForTier,
+  internationalKeepShareForTier,
   internationalTier,
   internationalUpgradeCost,
   isDistributionArmUnlocked,
@@ -18,7 +19,6 @@ import {
   DISTRIBUTION_ARM_UNLOCK_BRAND,
   DISTRIBUTION_ARM_UNLOCK_FILMS_RELEASED,
   INTERNATIONAL_DISTRIBUTION_MAX_TIER,
-  INTERNATIONAL_KEEP_SHARE,
   SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER,
 } from '../data/distribution';
 import { useActionFeedback } from './common/ActionFeedback';
@@ -120,7 +120,7 @@ function intlReachPct(tier: number): number {
 /**
  * The International Distribution track - an independent upgrade track ON the arm
  * (mirroring the Production Office's Market Research track). Tier 0 is the hard
- * gate: a film with no international distribution earns domestic box office only.
+ * step up: a studio with no international operation sells through a sales agent (thin reach, less a commission).
  * Each tier widens the overseas pool the studio actually reaches.
  */
 function InternationalDistributionSection() {
@@ -130,7 +130,7 @@ function InternationalDistributionSection() {
   const tier = internationalTier(studio);
   const next = nextInternationalTier(studio);
   const upgradeCost = internationalUpgradeCost(studio);
-  const keepPct = Math.round(INTERNATIONAL_KEEP_SHARE * 100);
+  const keepPct = Math.round(internationalKeepShareForTier(tier) * 100);
 
   return (
     <div className="office-research">
@@ -140,7 +140,7 @@ function InternationalDistributionSection() {
       </div>
       <p className="office-research-blurb">
         {tier === 0
-          ? 'No overseas distribution — your films earn domestic box office only. Buy in to open international markets.'
+          ? `No overseas operation of your own — a sales agent sells your films abroad, reaching ${intlReachPct(0)}% of the international audience and leaving you ${keepPct}% of that gross after their commission. Buy in to reach more and keep more.`
           : `Reaching ${intlReachPct(tier)}% of the international audience, keeping ${keepPct}% of overseas gross.`}
       </p>
       {next != null && upgradeCost != null ? (
