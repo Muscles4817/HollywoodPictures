@@ -1,7 +1,7 @@
 # Design: the talent model
 
-**Status:** draft for review. Nothing here is built. Section 8 lists the
-decisions that need an answer before work starts.
+**Status:** draft for review, revised after the owner's first read. Nothing
+here is built. Section 8 records what is settled and what is still open.
 
 **Where this comes from:** `docs/DESIGN_REVIEW_player_economy.md` §9. For
 directors and every crew role the engine sets skill from fee, which is
@@ -74,12 +74,42 @@ Each career carries four things that today are one number.
 
 | | What it is | Changes? | Seen by the player? |
 |---|---|---|---|
-| **Talent** | The ceiling of what they can deliver in this role | No | Never directly |
+| **Talent** | The ceiling of what they can deliver, attribute by attribute (4.1a) | No, fixed for life | Never directly; learned through evidence (4.5) |
 | **Experience** | Credits and years in the role | Grows with each film | Yes, as a track record |
 | **Standing** | Fame, heat, industry respect | After every film; heat fades | Yes, in words |
-| **Quote** | What they ask | Follows standing; rises fast, falls slowly | Yes |
+| **Quote** | What the market pays them | Follows standing; rises fast, falls slowly | Yes |
 
 Talent is generated on its own axis, as actor craft already is.
+
+### 4.1a What "talent" means, role by role
+
+"Talent" is not one number. It is the set of ability attributes a role already
+has in the engine. Everything else on a person is taste, temperament or
+standing, and none of those is talent.
+
+| Role | Talent: the fixed ability attributes | Today |
+|---|---|---|
+| **Actor** | Five strengths: character transformation, emotional performance, charisma, comedy, physical performance. Plus **headroom**: how much more a good director can draw out of them. | Already separate from fee. |
+| **Director** | Four aptitudes: story, visual, performance, craft. | One `skill` number set by fee; the four aptitudes are small offsets around it. |
+| **Writer** | Three craft strengths: structure, characters, dialogue. Plus concept ambition (how original their ideas run). | Set from a `skill` number set by fee. |
+| **Cinematographer, editor, composer, production designer, VFX supervisor, casting director** | Their department's specialties. For a designer: period craft, large builds, location builds, creature builds. For VFX: digital environments, creature animation, compositing, digital doubles. | One `skill` number set by fee; specialties are offsets around it. |
+
+So for directors, writers and crew the change is that the per-attribute values
+become the real thing and the single `skill` number becomes only a summary of
+them. A director can be a superb visual stylist and ordinary with actors, which
+today is possible only for the hand-authored marquee names.
+
+What is **not** talent, and stays as it is:
+
+| Kind | Attributes | What it does |
+|---|---|---|
+| **Taste and style** | A director's and writer's tone profile (action, comedy, romance, suspense, drama, spectacle); a director's production style and how hands-on they are; a writer's genre affinity and commercial lean; a crew member's leaning toward digital or practical, and toward stylised or naturalistic work. | Decides what they suit and how they work, not how good they are. Visible, since it is known from their work. |
+| **Temperament** | Professionalism, ambition, loyalty, ego, temperament, pressure handling, controversy, adaptability; reliability; a writer's consistency. | Decides how they behave: on a troubled shoot (4.2), in a negotiation and over a relationship (4.3). Most of these are carried today and read by nothing. |
+| **Standing** | Fame, heat, industry respect. | Sets the quote (4.3). |
+
+One existing piece stays outside the fixed-talent rule on purpose: an actor's
+**floor**, what they deliver with no help. The acting model generates it as a
+fixed value. Whether experience should raise it is an open question (section 8).
 
 ### 4.2 What they deliver on a film
 
@@ -106,7 +136,10 @@ person, finally get a job: they decide how far a bad shoot drags someone down.
 
 ### 4.3 What they cost
 
-A quote is built from standing, never from talent.
+There are two prices: what the market pays someone, and what they ask *this
+studio*.
+
+**The market quote** is built from standing, never from talent.
 
 - **Fame** sets the base for anyone the public would recognise: actors and
   directors, and to a lesser degree composers and writers.
@@ -117,12 +150,43 @@ A quote is built from standing, never from talent.
 - **Experience** sets a floor under the quote: a veteran does not work for a
   newcomer's rate.
 - **It ratchets.** A quote rises as soon as results justify it and falls only
-  slowly, after repeated misses or a long gap. This is the documented behaviour
-  of real quotes (`docs/domain/12` §2.3).
-- **The independent quote stays.** The existing appeal and negotiation systems
-  already let a person take less for a script they love, a director they
-  admire, or a share of the back end. That is how a small studio occasionally
-  lands someone above its weight, and it needs no change.
+  slowly. This is the documented behaviour of real quotes (`docs/domain/12`
+  §2.3).
+
+**What they ask you** starts from the market quote and is moved by the person
+and by your history with them. There is no fixed rule for how long a discovery
+stays affordable; it depends on who they are.
+
+- **The relationship.** The engine already tracks each studio's history with
+  each person in tiers from grudge to loyal, and a loyal collaborator already
+  "takes a friendlier deal to work with you again"
+  (`engine/relationships.ts`). That stays the base.
+- **Loyalty** decides how much of a market rise they pass on to a studio that
+  treated them well. A loyal person who broke out on your film comes back for
+  close to what you paid before. A person with little loyalty asks the full new
+  quote from everyone.
+- **Ambition** pulls the other way. An ambitious person wants the bigger film,
+  the bigger studio and the bigger number once they are hot, however well you
+  got on. Ambition also makes them likelier to say yes to a rival.
+- **Ego** sets how much the billing, the role's size and the director matter
+  next to the money.
+- **How the last film went for them**, not only for you: a performance that got
+  them noticed warms the relationship more than a paycheque on a flop.
+
+So the same breakout produces different sequels. A loyal, unambitious
+cinematographer becomes a long-term collaborator at a fair rate. An ambitious
+lead with a hit is gone to a major unless there is a reason to stay.
+
+**Deals** are that reason, and are a later stage of this work. A studio can
+sign someone to more than one film at an agreed rate while they are still
+affordable, which is the real practice of second-picture options
+(`docs/domain/12` §2.3). The person's ambition and the studio's standing decide
+whether they will sign and at what premium. A deal is what lets a player keep a
+discovery whose personality would otherwise take them elsewhere.
+
+**The independent quote stays.** The existing appeal and negotiation systems
+already let a person take less for a script they love, a director they admire,
+or a share of the back end. That needs no change.
 
 ### 4.4 How careers move
 
@@ -150,23 +214,73 @@ The pool stays about the same size. Today it is generated once and nobody
 enters or leaves, which is also why the harness sometimes could not fill a role
 late in a career.
 
-### 4.5 What the player sees
+### 4.5 What the player knows, and how they come to know it
 
 The house rule already says players see prose and stars, not raw stats. Ability
-moves fully behind that rule.
+moves fully behind that rule. The player never sees a talent value outside the
+dev inspector; they hold a **read** of each attribute, and each read has its own
+confidence.
 
-- **A track record**: the films, the role, how each was received and how it
-  did. This is the primary evidence, as it is in the real business.
-- **A read**: the existing three-tier confidence read, extended from "will this
-  actor fit this part" to "how good is this person at this job". With eight
-  credits the read is confident and narrow. With none it says so, and names why.
-- **Ways to sharpen a read**, all of which exist or have an obvious home:
-  - A casting director, for actors (exists).
-  - Having worked with the person before (exists). After two or three films
-    together the studio simply knows them.
-  - For crew, the department head they would work under vouching for them.
-  - A screen test or a meeting, costing days: a later addition.
-- **Never** the talent number, outside the dev inspector.
+**Knowledge is per attribute, and it comes from evidence.** There is no "three
+films and you know them" rule. What a film teaches depends on what it asked of
+the person.
+
+- **A role only tests what it demands.** Every character already carries the
+  demands of the part ("high physical performance, charisma demands"), every
+  script its tone and scale, every production its requirements. A film sharpens
+  the read of the attributes it leaned on and tells the player nothing about
+  the rest.
+- **So repetition has diminishing returns.** Cast someone in three action
+  films and their physical performance is known for certain while their comedy
+  and emotional range are exactly as uncertain as the day they were hired. To
+  learn those, the player has to give them a part that needs them, which is a
+  risk, which is the point.
+- **A harder test teaches more.** A demanding lead tells more than a small
+  supporting part; a large, difficult shoot tells more about a crew member than
+  an easy one.
+
+**Evidence from your own films is strong. Evidence from other people's films is
+weak and can mislead.** This follows from something the engine already does: a
+performance is not the actor alone. Today an actor's realised performance is
+their own floor plus whatever headroom the director draws out, gated by how
+well the part suits them (acting model §5). An ordinary actor with the right
+director in a well-written, well-fitting part can give a great performance.
+That is already true in the game.
+
+- **On your own film you know the circumstances.** You know who directed, how
+  well the part fit, how the shoot went. So the studio can separate the person
+  from the help they had, and the read tightens properly.
+- **On someone else's film you see only the result.** A great performance
+  elsewhere says they are *capable of that under those conditions*. It does not
+  say how much was the actor and how much was a director who knew how to push
+  them. The read moves a little, stays wide, and leans optimistic for anyone
+  who has worked with strong collaborators. The read's caveat names this: "Her
+  best work was under a director who gets the best from everyone."
+- **The same applies to directors and crew.** A director's acclaimed film may
+  owe a great deal to its script; a cinematographer's best work to the director
+  and the budget. Their track record is a clue, not a measurement.
+
+**A read reaches certainty one attribute at a time**, when the studio has seen
+that attribute properly tested on its own films. Someone can be fully known as
+a physical performer and still a mystery as a comic one.
+
+What sharpens a read, in order of strength:
+
+1. Your own films with them, on the attributes those films tested.
+2. A casting director, for actors (exists), and for crew the department head
+   they would work under vouching for them.
+3. A screen test or a meeting, costing days and aimed at one attribute: a
+   later addition.
+4. Their work elsewhere: wide, and biased by who they worked with.
+
+What this looks like on a card: the track record first (films, role, how each
+was received), then a read per attribute in words with its confidence, then the
+single most useful caveat. Not a grid of numbers. How to lay that out without
+clutter is a design task of its own (section 8).
+
+**Where the knowledge is stored:** nowhere new. Like relationships today, it can
+be derived from the released films the studio made, which already record who
+worked on them, in what part, under whom and how it went.
 
 ### 4.6 What rivals do
 
@@ -213,7 +327,7 @@ with the best reads.
 
 ## 7. Build order
 
-Six stages. Each can ship alone, is measurable with the harness, and leaves the
+Seven stages. Each can ship alone, is measurable with the harness, and leaves the
 game playable. The actual untying of skill from fee comes last, once everything
 that makes it safe is in place.
 
@@ -222,36 +336,51 @@ that makes it safe is in place.
 | 1 | **Make careers coherent at generation.** Age, experience, credits and fee agree with each other. Heat and industry respect become their own values. | Talent cards make sense: nobody is 22 with a £20M quote. | S |
 | 2 | **Careers move.** Standing and quotes update after each film; heat fades. | People you made famous cost more next time. | M |
 | 3 | **Arrivals and departures.** A yearly intake and retirement. | New faces each year; veterans leave. | M |
-| 4 | **Ability becomes a read for everyone.** The skill rating on directors and crew is replaced by track record plus read. | Hiring a director feels like hiring an actor already does. | M |
+| 4 | **Ability becomes evidence-based knowledge.** The skill rating on directors and crew is replaced by track record plus per-attribute reads, learned from what each film tested. | Hiring a director feels like hiring an actor already does; you learn people by working with them. | L |
 | 5 | **Rivals hire on track record.** | Rivals chase hot people, including yours. | M |
-| 6 | **Untie talent from fee, and experience sets the floor.** | Hidden ability exists; scale demands experience. | M |
+| 6 | **Untie talent from fee, per attribute; experience sets the floor.** | Hidden ability exists; scale demands experience. | M |
+| 7 | **Personality prices the relationship, and deals.** Loyalty, ambition and ego move what someone asks of you; multi-film deals. | Some discoveries stay; others have to be signed or lost. | M |
+
+Stage 7's first half (personality moving the ask) is small and could ride with
+stage 2, since both touch how a price is set. Deals are the larger half.
 
 Stages 1 to 3 change no balance by design and can be checked against today's
 numbers. Stage 6 is the one that moves quality, and it is the one the
 acceptance tests in section 6 are for.
 
-## 8. Decisions needed
+## 8. Decisions
 
-1. **Is talent fixed for life?** Proposed: yes. Experience raises the floor and
-   that is all the growth there is. The alternative, people who improve or
-   decline, is more lifelike and much harder to read as a player.
-2. **Can the player ever know someone's ability for certain?** Proposed: yes,
-   after about three films together. It rewards loyalty and gives relationships
-   a second purpose.
-3. **How generous should the newcomer intake be?** Proposed: drawn from the
-   same spread as everyone, so roughly one newcomer in ten is genuinely good
-   and one in fifty exceptional. More generous makes scouting a strategy
-   everyone uses; stingier makes it a lottery.
-4. **How fast should a quote rise after a hit?** Proposed: enough that a second
-   film with a discovery is still a good deal and a third is at market rate.
-   That gives a discovery a two-film life as a bargain.
-5. **Do quotes ever fall?** Proposed: slowly, after two misses in a row or
-   three years without work. Faded stars at a discount are a real and
-   interesting thing to hire.
-6. **The real-world roster.** Its 1,500 people have hand-written skill values
-   and fees. Proposed: treat the written skill as talent, derive experience
-   from each person's real career length, and let quotes be recomputed. This
-   needs a look at the file before it is promised.
+Settled with the owner:
+
+1. **Talent is fixed for life.** Defined attribute by attribute in 4.1a.
+2. **Ability can be known for certain, but only through evidence.** Per
+   attribute, from roles that tested it, strongly from the studio's own films
+   and weakly from other people's (4.5). No film-count rule.
+3. **Newcomers are drawn from the same spread as everyone.** Roughly one in ten
+   genuinely good, one in fifty exceptional, and nothing marks them.
+4. **How long a discovery stays affordable depends on the person and the
+   relationship**: loyalty, ambition, ego and how the work went, with deals as
+   the tool for keeping someone (4.3). No fixed two-film rule.
+5. **The real-world roster keeps its hand-written skill values as talent**,
+   with experience derived from career length and quotes recomputed. Subject to
+   a look at the file.
+
+Still open:
+
+- **Do quotes ever fall?** Proposed: slowly, after two misses in a row or three
+  years without work. Faded names at a discount are a real and interesting
+  thing to hire.
+- **Does experience raise an actor's floor?** The acting model fixes it. Raising
+  it with experience would make young actors riskier and veterans steadier,
+  which fits "less experienced, not less talented", but it changes a shipped
+  and calibrated model.
+- **How much does a rival know?** Simplest is to give rivals the same
+  weak-evidence read the player has of strangers, plus full knowledge of people
+  they have used. The cheaper alternative is a single noisy read.
+- **The card.** Per-attribute reads with confidence are more to show than one
+  skill rating. This needs a layout pass before stage 4.
+- **When deals arrive.** They can follow the rest (stage 7 below) or come
+  earlier if keeping discoveries feels too hard without them.
 
 ## 9. Risks and limits
 
