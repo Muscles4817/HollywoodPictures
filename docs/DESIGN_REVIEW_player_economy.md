@@ -285,10 +285,10 @@ Side effects of the combination on what already exists:
    together; D alone feeds the Brand ratchet.
 4. **Overseas sales without the facility (B)**, at a lower keep than a
    studio's own operation, so the International facility remains worth buying.
-5. **Loosen skill from fee (C).** This one changes rivals too, so re-run the
-   box-office gates and expect to retune the share of wide releases that lose
-   money. It also wants a companion: once a cheap director makes a hit, their
-   fee should rise. That is the talent-careers item already on the work list.
+5. ~~Loosen skill from fee (C).~~ **Withdrawn; see section 9.** The tie is
+   unrealistic, but loosening it without a talent model creates a worse
+   exploit and breaks the calibrated market. The combination in section 6
+   should be re-measured without C before the other fixes are applied.
 6. **Awards cash on the remaining run only (E).** The quarter-size trial is a
    stand-in; the realistic rule is a lift for films still in cinemas and
    nothing for those that have left.
@@ -307,20 +307,140 @@ constant can supply:
    without fresh hits. Together with rivals that compete, this is what makes a
    large studio need its slate to work.
 
-## 8. Decisions needed
+## 8. Decisions
 
-- **Is "Indie is hard for a plain player" the right target for the third
-  tier?** If Indie should be comfortable, the after-market or overseas terms
-  need to be more generous than trialled.
-- **Should Garage and Grassroots be playable before item 7 exists?** If yes,
-  they need more starting cash in the meantime. If no, they should be hidden
-  until it does.
-- **Is skill-for-fee (C) acceptable given it moves the calibrated market?**
-  The alternative is to leave the pool alone and add a small number of
-  deliberately underpriced people each year, which is closer to "discovery"
-  and touches rivals less.
+Settled (owner, after reading this review):
 
-## 9. Reproducing this
+- **Indie should be difficult in the way it is in real life.** The combined
+  trial's Indie (a plain player ends below where it started but does not stall)
+  is the right shape; it should not be made comfortable.
+- **Garage and Grassroots can stay as they are for now.** The game is not live,
+  so they need neither hiding nor a stop-gap; item 7 is their fix.
+
+Open:
+
+- **Should skill and fee be tied at all?** Explored in section 9. Short
+  answer: not directly, but cutting the tie on its own makes things worse.
+
+## 9. Should skill and fee be tied at all?
+
+The question, as put: plenty of big names are not very good, and a less
+experienced person is less experienced, not less talented.
+
+### 9.1 What the engine does today
+
+Every generated person is rolled from one number, their position `t` in the
+role's fee range (`engine/talentGenerator.ts:365`). Fee is `t` exactly. Fame
+and, for everyone except actors, skill are `t` plus noise. Measured on a
+generated pool:
+
+| Role | Fee and fame | Fee and ability | Fee and age | Under £150k with ability 70+ |
+|---|--:|--:|--:|--:|
+| Actor | 0.97 | **0.05** | 0.05 | 45% |
+| Director | 0.97 | **0.85** | 0.06 | 0% |
+| Writer | 0.38 | 0.86 | 0.01 | 0% |
+| Cinematographer | 0.32 | 0.83 | −0.06 | 0% |
+| Composer | 0.67 | 0.86 | 0.03 | 0% |
+| Editor | 0.16 | 0.87 | −0.21 | 5% |
+| Production Designer | 0.12 | 0.83 | −0.03 | 2% |
+
+Three things follow.
+
+- **For actors the engine already agrees with the question.** An actor's fee is
+  their fame; their craft is rolled separately and is unrelated to price.
+- **For directors and all crew it does the opposite.** Fee is ability. There is
+  no such thing as an undiscovered good director.
+- **Experience is not modelled.** Age correlates with nothing, and the
+  `experience` field on a career is a copy of `skill`. A 22-year-old can carry
+  a £20M quote.
+
+### 9.2 What the real business does
+
+A quote is "what they were last paid for a comparable job"; it ratchets up with
+success and is very hard to lower (`12` §2). It is set by track record and
+fame, verified against the last deal, and says nothing direct about ability.
+The link between pay and ability is indirect and loose: able people are
+somewhat more likely to have had the hits that raise a quote. A star's
+independent quote is often 10 to 30% of their studio quote (`12` §2.1), which
+is how small films get people they could not otherwise afford.
+
+So the honest model has no direct tie. Fee should follow fame and results;
+ability should be its own quantity; whatever correlation exists should emerge
+from careers.
+
+### 9.3 What happens if the tie is simply cut
+
+Two trials, changing only the generation formula for directors, writers and
+crew. "Loose" leaves a correlation of about 0.3; "free" leaves none.
+
+| Median cash at year 10 | Indie Careful | Boutique Careful | Boutique Steady | Mid-Major Steady |
+|---|--:|--:|--:|--:|
+| Baseline | £0.7M | £1.2M | −£0.1M | £1,162M |
+| Loose | £1.8M | £9.4M | £8.8M | £1,789M |
+| Free | £1.7M | £23.2M | **£657M** | **£2,188M** |
+| All section-6 fixes, with loose skill | £9.6M | **£286M** | **£510M** | £1,175M |
+
+It trades one unrealism for a larger one, for three reasons.
+
+1. **Ability is fully visible.** The player sees a skill rating, so with skill
+   cut loose from fee the best strategy is to sort by skill and hire the
+   cheapest genius. Boutique goes from dying to Prestige 100 and 80 to 130
+   awards a career.
+2. **Fees never move.** The pool is static and nobody's quote changes after a
+   hit, so a bargain stays a bargain for the whole game.
+3. **Rivals hire by price.** They pick people near a target fee, so when fee
+   stops implying skill their films get worse and the calibrated market falls
+   apart: the whole-year gate went from 3 misses to 8 (median wide gross £145M
+   to £108M, films over £100M a year 52 to 41).
+
+The current tie is, in effect, standing in for three missing systems.
+
+### 9.4 A model that keeps the realism and the game
+
+Give each person two things the engine currently merges, and let the fee come
+from neither directly.
+
+- **Talent**: fixed, hidden, unrelated to fee. The ceiling of what they can do.
+- **Experience**: grows with credits. It raises the floor and narrows the
+  spread; it does not raise the ceiling. A gifted first-timer can match a
+  veteran on a good day and is likelier to have a bad one, more so on a large
+  or difficult production. The engine already has the vocabulary for this:
+  actors carry a craft floor and headroom, writers a consistency score,
+  everyone a reliability score.
+- **Quote**: set by fame, recent results and awards, and it ratchets.
+
+Three supporting pieces make that playable:
+
+1. **Ability is read, not shown.** The player sees a track record and a
+   qualitative read whose confidence grows with credits. The casting screen
+   already shows "confident read"; a newcomer would show a wide one. This also
+   fits the house rule that players see prose and stars, never raw stats.
+2. **Careers move.** After each film, fame and quote update from how it did. A
+   discovery's price rises after their first hit. New people enter each year,
+   cheap and unproven; veterans leave. This is the talent-careers item already
+   on the work list, and it is what stops a bargain lasting forever.
+3. **Rivals hire on track record**, so they compete for proven people and
+   occasionally poach yours. The relationship system already gives the player
+   a realistic counter: loyalty, and paying someone their new quote.
+
+With those in place, a big name is expensive because they are famous and have
+had hits, some of them are coasting, and finding ability early is the small
+studio's real advantage. Which is the real business.
+
+### 9.5 Recommendation
+
+- **Do not change the skill formula as part of the section-7 fixes.** Leave it
+  out of step 5. The other five fixes stand without it, and it is the only one
+  that disturbs the calibrated market.
+- **Treat the tie as a placeholder to be retired by a talent model**, built in
+  this order: experience as its own quantity tied to age and credits; ability
+  shown as a read with confidence; quotes and fame that move with results;
+  rivals that hire on track record. Only then cut skill loose from fee.
+- **One cheap step is safe now:** make age and experience mean something at
+  generation (older people have more credits and a higher fee floor), since
+  today they are unrelated to everything.
+
+## 10. Reproducing this
 
 ```bash
 PLAYER_ECONOMY_DIAGNOSTIC=1 TIERS=indie STRATEGIES=Careful,Steady DUMP_OUT=/tmp/indie.json \
