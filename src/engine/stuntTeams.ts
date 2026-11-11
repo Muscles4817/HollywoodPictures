@@ -5,6 +5,7 @@
 // first non-Person entity attached to a draft (mirrors the producer roster
 // lifecycle, minus the Person coupling and the separate release-effects: a
 // team's whole effect IS being the Practical facet's skill axis + swing tilt).
+import { nextSequence } from './identity';
 import type { Genre, StuntTeam } from '../types';
 import {
   GENRE_FAVORED_STUNT_SPECIALTIES,
@@ -18,8 +19,6 @@ import {
 import { logAmount } from './interpolate';
 import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
-let nextStuntTeamId = 1;
-
 function generateStuntTeam(rng: RandomFn, t: number): StuntTeam {
   // t is the 0-1 position along the pay/skill spread (stratified) — a cheap
   // scrappy unit at 0, a marquee coordination house near 1.
@@ -27,7 +26,7 @@ function generateStuntTeam(rng: RandomFn, t: number): StuntTeam {
   const skill = clamp(Math.round(30 + 55 * t + randFloat(rng, -12, 12)), 1, 100);
   const name = `${pick(rng, STUNT_TEAM_NAME_PREFIXES)} ${pick(rng, STUNT_TEAM_NAME_SUFFIXES)}`;
   const specialties = pickMany(rng, STUNT_SPECIALTIES, randInt(rng, 1, 2));
-  return { id: `stunt-${nextStuntTeamId++}`, name, skill, specialties, typicalSalary: salary };
+  return { id: `stunt-${nextSequence('stuntTeam')}`, name, skill, specialties, typicalSalary: salary };
 }
 
 /** The hireable Stunt Team roster, generated once at game start. */

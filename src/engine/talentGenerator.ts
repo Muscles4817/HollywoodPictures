@@ -14,6 +14,7 @@ import type {
   WriterCraft,
   WriterGenreAffinity,
 } from '../types';
+import { nextSequence } from './identity';
 import { ALL_TALENT_PROFESSIONS, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { GENRES } from '../data/genres';
 import {
@@ -34,8 +35,6 @@ import { deriveHandsOnSeeded, deriveCraftSeeded } from './actingModel';
 import { buildPersonality, resolveHandcraftedPersonality } from './personality';
 import { logAmount, logT } from './interpolate';
 import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
-
-let nextTalentId = 1;
 
 // Structural variation on top of the two word banks (data/talentNames.ts).
 // Plain first+last is 690 x 750 = 517,500 combinations - already a 20x widening
@@ -463,7 +462,7 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
   const personalitySeed = `${role}:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
 
   return {
-    id: `talent-${nextTalentId++}`,
+    id: `talent-${nextSequence('person')}`,
     identity: { name, gender, dateOfBirth, nationality: nationalityFor(name), appearanceTags: [] },
     // The six formerly-flat axes now cohere into a real archetype (see
     // engine/personality.ts) so engine/personTraits.ts can actually fire;
@@ -624,7 +623,7 @@ function generateProducer(rng: RandomFn, t: number): Person {
   const personalitySeed = `Producer:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
 
   return {
-    id: `producer-${nextTalentId++}`,
+    id: `producer-${nextSequence('person')}`,
     identity: { name, gender, dateOfBirth, nationality: nationalityFor(name), appearanceTags: [] },
     personality: buildPersonality(
       {

@@ -104,6 +104,22 @@ BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/starPower.diagnostic.test.ts -
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/receptionSpread.diagnostic.test.ts --disable-console-intercept  # per-plan spread vs ambition (docs/DESIGN_REVIEW_ambition_and_delivery.md)
 ```
 
+Player-economy harness (what happens to a *player* studio over a career - the
+other gates all measure rival films). Scripted studios (`src/state/playerBot.ts`)
+play through the real reducer under four fixed strategies; observational, prints
+tables. A 10-year run is ~15-20 s, so run one tier per process:
+
+```bash
+PLAYER_ECONOMY_DIAGNOSTIC=1 TIERS=indie npx vitest run \
+  src/state/playerEconomy.diagnostic.test.ts --disable-console-intercept
+# env: YEARS=10 SEEDS=101,102,103 TIERS=garage,indie,midmajor STRATEGIES=Careful,Steady DUMP_OUT=/tmp/player.json
+```
+
+Runs are reproducible because the bot mints ids from counters
+(`engine/identity.ts:withReplayableIds`). Normal play does not: script, draft
+and person ids come from the clock and process-wide counters, and several
+gameplay rolls are keyed on them, so a seed alone does not replay a game.
+
 Populated save dump (for looking at screens with real content in them, rather
 than at the empty states an unpopulated fixture renders):
 

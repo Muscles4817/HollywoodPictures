@@ -21,6 +21,7 @@ import type {
   ToneProfile,
   WriterCreativeProfile,
 } from '../types';
+import { uniqueId } from './identity';
 import { GENRE_PROFILES, GENRE_SETTING_AFFINITY, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
 import { uniqueTitle } from './titleGenerator';
 import { TONES } from '../data/tones';
@@ -40,14 +41,9 @@ import { type RandomFn, clamp, combineWeights, hashUnit, normalizeWeights, pick,
 // revisions, every Project and Film that froze a snapshot, and the IP layer
 // all key off them - yet must NOT be drawn from the seeded generation stream
 // (drawing from `rng` here would shift every downstream seeded roll: rival
-// scripts, talent, box-office scenarios). A module-level counter satisfied the
-// second requirement but reset to 1 on every page reload, so a long-lived save
-// could mint a fresh `script-1` that collides with an already-stored one.
-// Date.now() plus a little Math.random() satisfies both - it is pure identity,
-// not a replay-deterministic gameplay outcome - the same reasoning
-// state/gameState.ts:generateDraftId already uses for draft ids.
+// scripts, talent, box-office scenarios). See engine/identity.ts.
 export function newScriptId(): string {
-  return `script-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return uniqueId('script');
 }
 
 const TONE_JITTER = 15;

@@ -29,6 +29,7 @@ import type {
   TargetAudience,
   WizardStep,
 } from '../types';
+import { uniqueId } from '../engine/identity';
 import type { BackendOffer } from '../engine/backend';
 
 export interface GameState {
@@ -220,13 +221,11 @@ export function createInitialStudio(startingCash: number, brand = 20, prestige =
 /**
  * Not cryptographically random on purpose - crypto.randomUUID() only works
  * in a secure context (HTTPS or localhost), which threw on every browser
- * opening the game over plain HTTP from another computer on the LAN. This id
- * is pure identity, not a gameplay outcome, so it doesn't need to be
- * replay-deterministic the way rolled events/results do, or genuinely
- * unguessable - Date.now() plus a bit of Math.random() is unique enough.
+ * opening the game over plain HTTP from another computer on the LAN. See
+ * engine/identity.ts for how draft ids are minted and why.
  */
 function generateDraftId(): string {
-  return `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return uniqueId('draft');
 }
 
 /**
