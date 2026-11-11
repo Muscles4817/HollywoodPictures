@@ -9,11 +9,14 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { ProductionPlanning } from './ProductionPlanning';
 import { buildStateWithReadyDraft } from '../../state/testFixtures';
-import { saveState } from '../../state/persistence';
+import { saveState, resetPersistenceForTests } from '../../state/persistence';
 import { generateStuntTeamPool } from '../../engine/stuntTeams';
 import { withRng } from '../../engine/random';
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  resetPersistenceForTests();
+});
 
 function renderPlanningWithStuntPool() {
   const base = buildStateWithReadyDraft(1);

@@ -7,6 +7,7 @@ import { generateStuntTeamPool } from '../engine/stuntTeams';
 import { randomSeed, withRng } from '../engine/random';
 import { firstDayOfYear } from '../engine/calendar';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
+import { deleteSave, readSave, writeSave } from './saveDatabase';
 
 // Bump this whenever a persisted shape changes incompatibly (e.g. v2 -> v3
 // moved the talent roster from a per-film draft to a persistent Studio
@@ -425,86 +426,251 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   { kind: 'role' } case so the sheet can open a crew slot's drawer through
 //   the same deep-link the Inbox uses. Both branches independently bumped to
 //   v88; this is the merge of the two. Additive; same pre-launch policy.
-const SAVE_KEY = 'hollywood-pictures-save-v98';
+// v98 -> v99 (the save moves to IndexedDB): the stored shape of GameState is
+//   unchanged, but where and how it is stored is not - see saveDatabase.ts. A
+//   v98 save sat in localStorage, which a studio outgrew about a year in; it is
+//   not carried over (same pre-launch policy), and any old localStorage save
+//   keys are removed on boot so they stop occupying that origin's quota.
+export const SAVE_VERSION = 99;
+
+/** Every pre-v99 save lived in localStorage under a key with this prefix. */
+const LEGACY_SAVE_KEY_PREFIX = 'hollywood-pictures-save-v';
+
+/** No faster than this between two database writes, however fast the clock ticks. */
+const MIN_WRITE_INTERVAL_MS = 1000;
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
 
-export function loadState(): GameState {
+/**
+ * How saving works since v99: a write-behind cache over IndexedDB.
+ *
+ * The database is asynchronous, but the app wants its state synchronously at
+ * mount (StudioContext's useReducer initialiser) and so do the tests. So the
+ * latest state is held here in memory: `hydrateSave()` fills it from the
+ * database once, before the first render (main.tsx); `loadState()` and
+ * `hasSavedGame()` answer from it; `saveState()` updates it at once and queues
+ * the database write behind it. Writes are throttled and never overlap, and a
+ * failed write is reported through `subscribeSaveStatus` so the player is told
+ * (components/common/SaveStatusBanner.tsx) instead of losing progress silently.
+ *
+ * Until `hydrateSave()` has been called nothing touches the database at all -
+ * which is the whole of the test suite, apart from the tests that exercise the
+ * database on purpose.
+ */
+let cached: GameState | null = null;
+let databaseActive = false;
+let dirty = false;
+let writing = false;
+let lastWriteAt = 0;
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+/** Bumped by clearSavedState so a write already in flight cannot resurrect the save. */
+let generation = 0;
+
+export type SaveStatus =
+  | { kind: 'ok' }
+  | { kind: 'failed'; reason: string };
+
+const OK: SaveStatus = { kind: 'ok' };
+let status: SaveStatus = OK;
+const statusListeners = new Set<() => void>();
+
+function setStatus(next: SaveStatus): void {
+  if (next.kind === status.kind && (next.kind === 'ok' || (status.kind === 'failed' && status.reason === next.reason))) return;
+  status = next;
+  statusListeners.forEach((listener) => listener());
+}
+
+export function getSaveStatus(): SaveStatus {
+  return status;
+}
+
+export function subscribeSaveStatus(listener: () => void): () => void {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
+}
+
+function describeFailure(error: unknown): string {
+  const name = (error as { name?: string } | null)?.name;
+  if (name === 'QuotaExceededError') return 'This device is out of storage space for the game.';
+  if (error instanceof Error && error.message) return error.message;
+  return 'The browser refused to store the save.';
+}
+
+function removeLegacyLocalStorageSaves(): void {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) throw new Error('no save');
-    const parsed = JSON.parse(raw) as GameState;
-    if (!parsed.studio) throw new Error('malformed save');
-    return parsed;
+    const stale: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(LEGACY_SAVE_KEY_PREFIX)) stale.push(key);
+    }
+    stale.forEach((key) => localStorage.removeItem(key));
   } catch {
-    // No save (or an incompatible one) - generate a fresh studio, including
-    // its talent pool and rival roster, from a genuinely random seed.
-    // The generated roster, never a real-people one: an unreadable save must
-    // not silently opt the player into real names they never chose.
-    const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
-      talentPool: generateTalentPool(rng, GENERATED_TALENT_DB),
-      rivalStudios: generateRivalStudios(rng),
-      producerPool: generateProducerPool(rng),
-      stuntTeamPool: generateStuntTeamPool(rng),
-    }));
-    return {
-      studio: { ...createInitialStudio(DEFAULT_STARTING_CASH), assets: TEST_SCRIPT_ASSETS },
-      screen: 'dashboard',
-      projects: [],
-      focusedProjectId: null,
-      projectWorkspaceSection: 'overview',
-      rngSeed: nextSeed,
-      totalDays: 1,
-      talentPool: result.talentPool,
-      talentDatabaseId: GENERATED_TALENT_DB.id,
-      rivalStudios: result.rivalStudios,
-      producerPool: result.producerPool,
-      stuntTeamPool: result.stuntTeamPool,
-      opportunities: [],
-      nextOpportunityCheckDay: 1,
-      collaborations: [],
-      talentPairings: [],
-      awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
-      bidNotifications: [],
-      viewingRivalStudioName: null,
-      viewingProductionId: null,
-    };
+    // localStorage unavailable - nothing to clean up.
   }
+}
+
+async function flush(): Promise<void> {
+  if (!databaseActive || writing || !dirty || !cached) return;
+  writing = true;
+  dirty = false;
+  const startedIn = generation;
+  try {
+    await writeSave(cached, SAVE_VERSION);
+    // The studio was reset or cleared while this write was in flight - it must
+    // not leave the old one behind.
+    if (startedIn !== generation && !cached) await deleteSave();
+    setStatus(OK);
+  } catch (error) {
+    dirty = true;
+    setStatus({ kind: 'failed', reason: describeFailure(error) });
+  } finally {
+    writing = false;
+    lastWriteAt = Date.now();
+  }
+  // Whatever changed during the write goes out on the next interval; a failed
+  // write is retried on the next change (or the banner's Retry), not in a loop.
+  if (dirty && status.kind === 'ok') scheduleWrite();
+}
+
+function scheduleWrite(): void {
+  if (!databaseActive || writeTimer !== null) return;
+  const wait = Math.max(0, MIN_WRITE_INTERVAL_MS - (Date.now() - lastWriteAt));
+  writeTimer = setTimeout(() => {
+    writeTimer = null;
+    void flush();
+  }, wait);
+}
+
+/** Write now, skipping the throttle - the tab is being hidden or closed, or the player asked to retry. */
+export function flushSave(): Promise<void> {
+  if (writeTimer !== null) {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+  }
+  return flush();
 }
 
 /**
- * Whether a persisted save already exists under the current key. Read once at
- * startup (App.tsx) to tell a genuine first launch - where the player should be
- * offered the same starting-stature choice a Reset gives them - apart from a
- * returning session. Must be consulted before the auto-save effect writes the
- * freshly-loaded state back (StudioContext.tsx), which is why it reads
- * localStorage directly rather than inferring "fresh" from loadState's result
- * (loadState can't distinguish a brand-new studio it just generated from a
- * loaded one, and by the time an effect could look, the save is already there).
+ * Load the stored studio into memory and switch database writes on. Call once,
+ * before the first render. Never rejects: a database that cannot be opened
+ * leaves the game playable in memory with the failure reported.
+ */
+export async function hydrateSave(): Promise<void> {
+  removeLegacyLocalStorageSaves();
+  databaseActive = true;
+  try {
+    cached = await readSave(SAVE_VERSION);
+    setStatus(OK);
+  } catch (error) {
+    cached = null;
+    setStatus({ kind: 'failed', reason: describeFailure(error) });
+  }
+  if (typeof document !== 'undefined') {
+    // A tab that is hidden or closed may never run its pending timer.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') void flushSave();
+    });
+    window.addEventListener('pagehide', () => void flushSave());
+  }
+  // Ask the browser not to evict the save under storage pressure. Best effort.
+  void navigator.storage?.persist?.().catch(() => undefined);
+}
+
+/**
+ * Replace the stored studio outright and wait for it to land - the dev hook
+ * behind `window.hollywoodPictures.importSave` (main.tsx), for loading a
+ * populated fixture dump.
+ */
+export async function importSave(state: GameState): Promise<void> {
+  cached = state;
+  dirty = true;
+  await flushSave();
+}
+
+function freshState(): GameState {
+  // Generate a fresh studio, including its talent pool and rival roster, from
+  // a genuinely random seed. The generated roster, never a real-people one: a
+  // missing save must not silently opt the player into real names they never
+  // chose.
+  const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
+    talentPool: generateTalentPool(rng, GENERATED_TALENT_DB),
+    rivalStudios: generateRivalStudios(rng),
+    producerPool: generateProducerPool(rng),
+    stuntTeamPool: generateStuntTeamPool(rng),
+  }));
+  return {
+    studio: { ...createInitialStudio(DEFAULT_STARTING_CASH), assets: TEST_SCRIPT_ASSETS },
+    screen: 'dashboard',
+    projects: [],
+    focusedProjectId: null,
+    projectWorkspaceSection: 'overview',
+    rngSeed: nextSeed,
+    totalDays: 1,
+    talentPool: result.talentPool,
+    talentDatabaseId: GENERATED_TALENT_DB.id,
+    rivalStudios: result.rivalStudios,
+    producerPool: result.producerPool,
+    stuntTeamPool: result.stuntTeamPool,
+    opportunities: [],
+    nextOpportunityCheckDay: 1,
+    collaborations: [],
+    talentPairings: [],
+    awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
+    bidNotifications: [],
+    viewingRivalStudioName: null,
+    viewingProductionId: null,
+  };
+}
+
+export function loadState(): GameState {
+  return cached ?? freshState();
+}
+
+/**
+ * Whether a studio is already saved. Read once at startup (App.tsx) to tell a
+ * genuine first launch - where the player should be offered the same
+ * starting-stature choice a Reset gives them - apart from a returning session.
+ * Must be consulted before the auto-save effect hands the freshly-generated
+ * state back (StudioContext.tsx).
  */
 export function hasSavedGame(): boolean {
-  try {
-    return localStorage.getItem(SAVE_KEY) !== null;
-  } catch {
-    // Storage unavailable (private mode, etc.) - treat as no save, same
-    // graceful fallback as loadState/saveState.
-    return false;
-  }
+  return cached !== null;
 }
 
 export function saveState(state: GameState): void {
+  if (cached === state) return;
+  cached = state;
+  dirty = true;
+  scheduleWrite();
+}
+
+/** Forget the saved studio, in memory and in the database. Resolves once it is gone. */
+export async function clearSavedState(): Promise<void> {
+  cached = null;
+  dirty = false;
+  generation++;
+  if (writeTimer !== null) {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+  }
+  if (!databaseActive) return;
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    await deleteSave();
   } catch {
-    // Storage unavailable (private mode, quota, etc.) - fail silently, game still works in-memory.
+    // Nothing more can be done here; the next successful save overwrites it.
   }
 }
 
-export function clearSavedState(): void {
-  try {
-    localStorage.removeItem(SAVE_KEY);
-  } catch {
-    // ignore
-  }
+/** Test seam: return the module to its just-loaded state. */
+export function resetPersistenceForTests(): void {
+  cached = null;
+  databaseActive = false;
+  dirty = false;
+  writing = false;
+  lastWriteAt = 0;
+  generation = 0;
+  if (writeTimer !== null) clearTimeout(writeTimer);
+  writeTimer = null;
+  status = OK;
 }

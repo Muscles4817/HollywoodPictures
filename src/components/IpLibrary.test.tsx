@@ -7,11 +7,12 @@ import { StudioProvider } from '../state/StudioContext';
 import { IpLibrary } from './IpLibrary';
 import { studioReducer } from '../state/studioReducer';
 import { buildStateWithReadyDraft } from '../state/testFixtures';
-import { saveState } from '../state/persistence';
+import { saveState, resetPersistenceForTests } from '../state/persistence';
 import { playerReleasedFilms } from '../engine/project';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 describe('IpLibrary', () => {

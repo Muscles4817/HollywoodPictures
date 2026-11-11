@@ -19,13 +19,14 @@ import { StudioProvider } from '../../state/StudioContext';
 import { ReleaseResults } from './ReleaseResults';
 import { studioReducer } from '../../state/studioReducer';
 import { buildStateWithReadyDraft } from '../../state/testFixtures';
-import { saveState } from '../../state/persistence';
+import { saveState, resetPersistenceForTests } from '../../state/persistence';
 import { MAX_SIMULATION_WEEKS } from '../../engine/audienceSimulationStep';
 import { playerReleasedFilms } from '../../engine/project';
 import type { GameState } from '../../state/gameState';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 function advanceDays(state: GameState, n: number): GameState {

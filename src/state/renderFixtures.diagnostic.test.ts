@@ -7,8 +7,9 @@
 //   DUMP_FIXTURE=1 DUMP_PATH=/tmp/pop.json npx vitest run \
 //     src/state/renderFixtures.diagnostic.test.ts --disable-console-intercept
 //
-// Then inject the file as localStorage['hollywood-pictures-save-v89'] before
-// the app loads. Skipped in the normal suite; see renderFixtures.test.ts for
+// Then load it with the dev console hook (main.tsx; see CLAUDE.md):
+//   await hollywoodPictures.importSave(await (await fetch('pop.json')).json())
+// Skipped in the normal suite; see renderFixtures.test.ts for
 // the assertions about what the fixture actually contains.
 import { describe, it } from 'vitest';
 import { writeFileSync } from 'node:fs';

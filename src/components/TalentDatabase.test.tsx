@@ -8,7 +8,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { StudioProvider } from '../state/StudioContext';
 import { TalentDatabase } from './TalentDatabase';
 import { createInitialStudio, type GameState } from '../state/gameState';
-import { saveState } from '../state/persistence';
+import { saveState, resetPersistenceForTests } from '../state/persistence';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { AWARD_CATEGORIES } from '../data/awards';
@@ -18,6 +18,7 @@ import { payRangeLabel } from './TalentDatabase';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 function named(base: Person, name: string, gender: 'Male' | 'Female'): Person {

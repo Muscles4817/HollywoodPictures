@@ -39,8 +39,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   private handleResetStudio = (): void => {
-    clearSavedState();
-    window.location.reload();
+    // The save is deleted from the database asynchronously - reload only once
+    // it is gone, or the reload would load the very save being reset.
+    void clearSavedState().finally(() => window.location.reload());
   };
 
   private handleReload = (): void => {

@@ -22,13 +22,14 @@ import { studioReducer } from '../../state/studioReducer';
 import { createInitialStudio, type GameState } from '../../state/gameState';
 import { generateTalentPool } from '../../engine/talentGenerator';
 import { generateScriptOptions } from '../../engine/scriptGenerator';
-import { saveState } from '../../state/persistence';
+import { saveState, resetPersistenceForTests } from '../../state/persistence';
 import { withRng } from '../../engine/random';
 import { ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS } from '../../data/scriptTagLabels';
 import type { Asset, Genre } from '../../types';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 function stateWithFocusedAssetDraft(seed: number, genre: Genre): GameState {

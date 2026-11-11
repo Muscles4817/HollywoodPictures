@@ -9,12 +9,13 @@ import { StudioProvider } from '../state/StudioContext';
 import { AwardsNight } from './AwardsNight';
 import { studioReducer } from '../state/studioReducer';
 import { buildStateWithReadyDraft } from '../state/testFixtures';
-import { saveState } from '../state/persistence';
+import { saveState, resetPersistenceForTests } from '../state/persistence';
 import { unacknowledgedAwardHighlights } from '../state/selectors';
 import type { GameState } from '../state/gameState';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 /** Run the calendar forward until a ceremony resolves and is still unseen. */

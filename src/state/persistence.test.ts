@@ -1,18 +1,25 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { loadState, saveState, clearSavedState, hasSavedGame } from './persistence';
+import { IDBFactory } from 'fake-indexeddb';
+import {
+  SAVE_VERSION,
+  loadState,
+  saveState,
+  clearSavedState,
+  hasSavedGame,
+  hydrateSave,
+  flushSave,
+  getSaveStatus,
+  resetPersistenceForTests,
+} from './persistence';
+import { readSave, writeSave, resetWrittenSnapshotForTests } from './saveDatabase';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
+import { buildPopulatedStudio } from './renderFixtures';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
-import { playerReleasedFilms } from '../engine/project';
-import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
+import { playerReleasedFilms, projectId } from '../engine/project';
+import type { GameState } from './gameState';
 
-/**
- * A minimal in-memory localStorage, since vitest's default (Node)
- * environment has no DOM/localStorage global and this project's
- * vitest.config.ts deliberately stays DOM-free (see its own comment -
- * "everything under test so far is pure engine/domain logic"). No jsdom/
- * happy-dom dependency needed for this one interface.
- */
+/** A minimal in-memory localStorage - only the legacy-key cleanup touches it now. */
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>();
   return {
@@ -31,8 +38,22 @@ function createMemoryStorage(): Storage {
   } as Storage;
 }
 
+/** What a page reload does to the save layer: memory is gone, the database is not. */
+function simulateReload(): void {
+  resetPersistenceForTests();
+  resetWrittenSnapshotForTests();
+}
+
+function advanceDays(state: GameState, n: number): GameState {
+  let s = state;
+  for (let i = 0; i < n; i++) s = studioReducer(s, { type: 'ADVANCE_DAY' });
+  return s;
+}
+
 beforeEach(() => {
   globalThis.localStorage = createMemoryStorage();
+  globalThis.indexedDB = new IDBFactory();
+  simulateReload();
 });
 
 describe('save / reload preserves exact run state', () => {
@@ -79,535 +100,188 @@ describe('save / reload preserves exact run state', () => {
   });
 });
 
-describe('old saves migrate safely', () => {
-  it('no save present at all (fresh browser) falls back to a brand new studio without throwing', () => {
+describe('the in-memory save (what the app and the component tests read synchronously)', () => {
+  it('no save present at all falls back to a brand new studio without throwing', () => {
     expect(() => loadState()).not.toThrow();
     const state = loadState();
     expect(state.projects).toEqual([]);
     expect(state.screen).toBe('dashboard');
   });
 
-  it('a save under an old, pre-Milestone-5 key is invisible to the new SAVE_KEY - falls back to a fresh studio, not a crash reading a stale BoxOfficeRun shape', () => {
-    // Simulates the exact "bump the version, old data goes untouched under
-    // its own old key" migration strategy this file's own SAVE_KEY comment
-    // documents - an old save literally using legs/retention (the fields
-    // this milestone removed from BoxOfficeRun) never gets read by
-    // loadState() at all, since it's stored under a different key entirely.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v18',
-      JSON.stringify({ studio: { cash: 1, filmsReleased: [{ boxOfficeRun: { legs: 4, retention: 0.8 } }] } }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-  });
-
-  it('malformed data under the current key also falls back cleanly, rather than throwing', () => {
-    globalThis.localStorage.setItem('hollywood-pictures-save-v20', 'not valid json{{{');
-    expect(() => loadState()).not.toThrow();
+  it('clearSavedState followed by loadState behaves exactly like no save ever existed', async () => {
+    const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    saveState(released);
+    await clearSavedState();
     expect(loadState().projects).toEqual([]);
   });
 
-  it('a save under the pre-Milestone-9 v19 key (missing availability fields on BoxOfficeRun.fixed/simWeeks) is invisible to v20 - falls back to a fresh studio rather than crashing the first time a film\'s week is next advanced', () => {
-    // The actual production bug this test pins: a v19 save's fixed/simWeeks
-    // predate initialAvailabilityFraction/availabilityBaseWeeklyDecay/
-    // criticLedExpansionWeight/availabilityFraction entirely (undefined,
-    // not just stale values). Loading it and then advancing any released
-    // film's box office (GO_TO_STEP/ADVANCE_DAY, via settleBoxOfficeForAllFilms)
-    // used to read those as undefined, produce NaN, and throw inside
-    // createAudienceSimulationWeekState's validation - uncaught, with no
-    // ErrorBoundary anywhere in the app, blanking the whole page. See
-    // SAVE_KEY's own v19 -> v20 comment.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v19',
-      JSON.stringify({
-        studio: {
-          cash: 1,
-          filmsReleased: [{
-            boxOfficeRun: {
-              status: 'running',
-              fixed: {
-                totalAddressableAudience: 1_000_000, baseInterestFraction: 0.2, marketingEfficiency: 0.5,
-                crossoverCapacityFraction: 0.1, conversionPacingBaseline: 0.12, externalWeeklyAwarenessRate: 0.1,
-                criticScore: 60, audienceScore: 60, initialAwareCount: 100_000,
-                // no initialAvailabilityFraction/availabilityBaseWeeklyDecay/criticLedExpansionWeight - the pre-Milestone-9 shape
-              },
-              simWeeks: [{ week: 1, awareCount: 200_000, interestedRemaining: 50_000, cumulativeTicketsSold: 10_000 }],
-              // no availabilityFraction on the week either
-            },
-          }],
-        },
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-
-    // The actual failure mode: advancing days used to throw once a v19-shaped
-    // film reached this code path. With the fresh studio loadState() actually
-    // returns (no released films), this must be a no-op, not a crash.
-    expect(() => studioReducer(state, { type: 'ADVANCE_DAY' })).not.toThrow();
-    expect(() => studioReducer(state, { type: 'GO_TO_STEP', step: 'production' })).not.toThrow();
+  it('hasSavedGame is false on a first launch - loadState generating a default studio does not count as a save', () => {
+    loadState();
+    expect(hasSavedGame()).toBe(false);
   });
 
-  it('a save under the pre-Phase-1.1 v22 key (Studio.totalDays nested, no top-level GameState.totalDays) is invisible to v23 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Studio.totalDays moved to GameState.totalDays (architecture roadmap
-    // Phase 1.1) - a v22 save has totalDays nested inside `studio`, not at
-    // the top level `parsed.totalDays` this file's loadState() now expects.
-    // Same class of break as every past shape change here: no migration
-    // code, an old save simply isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v22',
-      JSON.stringify({ studio: { cash: 1, totalDays: 999, filmsReleased: [] } }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.totalDays).toBe(1); // a genuinely fresh calendar, not the stale save's totalDays: 999
+  it('hasSavedGame is true once a state has been saved, and false again after clearSavedState', async () => {
+    saveState(loadState());
+    expect(hasSavedGame()).toBe(true);
+    await clearSavedState();
+    expect(hasSavedGame()).toBe(false);
   });
 
-  it('a save under the pre-Phase-1.2 v23 key (rival state nested in studio, no top-level GameState.rivalStudios) is invisible to v24 - falls back to a fresh studio and roster rather than a hybrid state', () => {
-    // Studio.rivalStudios/rivalProductionsInProgress/rivalFilmsReleased moved
-    // to GameState (architecture roadmap Phase 1.2) - a v23 save has all
-    // three nested inside `studio`, not at the top level this file's
-    // loadState() now expects. Same class of break as every past shape
-    // change here: no migration code, an old save simply isn't found under
-    // the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v23',
-      JSON.stringify({
-        studio: { cash: 1, totalDays: 1, filmsReleased: [], rivalStudios: [{ id: 'stale', name: 'Stale Pictures', tier: 'Indie', nextSpawnCheckDay: 1 }] },
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.rivalStudios).not.toEqual([]); // a genuinely fresh (real) roster, not the stale save's studio-nested one
-    expect(state.rivalStudios.some((r) => r.name === 'Stale Pictures')).toBe(false);
-  });
-
-  it('a save under the pre-Phase-1.3 v24 key (talentPool nested in studio, no top-level GameState.talentPool) is invisible to v25 - falls back to a fresh studio and roster rather than a hybrid state', () => {
-    // Studio.talentPool moved to GameState (architecture roadmap Phase 1.3)
-    // - a v24 save has it nested inside `studio`, not at the top level this
-    // file's loadState() now expects. Same class of break as every past
-    // shape change here: no migration code, an old save simply isn't found
-    // under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v24',
-      JSON.stringify({
-        studio: { cash: 1, totalDays: 1, filmsReleased: [], talentPool: { Director: [{ id: 'stale-director', name: 'Stale Director' }] } },
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.talentPool.Director.some((t) => t.identity.name === 'Stale Director')).toBe(false);
-    expect(state.talentPool.Director.length).toBeGreaterThan(0); // a genuinely fresh (real) pool, not an empty one
-  });
-
-  it('a save under the pre-Phase-5 v25 key (draft/Studio.filmsReleased/Studio.productionsInProgress/rival state instead of GameState.projects) is invisible to v26 - falls back to a fresh studio rather than a hybrid state', () => {
-    // GameState.draft/Studio.filmsReleased/Studio.productionsInProgress/
-    // GameState.rivalProductionsInProgress/GameState.rivalFilmsReleased all
-    // collapsed into GameState.projects/focusedProjectId (architecture
-    // roadmap Phase 5) - a v25 save has none of the new fields at all. Same
-    // class of break as every past shape change here: no migration code, an
-    // old save simply isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v25',
-      JSON.stringify({
-        studio: { cash: 1, reputation: 20, name: 'Stale Pictures', filmsReleased: [], productionsInProgress: [] },
-        draft: null,
-        totalDays: 1,
-        rivalProductionsInProgress: [],
-        rivalFilmsReleased: [],
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.focusedProjectId).toBeNull();
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-Phase-7.2 v26 key (no SCHEDULE_RELEASE/scheduled projects yet) is invisible to v27 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Real release scheduling (architecture roadmap Phase 7.1/7.2) added a
-    // fourth Project kind, 'scheduled', that a v26 save's projects array
-    // can't contain (the kind didn't exist yet). Same class of break as
-    // every past shape change here: no migration code, an old save simply
-    // isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v26',
-      JSON.stringify({
-        studio: { cash: 1, reputation: 20, name: 'Stale Pictures' },
-        projects: [],
-        focusedProjectId: null,
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-development-pipeline v27 key (no opportunities/assets yet) is invisible to v28 - falls back to a fresh studio rather than a hybrid state', () => {
-    // The development pipeline (docs/DESIGN_REVIEW_development_pipeline.md)
-    // added required GameState.opportunities/nextOpportunityCheckDay and
-    // Studio.assets, and replaced FilmDraft's old scriptOptions-based shape
-    // with assetId/greenlitOnDay - a v27 save's studio/projects have none of
-    // these. Same class of break as every past shape change here: no
-    // migration code, an old save simply isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v27',
-      JSON.stringify({
-        studio: { cash: 1, reputation: 20, name: 'Stale Pictures' },
-        projects: [],
-        focusedProjectId: null,
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.opportunities).toEqual([]);
-    expect(state.studio.assets).toEqual(TEST_SCRIPT_ASSETS);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-Brand/Prestige v28 key (single reputation stat instead of brand/prestige) is invisible to v29 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Brand Recognition and Prestige (docs/DESIGN.md) replaced the single
-    // Studio.reputation stat with two independent ones, Studio.brand/
-    // Studio.prestige - a v28 save's studio has neither field. Same class of
-    // break as every past shape change here: no migration code, an old save
-    // simply isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v28',
-      JSON.stringify({
-        studio: { cash: 1, reputation: 20, name: 'Stale Pictures' },
-        projects: [],
-        focusedProjectId: null,
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.brand).toBeGreaterThan(1);
-    expect(state.studio.prestige).toBeGreaterThan(1);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-AI-Studios-2.0 v29 key (rivals with no cash/brand/prestige) is invisible to v30 - falls back to a fresh studio rather than a hybrid state', () => {
-    // AI Studios 2.0 (docs/DESIGN.md) gave RivalStudio real cash/brand/
-    // prestige/lifetimeRevenue/lifetimeExpenditure - a v29 save's
-    // rivalStudios entries have none of these fields. Same class of break as
-    // every past shape change here: no migration code, an old save simply
-    // isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v29',
-      JSON.stringify({
-        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures' },
-        rivalStudios: [{ id: 'rival-studio-0', name: 'Stale Rival', tier: 'Indie', nextSpawnCheckDay: 1 }],
-        projects: [],
-        focusedProjectId: null,
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.rivalStudios.every((r) => r.cash > 0)).toBe(true);
-    expect(state.rivalStudios.some((r) => r.name === 'Stale Rival')).toBe(false);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-bidding v30 key (opportunities with no postedOnDay/bids) is invisible to v31 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Opportunity Market: weekly cadence and bidding (docs/DESIGN.md) gave
-    // Opportunity required postedOnDay/bids fields - a v30 save's
-    // opportunities entries have neither. Same class of break as every past
-    // shape change here: no migration code, an old save simply isn't found
-    // under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v30',
-      JSON.stringify({
-        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
-        rivalStudios: [],
-        opportunities: [{ id: 'opp-1', source: 'Studio Original', script: {}, acquisitionCost: 100, expiresOnDay: 100 }],
-        nextOpportunityCheckDay: 1,
-        projects: [],
-        focusedProjectId: null,
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.opportunities).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-Character-and-Setting-Foundations v34 key (scripts with a `setting` field and no `cast`) is invisible to v35 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Character and Setting Foundations (docs/CHARACTER_AND_SETTING_FOUNDATIONS.md)
-    // replaced Script.setting (a 5-value Setting) with Script.primarySetting
-    // (a 20-value SettingArchetype) and added a required Script.cast -
-    // a v34 save's scripts have the old `setting` field and no `cast` at
-    // all. Same class of break as every past shape change here: no
-    // migration code, an old save simply isn't found under the new key - and
-    // the fresh studio it falls back to seeds its Asset Library from
-    // data/testScripts.ts, whose scripts all carry primarySetting/cast, so
-    // no Script a player can reach is ever left with the old, empty shape
-    // (section 13's "no migration, but no dangling old-shape Script either").
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v34',
-      JSON.stringify({
-        studio: {
-          cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures',
-          assets: [{ id: 'asset-1', script: { id: 'script-1', title: 'Stale Script', setting: 'Modern' }, source: 'Studio Original', acquisitionCost: 0, acquiredOnDay: 1 }],
-        },
-        rivalStudios: [],
-        opportunities: [],
-        nextOpportunityCheckDay: 1,
-        projects: [],
-        focusedProjectId: null,
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.assets.some((a) => a.script.title === 'Stale Script')).toBe(false);
-    expect(state.studio.assets.length).toBeGreaterThan(0);
-    expect(state.studio.assets.every((a) => a.script.primarySetting !== undefined && Array.isArray(a.script.cast))).toBe(true);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-Casting-Redesign v35 key (a FilmDraft with no castingCalls) is invisible to v36 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md)
-    // gave FilmDraft a required castingCalls: CastingCall[] - a v35 save's
-    // in-progress projects have no such field at all. Same class of break
-    // as every past shape change here: no migration code, an old save
-    // simply isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v35',
-      JSON.stringify({
-        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
-        rivalStudios: [],
-        opportunities: [],
-        nextOpportunityCheckDay: 1,
-        projects: [{ kind: 'player-in-progress', draft: { id: 'draft-1', title: 'Stale Draft', talent: [], talentTargetPriceByRole: {} } }],
-        focusedProjectId: 'draft-1',
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-Casting-Redesign-Phase-C v36 key (a CastingCall with no rejectionCount) is invisible to v37 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Casting Redesign, Phase C (docs/DESIGN_REVIEW_casting_redesign.md)
-    // gave CastingCall a required rejectionCount: number - a v36 save's
-    // castingCalls entries have no such field at all. Same class of break
-    // as every past shape change here: no migration code, an old save
-    // simply isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v36',
-      JSON.stringify({
-        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
-        rivalStudios: [],
-        opportunities: [],
-        nextOpportunityCheckDay: 1,
-        projects: [
-          {
-            kind: 'player-in-progress',
-            draft: {
-              id: 'draft-1', title: 'Stale Draft', talent: [], talentTargetPriceByRole: {},
-              castingCalls: [{ id: 'call-1', characterId: 'char-1', role: 'Lead Actor', channel: 'OpenCasting', openedOnDay: 1, nextApplicantCheckDay: 8, applicants: [] }],
-            },
-          },
-        ],
-        focusedProjectId: 'draft-1',
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-Casting-Redesign-Phase-D v37 key (channel on the CastingCall itself, not its applicants) is invisible to v38 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Casting Redesign, Phase D (docs/DESIGN_REVIEW_casting_redesign.md)
-    // moved `channel` off CastingCall and onto each CastingApplicant
-    // instead - a v37 save's applicants have no such field at all. Same
-    // class of break as every past shape change here: no migration code, an
-    // old save simply isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v37',
-      JSON.stringify({
-        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
-        rivalStudios: [],
-        opportunities: [],
-        nextOpportunityCheckDay: 1,
-        projects: [
-          {
-            kind: 'player-in-progress',
-            draft: {
-              id: 'draft-1', title: 'Stale Draft', talent: [], talentTargetPriceByRole: {},
-              castingCalls: [{
-                id: 'call-1', characterId: 'char-1', role: 'Lead Actor', channel: 'OpenCasting', openedOnDay: 1, nextApplicantCheckDay: 8, rejectionCount: 0,
-                applicants: [{ person: { id: 'p-1' }, appliedOnDay: 1 }],
-              }],
-            },
-          },
-        ],
-        focusedProjectId: 'draft-1',
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-Post-Production-Redesign v38 key (a FilmDraft with no postProductionEstimatedCompletionDay) is invisible to v39 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md)
-    // gave FilmDraft a required postProductionEstimatedCompletionDay:
-    // GameDay | null - a v38 save's FilmDraft entries have no such field at
-    // all. Same class of break as every past shape change here: no
-    // migration code, an old save simply isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v38',
-      JSON.stringify({
-        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
-        rivalStudios: [],
-        opportunities: [],
-        nextOpportunityCheckDay: 1,
-        projects: [
-          {
-            kind: 'player-in-progress',
-            draft: {
-              id: 'draft-1', title: 'Stale Draft', talent: [], talentTargetPriceByRole: {},
-              castingCalls: [], photography: { status: 'finished', recommendedDays: 20, daysElapsed: 20, events: [], runningCost: 0, pendingChoice: null },
-            },
-          },
-        ],
-        focusedProjectId: 'draft-1',
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-Post-Production-Redesign-Phase-B v39 key (a FilmDraft with the old postProductionEstimatedCompletionDay field name and no testScreening fields) is invisible to v40 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Post-Production Redesign, Phase B (docs/DESIGN_REVIEW_post_production_redesign.md
-    // section 2) renamed FilmDraft's postProductionEstimatedCompletionDay to
-    // postProductionScreeningReadyDay and added two new required fields
-    // (testScreeningPendingChoice, testScreeningResolved) - a v39 save's
-    // FilmDraft entries have the old field name and neither new field. Same
-    // class of break as every past shape change here: no migration code, an
-    // old save simply isn't found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v39',
-      JSON.stringify({
-        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
-        rivalStudios: [],
-        opportunities: [],
-        nextOpportunityCheckDay: 1,
-        projects: [
-          {
-            kind: 'player-in-progress',
-            draft: {
-              id: 'draft-1', title: 'Stale Draft', talent: [], talentTargetPriceByRole: {},
-              castingCalls: [], photography: { status: 'finished', recommendedDays: 20, daysElapsed: 20, events: [], runningCost: 0, pendingChoice: null },
-              postProductionEstimatedCompletionDay: 40,
-            },
-          },
-        ],
-        focusedProjectId: 'draft-1',
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('a save under the pre-cleanup v40 key (a FilmDraft with no postProductionFinalReadyDay/postProductionEvents) is invisible to v41 - falls back to a fresh studio rather than a hybrid state', () => {
-    // Post-Production Redesign Phase B architecture cleanup
-    // (docs/DESIGN_REVIEW_post_production_redesign.md section 2) split the
-    // old dual-meaning postProductionScreeningReadyDay into that fixed field
-    // plus a new postProductionFinalReadyDay, and gave FilmDraft/Film both a
-    // new postProductionEvents: ProductionEvent[] field - a v40 save's
-    // FilmDraft entries have neither new field. Same class of break as every
-    // past shape change here: no migration code, an old save simply isn't
-    // found under the new key.
-    globalThis.localStorage.setItem(
-      'hollywood-pictures-save-v40',
-      JSON.stringify({
-        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
-        rivalStudios: [],
-        opportunities: [],
-        nextOpportunityCheckDay: 1,
-        projects: [
-          {
-            kind: 'player-in-progress',
-            draft: {
-              id: 'draft-1', title: 'Stale Draft', talent: [], talentTargetPriceByRole: {},
-              castingCalls: [], photography: { status: 'finished', recommendedDays: 20, daysElapsed: 20, events: [], runningCost: 0, pendingChoice: null },
-              postProductionScreeningReadyDay: 40, testScreeningPendingChoice: null, testScreeningResolved: false,
-            },
-          },
-        ],
-        focusedProjectId: 'draft-1',
-        totalDays: 1,
-      }),
-    );
-    const state = loadState();
-    expect(state.projects).toEqual([]);
-    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.studio.name).not.toBe('Stale Pictures');
-  });
-
-  it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
-    const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
-    saveState(released);
-    clearSavedState();
-    const state = loadState();
-    expect(state.projects).toEqual([]);
+  it('never touches the database before hydrateSave has been called', async () => {
+    saveState(buildStateWithReadyDraft(1));
+    await flushSave();
+    expect(await readSave(SAVE_VERSION)).toBeNull();
   });
 });
 
-describe('hasSavedGame - first-launch detection (App.tsx offers the starting-stature picker)', () => {
-  it('is false on a genuinely fresh browser with no save under the current key', () => {
-    // loadState() would happily generate a default studio here, but that's
-    // exactly the case the first-launch picker exists for - hasSavedGame must
-    // report "nothing saved yet" so App.tsx knows to offer the choice.
-    expect(hasSavedGame()).toBe(false);
-  });
+describe('the database save survives a reload', () => {
+  it('a studio written to the database comes back identical after a reload', async () => {
+    await hydrateSave();
+    const state = advanceDays(studioReducer(buildStateWithReadyDraft(5), { type: 'SCHEDULE_RELEASE', releaseDay: 1 }), 10);
+    saveState(state);
+    await flushSave();
 
-  it('is true once a save has actually been written under the current key', () => {
-    saveState(loadState());
+    simulateReload();
+    expect(hasSavedGame()).toBe(false);
+    await hydrateSave();
     expect(hasSavedGame()).toBe(true);
+    expect(loadState()).toEqual(state);
   });
 
-  it('goes back to false after clearSavedState - a reset returns to the first-launch state', () => {
-    saveState(loadState());
-    clearSavedState();
+  it('continuing a run reloaded from the database settles identically to continuing it in memory', async () => {
+    await hydrateSave();
+    const state = advanceDays(studioReducer(buildStateWithReadyDraft(3), { type: 'SCHEDULE_RELEASE', releaseDay: 1 }), 7);
+    saveState(state);
+    await flushSave();
+    simulateReload();
+    await hydrateSave();
+
+    const days = MAX_SIMULATION_WEEKS * 7;
+    const continuedOriginal = advanceDays(state, days);
+    const continuedReloaded = advanceDays(loadState(), days);
+    expect(playerReleasedFilms(continuedReloaded.projects)[0].boxOfficeRun).toEqual(playerReleasedFilms(continuedOriginal.projects)[0].boxOfficeRun);
+  });
+
+  it('a save larger than the old localStorage quota is stored and read back whole', async () => {
+    // The regression this move exists for: a studio a year in is over the ~5.2M
+    // characters localStorage holds, so the old save threw and was swallowed.
+    const state = buildPopulatedStudio(42);
+    expect(JSON.stringify(state).length).toBeGreaterThan(5_200_000);
+
+    await hydrateSave();
+    saveState(state);
+    await flushSave();
+    expect(getSaveStatus()).toEqual({ kind: 'ok' });
+
+    simulateReload();
+    await hydrateSave();
+    const reloaded = loadState();
+    expect(reloaded.projects.length).toBe(state.projects.length);
+    expect(reloaded.projects.map(projectId)).toEqual(state.projects.map(projectId));
+    expect(reloaded.totalDays).toBe(state.totalDays);
+    expect(Object.keys(reloaded.talentPool)).toEqual(Object.keys(state.talentPool));
+  });
+
+  it('a save written under another schema version is ignored and removed', async () => {
+    await writeSave(buildStateWithReadyDraft(2), SAVE_VERSION - 1);
+    simulateReload();
+    await hydrateSave();
+    expect(hasSavedGame()).toBe(false);
+    expect(loadState().projects).toEqual([]);
+    expect(await readSave(SAVE_VERSION - 1)).toBeNull();
+  });
+
+  it('clearSavedState removes the studio from the database, not just from memory', async () => {
+    await hydrateSave();
+    saveState(buildStateWithReadyDraft(2));
+    await flushSave();
+    await clearSavedState();
+    simulateReload();
+    await hydrateSave();
     expect(hasSavedGame()).toBe(false);
   });
 
-  it('ignores a save under an old, incompatible key - a stale-key-only browser still counts as a first launch', () => {
-    // Same reasoning as loadState's own old-key handling: a save that only
-    // exists under a superseded key isn't a save of the current game, so the
-    // player should still be offered the starting-stature choice.
-    globalThis.localStorage.setItem('hollywood-pictures-save-v18', JSON.stringify({ studio: { cash: 1 } }));
-    expect(hasSavedGame()).toBe(false);
+  it('hydrateSave removes every old localStorage save key, which would otherwise keep occupying the quota', async () => {
+    localStorage.setItem('hollywood-pictures-save-v97', 'x'.repeat(1000));
+    localStorage.setItem('hollywood-pictures-save-v98', 'x'.repeat(1000));
+    localStorage.setItem('hollywood-pictures-settings', '{}');
+    await hydrateSave();
+    expect(localStorage.getItem('hollywood-pictures-save-v97')).toBeNull();
+    expect(localStorage.getItem('hollywood-pictures-save-v98')).toBeNull();
+    expect(localStorage.getItem('hollywood-pictures-settings')).toBe('{}');
+  });
+});
+
+describe('a save only writes what changed', () => {
+  it('a week of play rewrites a fraction of the slate, and never a film whose run is over', async () => {
+    const state = buildPopulatedStudio(42);
+    const first = await writeSave(state, SAVE_VERSION);
+    expect(first.projectsPut).toBe(state.projects.length);
+
+    const unchanged = await writeSave(state, SAVE_VERSION);
+    expect(unchanged).toEqual({ projectsPut: 0, projectsDeleted: 0, talentPut: 0 });
+
+    const dayLater = advanceDays(state, 1);
+    const oneDay = await writeSave(dayLater, SAVE_VERSION);
+    expect(oneDay.projectsPut).toBeLessThan(state.projects.length / 10);
+    expect(oneDay.talentPut).toBe(0);
+
+    // Every record skipped must still be current: what is in the database
+    // equals the state in memory, not a stale mix.
+    resetWrittenSnapshotForTests();
+    expect(await readSave(SAVE_VERSION)).toEqual(dayLater);
+  });
+
+  it('a reset studio leaves none of the old studio\'s films behind', async () => {
+    const state = buildPopulatedStudio(42);
+    await writeSave(state, SAVE_VERSION);
+    const reset = studioReducer(state, { type: 'RESET_SAVE', startingCash: 8_000_000 });
+    const report = await writeSave(reset, SAVE_VERSION);
+    expect(report.projectsDeleted).toBe(state.projects.length);
+    resetWrittenSnapshotForTests();
+    expect((await readSave(SAVE_VERSION))?.projects).toEqual([]);
+  });
+
+  it('two projects sharing an id are both kept', async () => {
+    const state = buildPopulatedStudio(42);
+    const doubled = { ...state, projects: [...state.projects.slice(0, 3), state.projects[0]] };
+    await writeSave(doubled, SAVE_VERSION);
+    resetWrittenSnapshotForTests();
+    expect((await readSave(SAVE_VERSION))?.projects.length).toBe(4);
+  });
+});
+
+describe('a failed save is reported, not swallowed', () => {
+  it('reports failure when the database cannot be opened, keeps the game playable, and recovers on retry', async () => {
+    const working = globalThis.indexedDB;
+    // @ts-expect-error - simulating a browser with storage blocked
+    globalThis.indexedDB = undefined;
+    await hydrateSave();
+    expect(getSaveStatus().kind).toBe('failed');
+
+    const state = buildStateWithReadyDraft(6);
+    saveState(state);
+    await flushSave();
+    expect(getSaveStatus().kind).toBe('failed');
+    expect(loadState()).toBe(state); // still playable from memory
+
+    globalThis.indexedDB = working;
+    await flushSave();
+    expect(getSaveStatus()).toEqual({ kind: 'ok' });
+    resetWrittenSnapshotForTests();
+    expect(await readSave(SAVE_VERSION)).toEqual(state);
+  });
+
+  it('names a full disk as the reason when the write runs out of quota', async () => {
+    await hydrateSave();
+    const working = globalThis.indexedDB;
+    const quota = Object.assign(new Error('quota'), { name: 'QuotaExceededError' });
+    globalThis.indexedDB = { open: () => { throw quota; } } as unknown as IDBFactory;
+    saveState(buildStateWithReadyDraft(6));
+    await flushSave();
+    const status = getSaveStatus();
+    expect(status.kind).toBe('failed');
+    expect(status.kind === 'failed' && status.reason).toMatch(/out of storage space/);
+    globalThis.indexedDB = working;
   });
 });
