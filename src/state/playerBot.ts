@@ -48,7 +48,8 @@ import type { Film, FilmDraft, Opportunity, Person, ProductionRole, ReleaseType,
  *    no backend deals, no optional crew, no producers, no stunt team);
  *  - it takes the engine's own recommended production plan for the director;
  *  - it answers every on-set, prep and test-screening decision with the first
- *    option offered;
+ *    option offered, and grants a director's creative demands only when the
+ *    director is proven;
  *  - it releases a full campaign runway after the final cut, and never runs an
  *    awards campaign or a press tour.
  * So its results are a floor for a player using the same strategy with more
@@ -425,9 +426,13 @@ function startFilm(state: GameState, strategy: BotStrategy, run: BotRun): GameSt
   setPlan();
 
   // A director with strong convictions makes demands that must each be settled
-  // before greenlight. The bot gives the director what they ask for.
+  // before greenlight. Ceding a domain is a bet on the director's ability, so
+  // the bot gives a proven director what they ask for and refuses an unproven
+  // one - giving in to everyone cost its small studios about five quality
+  // points a film.
+  const trustsDirector = (directorCareer?.skill ?? 0) >= 60;
   for (const demand of focusedDraft().development?.demands ?? []) {
-    if (!demand.resolution) s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: true });
+    if (!demand.resolution) s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: trustsDirector });
   }
 
   // The plan's real cost (sets, effects) is only known once it is set. If the
