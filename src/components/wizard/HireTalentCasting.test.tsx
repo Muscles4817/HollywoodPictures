@@ -11,7 +11,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { HireTalent } from './HireTalent';
 import { createInitialStudio, createDraftFromAsset, type GameState } from '../../state/gameState';
-import { saveState } from '../../state/persistence';
+import { saveState, resetPersistenceForTests } from '../../state/persistence';
 import { generateTalentPool } from '../../engine/talentGenerator';
 import { withRng } from '../../engine/random';
 import { playerDraftToProject } from '../../engine/project';
@@ -21,6 +21,7 @@ import { formatMoney } from '../common/Money';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 const inceptionAsset = TEST_SCRIPT_ASSETS.find((a) => a.script.id === 'test-script-inception')!;

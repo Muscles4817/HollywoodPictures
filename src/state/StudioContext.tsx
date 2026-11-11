@@ -13,6 +13,9 @@ const StudioContext = createContext<StudioContextValue | null>(null);
 export function StudioProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(studioReducer, undefined, loadState);
 
+  // Hands the latest state to the save layer, which keeps it in memory and
+  // writes it to the database behind the scenes - throttled, and only the
+  // records that changed (state/persistence.ts, state/saveDatabase.ts).
   useEffect(() => {
     saveState(state);
   }, [state]);

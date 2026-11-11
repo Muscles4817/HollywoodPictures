@@ -10,11 +10,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { ProductionSheet } from './ProductionSheet';
 import { buildStateWithReadyDraft } from '../../state/testFixtures';
-import { saveState } from '../../state/persistence';
+import { saveState, resetPersistenceForTests } from '../../state/persistence';
 import { deriveFocusedDraft } from '../../state/selectors';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 /** The fixture draft, focused in the workspace with the sheet showing. */

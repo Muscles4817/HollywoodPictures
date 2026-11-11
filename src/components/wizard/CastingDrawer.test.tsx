@@ -12,7 +12,7 @@ import { StudioProvider } from '../../state/StudioContext';
 import { CastingDrawer } from './CastingDrawer';
 import { createInitialStudio, type GameState } from '../../state/gameState';
 import { buildReadyDraft } from '../../state/testFixtures';
-import { saveState } from '../../state/persistence';
+import { saveState, resetPersistenceForTests } from '../../state/persistence';
 import { generateTalentPool, generateTalentCandidates } from '../../engine/talentGenerator';
 import { openCastingCall } from '../../engine/castingCalls';
 import { withRng } from '../../engine/random';
@@ -21,6 +21,7 @@ import type { Person, ScriptCharacter } from '../../types';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 const SALARY = 5_000_000;

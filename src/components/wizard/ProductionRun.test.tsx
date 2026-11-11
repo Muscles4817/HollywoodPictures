@@ -13,7 +13,7 @@ import { StudioProvider } from '../../state/StudioContext';
 import { ProductionRun } from './ProductionRun';
 import { createInitialStudio, type GameState } from '../../state/gameState';
 import { buildReadyDraft } from '../../state/testFixtures';
-import { saveState } from '../../state/persistence';
+import { saveState, resetPersistenceForTests } from '../../state/persistence';
 import { generateTalentPool } from '../../engine/talentGenerator';
 import { withRng } from '../../engine/random';
 import { playerDraftToProject } from '../../engine/project';
@@ -21,6 +21,7 @@ import type { FilmDraft, PhotographyState } from '../../types';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 function stateWithInProgressShoot(

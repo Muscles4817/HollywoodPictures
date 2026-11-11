@@ -13,7 +13,7 @@ import { generateTalentCandidates } from '../../engine/talentGenerator';
 import { createRng } from '../../engine/random';
 import { studioReducer } from '../../state/studioReducer';
 import { buildStateWithReadyDraft } from '../../state/testFixtures';
-import { saveState } from '../../state/persistence';
+import { saveState, resetPersistenceForTests } from '../../state/persistence';
 import { playerReleasedFilms } from '../../engine/project';
 import { getCareerForRole } from '../../engine/person';
 import { formatMoney } from './Money';
@@ -24,6 +24,7 @@ import type { Film } from '../../types';
 // renders mount inside a StudioProvider (fresh studio - no promoted IP).
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 function buildFilm(): Film {

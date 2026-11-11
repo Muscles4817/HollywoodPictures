@@ -24,8 +24,9 @@ requirement at this stage.**
 
 Concretely, for any schema change:
 
-- **Do** bump the save version/key (`SAVE_KEY` in `src/state/persistence.ts`) as
-  the honest "the stored shape changed" signal.
+- **Do** bump the save version (`SAVE_VERSION` in `src/state/persistence.ts`) as
+  the honest "the stored shape changed" signal. A save under another version is
+  deleted on load.
 - **Do not** write migration code for obsolete pre-launch saves.
 - **Do not** spend implementation or review time preserving or auditing old
   saves (e.g. "does a v50 save load into v51?" — it doesn't need to).
@@ -109,7 +110,8 @@ than at the empty states an unpopulated fixture renders):
 ```bash
 DUMP_FIXTURE=1 DUMP_PATH=/tmp/pop.json npx vitest run \
   src/state/renderFixtures.diagnostic.test.ts --disable-console-intercept
-# then inject the file as localStorage['hollywood-pictures-save-v98']
+# then, with `npm run dev` running, copy the file to public/pop.json and run in the browser console:
+#   await hollywoodPictures.importSave(await (await fetch('pop.json')).json())
 ```
 
 Observational (not an assertion suite) — dumps two simulated in-game years of
@@ -120,6 +122,16 @@ BOX_OFFICE_TRACE=1 npx vitest run src/engine/boxOfficeBriefingTrace.diagnostic.t
   --disable-console-intercept 2>&1 \
   | sed -n '/BEGIN_TRACE_JSON/,/END_TRACE_JSON/p' | sed '1d;$d' > trace.json
 ```
+
+## Where the save lives
+
+The studio is saved in **IndexedDB** (database `hollywood-pictures`), not
+localStorage - a studio outgrew localStorage's ~5 MB about a game year in.
+`src/state/saveDatabase.ts` stores one record per project and per talent roster
+and only rewrites the records that changed; `src/state/persistence.ts` keeps the
+latest state in memory so the app and tests still read it synchronously, and
+reports a failed write to the player (`SaveStatusBanner`). Settings stay in
+localStorage.
 
 ## Conventions worth keeping
 

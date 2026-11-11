@@ -17,7 +17,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { OutcomeInspector } from './OutcomeInspector';
 import { studioReducer } from '../../state/studioReducer';
-import { saveState } from '../../state/persistence';
+import { saveState, resetPersistenceForTests } from '../../state/persistence';
 import { buildStateWithReadyDraft } from '../../state/testFixtures';
 import { deriveFocusedDraft } from '../../state/selectors';
 import { playerDraftToProject } from '../../engine/project';
@@ -25,6 +25,7 @@ import type { GameState } from '../../state/gameState';
 
 beforeEach(() => {
   localStorage.clear();
+  resetPersistenceForTests();
 });
 
 function releaseOneFilm(seed: number): GameState {

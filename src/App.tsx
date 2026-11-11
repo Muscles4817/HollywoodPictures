@@ -45,6 +45,7 @@ import { DifficultyPicker } from './components/common/DifficultyPicker';
 import { MainMenu } from './components/MainMenu';
 import { Button } from './components/common/Button';
 import { hasSavedGame } from './state/persistence';
+import { SaveStatusBanner } from './components/common/SaveStatusBanner';
 
 // Every wizard screen where the player is setting choices with no clock
 // pressure of its own - paused here so a slow decision never costs real
@@ -557,6 +558,9 @@ function App() {
       {/* Above the studio: preferences (and the sound they drive) belong to the
           device, and the title screen needs them before any studio exists. */}
       <SettingsProvider>
+      {/* Outside the studio tree so it shows on the main menu too, and over any
+          screen: a save that is failing outranks whatever else is up. */}
+      <SaveStatusBanner />
       <StudioProvider>
         {/* Inside StudioProvider: an action receipt quotes the resulting cash
             balance, which it reads from studio state (see ActionFeedback.tsx). */}
