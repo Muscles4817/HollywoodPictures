@@ -1,6 +1,6 @@
 # Design Review — Star Power
 
-*Status: proposed, not built. Grounded in `docs/domain/17-star-power-and-its-decline.md`
+*Status: decisions taken (§4, recommendations accepted 2026-11-11); phase 1 built (§7). Grounded in `docs/domain/17-star-power-and-its-decline.md`
 (the research) and `docs/DESIGN_REVIEW_box_office_variance_diagnosis.md` §5
 (the measured problem).*
 
@@ -193,7 +193,10 @@ CLAUDE.md.
 
 ---
 
-## 4. Decisions needed
+## 4. Decisions
+
+All four recommendations were accepted on 2026-11-11: top lift ×1.25, about
+ROI-neutral at market rate, careers in as phase 3, streaming lift later.
 
 1. **How big at the top?** The research average for "stars" is ×1.08–1.13.
    - **Recommended:** `MAX_STAR_LIFT` = 0.25. The very top name on a
@@ -247,3 +250,52 @@ numbers, so the calibration gates run on it before anything else lands.
 - **Calibration knock-on.** More interest on strong star films pushes the
   $100M count up, which is currently under target, and the top of the
   distribution. That is mostly welcome. The gates decide.
+
+---
+
+## 7. Phase 1 built: draw, derived
+
+`engine/starPower.ts`, `data/starPower.ts`, `LeadOuting` and the optional
+`ActorCareer.leadRecord` in `types/index.ts`. No box-office effect yet, and
+nothing writes `leadRecord`, so there is no save change.
+
+**What draw is.** `draw = readiness × proof × heat`, per genre, 0..1.
+- **Readiness**: `((fame − 65) / 35) ^ 2.5`. Fame 80 → 0.12, 90 → 0.43,
+  95 → 0.68, 100 → 1.
+- **Proof**: the genre's lead record (recency-weighted at 0.7 per older
+  outing; a franchise outing credited up to 60% less), blended by confidence
+  `n / (n + 2)` with a prior. The prior is persona fit × 0.35 plus 0.3 × the
+  best record elsewhere.
+- **Heat**: read as momentum against standing (`currentHeat − fame`, ±15% at
+  ±40). The generator sets heat = fame, so this is neutral at game start.
+  Reading heat on its own scale would have multiplied fame twice.
+- **Seeded record**, used until phase 3 writes real ones. It is hashed from
+  name and date of birth, never rng.
+  - The number of outings ramps with fame (40 → 90) and career length (age
+    20 → 40 at game start). The generator's `experience` is acting ability,
+    not tenure, so it is only a fallback.
+  - Scores centre on `(fame − 85) / 30`, with a per-person bias of ±0.55 and
+    per-outing noise.
+  - Genres are 70% the best persona fit and 30% the second best.
+
+**Tier shape** (`starTier.diagnostic.test.ts`, 900 actors per pool, seeds 1–5):
+
+| seed | bankable (draw ≥ 0.35) | fame ≥ 80 | of which famous-but-unproven | tier median age (pool) | tier over 40 |
+|--:|--:|--:|--:|--:|--:|
+| 1 | 35 | 157 | 85 | 41 (43) | 18/35 |
+| 2 | 29 | 157 | 88 | 42 (43) | 17/29 |
+| 3 | 23 | 152 | 96 | 44 (44) | 14/23 |
+| 4 | 20 | 153 | 103 | 44 (44) | 13/20 |
+| 5 | 27 | 143 | 79 | 51 (43) | 20/27 |
+
+The tier lands on target (15–30) on four of five seeds, with seed 1 a little
+over. Over half of the fame-80+ actors read as famous-but-unproven. The tier
+leans only slightly older than the pool. Forcing a stronger age skew would mean
+tuning to one survey (NRG 2023). Phase 3's careers are where the ageing should
+come from: draw built over years of openings.
+
+**What tuning moved it.** The first cut gave 40–54. Three changes brought it
+down: heat read as momentum; confidence half-weight raised from 1 to 2
+outings, so short records count for less; seeded scores centred on fame 85
+rather than 75. Then the curve exponent went from 2 to 2.5. The bankable bar
+(0.35) was not moved.

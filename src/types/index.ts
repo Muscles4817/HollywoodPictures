@@ -355,6 +355,21 @@ export interface ActorCareer extends RoleCareerCommon<'Actor'> {
   // ActingStyle (actingModel.ts:actorCraft) until authored.
   craftFloor?: number; // 0..100 - performance delivered under neutral direction
   craftHeadroom?: number; // 0..~45 - additional performance a director can unlock
+  // Star power (docs/DESIGN_REVIEW_star_power.md §3.3): the last few films this
+  // actor led, newest last - what their draw is earned from. Optional: absent
+  // means engine/starPower.ts derives a stable seeded record for them. Nothing
+  // writes it yet; the post-release update lands in phase 3.
+  leadRecord?: LeadOuting[];
+}
+
+/** One film an actor led, as the market remembers it (engine/starPower.ts). */
+export interface LeadOuting {
+  day: GameDay;
+  genre: Genre;
+  /** Opening against the norm for the film's scale and genre, -1 (a flop) .. +1 (a breakout); 0 is ordinary. */
+  openingScore: number;
+  /** How pre-sold the film was, 0..1. A franchise opening is credited to its lead less. */
+  presold: number;
 }
 
 /** Derived aggregate actor ability, for anywhere a single number is genuinely needed - ActingStyle itself stays the stored, five-dimensional source of truth (see ActorCareer). */
