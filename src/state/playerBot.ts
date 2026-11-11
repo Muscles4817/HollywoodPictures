@@ -173,6 +173,13 @@ export interface BotFilm {
   quality: number;
   critic: number;
   releaseType: ReleaseType;
+  /** What the studio actually received from cinemas, after the split and any distributor recoupment. */
+  theatricalRevenue: number | null;
+  marketingCost: number;
+  /** Post-theatrical income received so far (home entertainment, licensing, merchandising), from the cash ledger. */
+  ancillary: number;
+  /** Whether the release went out through a rented distributor rather than the studio's own arm. */
+  viaDistributor: boolean;
 }
 
 export interface BotRun {
@@ -200,6 +207,15 @@ export interface BotRun {
   awardWins: number;
   awardNominations: number;
   facilityUpgrades: number;
+  /**
+   * Where the money went and came from over the career, summed from the cash
+   * ledger: its categories, with 'production' split into greenlight
+   * commitments, pre-production overhead and the rest. Marketing and box
+   * office never reach the ledger (they are charged and credited directly), so
+   * they arrive together as 'theatricalNet' - split them with the per-film
+   * figures in `films`.
+   */
+  cashFlow: Record<string, number>;
   /** Films mounted on a stretch (most of the cash on hand) because the usual share could not fund one. */
   stretchedFilms: number;
   finalState: GameState;
@@ -579,6 +595,10 @@ function toBotFilm(film: Film): BotFilm {
     quality: film.results.qualityScore,
     critic: film.results.criticScore,
     releaseType: film.marketingChoices.releaseType,
+    theatricalRevenue: film.results.studioRevenue,
+    marketingCost: film.results.marketingCost,
+    ancillary: 0,
+    viaDistributor: film.marketingChoices.distributionMethod === 'distributor',
   };
 }
 
@@ -607,12 +627,46 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
     awardWins: 0,
     awardNominations: 0,
     facilityUpgrades: 0,
+    cashFlow: {},
     stretchedFilms: 0,
     finalState: s,
   };
 
   const lastProgress = new Map<string, { signature: string; day: number }>();
   let consecutiveIdleBroke = 0;
+  // The ledger keeps only its last 60 entries, so it is read every day: new
+  // entries are whatever follows the last one seen (entries are immutable, so
+  // reference identity finds it).
+  let lastEntry: unknown = null;
+  let lastCash = s.studio.cash;
+  const ancillaryByTitle = new Map<string, number>();
+  const add = (key: string, amount: number) => {
+    run.cashFlow[key] = (run.cashFlow[key] ?? 0) + amount;
+  };
+  const harvestLedger = () => {
+    const ledger = s.studio.cashLedger ?? [];
+    const from = lastEntry ? ledger.findIndex((entry) => entry === lastEntry) + 1 : 0;
+    let ledgered = 0;
+    for (const entry of ledger.slice(from)) {
+      ledgered += entry.amount;
+      const key =
+        entry.category !== 'production'
+          ? entry.category
+          : entry.reason.startsWith('Pre-production')
+            ? 'production:prep'
+            : entry.reason.startsWith('Greenlit')
+              ? 'production:greenlight'
+              : 'production:other';
+      add(key, entry.amount);
+      if (entry.amount > 0 && entry.reason.includes(' — ')) {
+        const title = entry.reason.slice(entry.reason.lastIndexOf(' — ') + 3);
+        ancillaryByTitle.set(title, (ancillaryByTitle.get(title) ?? 0) + entry.amount);
+      }
+    }
+    if (ledger.length > 0) lastEntry = ledger[ledger.length - 1];
+    add('theatricalNet', s.studio.cash - lastCash - ledgered);
+    lastCash = s.studio.cash;
+  };
   let cashMin = s.studio.cash;
   const endDay = firstDayOfYear(years + 1);
 
@@ -650,6 +704,7 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
     if (s.focusedProjectId) s = studioReducer(s, { type: 'RETURN_TO_DASHBOARD' });
     s = studioReducer(s, { type: 'ADVANCE_DAY' });
     cashMin = Math.min(cashMin, s.studio.cash);
+    harvestLedger();
 
     // Close out each year the clock has now passed. A `while`, not an `if`
     // against the day before the tick: other actions move the calendar too (a
@@ -682,7 +737,9 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
       }
     }
   }
-  run.films = playerFilms.map(toBotFilm).sort((a, b) => a.releasedOnDay - b.releasedOnDay);
+  run.films = playerFilms
+    .map((film) => ({ ...toBotFilm(film), ancillary: ancillaryByTitle.get(film.title) ?? 0 }))
+    .sort((a, b) => a.releasedOnDay - b.releasedOnDay);
   run.finalState = s;
   return run;
 }
