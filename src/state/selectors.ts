@@ -459,7 +459,7 @@ export interface RecentAwardHighlight {
   year: number;
   wins: number;
   nominations: number;
-  /** Cash prize credited to the studio at the ceremony (engine/awards.ts:computeBoxOfficeBump x payoffScale) - the number that mysteriously moved the budget. */
+  /** The box-office lift credited to the studio at the ceremony (engine/awards.ts:computeBoxOfficeBump x payoffScale) - the number that mysteriously moved the budget. */
   payout: number;
   prestigeDelta: number;
   brandDelta: number;

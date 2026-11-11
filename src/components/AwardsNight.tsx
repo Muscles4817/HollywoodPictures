@@ -56,7 +56,7 @@ export function AwardsNight() {
           </div>
           <div className="spectacle-figure">
             <span className="spectacle-figure__value"><Money amount={payout} /></span>
-            <span className="spectacle-figure__label">Prize money</span>
+            <span className="spectacle-figure__label">Box-office lift</span>
           </div>
           <div className="spectacle-figure">
             <span className="spectacle-figure__value">

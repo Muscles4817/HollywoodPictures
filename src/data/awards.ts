@@ -127,8 +127,30 @@ export const WIN_PRESTIGE = 4;
 /** Brand added per win only (wins are commercial cachet), multiplied by category weight. */
 export const WIN_BRAND = 2;
 
-// Box-office "Oscar bump": a one-time credit of the studio's own revenue share,
-// a fraction of studioRevenue scaled by the film's award haul, capped.
+// Box-office "awards lift": a one-time credit standing in for the extra
+// business recognition brings a film - a fraction of what the film had earned
+// the studio by ceremony day, scaled by its award haul and capped, then by how
+// much awards attention could actually still do for it (the two tables below).
 export const NOMINATION_BUMP_FRACTION = 0.03;
 export const WIN_BUMP_FRACTION = 0.12;
 export const BUMP_CAP_FRACTION = 0.4;
+
+// Awards do not pay prize money. What they are worth at the box office depends
+// on whether the film is still there to benefit (docs/domain/13 §1.1): a Best
+// Picture nomination lifts the remaining gross of a platform release by 30% to
+// 100% or more, a played-out drama by 10-25%, and a tentpole by about nothing.
+// Paid on a film's whole run regardless, the lift was GBP 320-390M over a
+// Mid-Major career, 15-20% of all its income
+// (docs/DESIGN_REVIEW_player_economy.md §4). The lasting value of awards to a
+// film that has left cinemas is its after-market premium (engine/ancillary.ts:
+// awardsLift), which is modelled separately and untouched by this.
+
+/** How far awards attention can move a film's box office, by how broadly it was released. A wide release has already reached its audience. */
+export const AWARDS_LIFT_BY_RELEASE: Record<'platform' | 'wide', number> = { platform: 1, wide: 0.1 };
+
+/** ...and by whether it was still in cinemas on ceremony day: playing, recently gone (a re-release is worth mounting), or long gone. */
+export const AWARDS_LIFT_STILL_PLAYING = 1;
+export const AWARDS_LIFT_RECENTLY_CLOSED = 0.5;
+export const AWARDS_LIFT_LONG_CLOSED = 0.2;
+/** A film that left cinemas within this many days of the ceremony counts as recently closed. */
+export const AWARDS_LIFT_RECENT_DAYS = 90;

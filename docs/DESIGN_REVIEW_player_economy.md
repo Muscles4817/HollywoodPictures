@@ -1,6 +1,6 @@
 # Design review: the player economy
 
-**Status:** items 1 to 4 of section 7 are applied (see section 10). Everything
+**Status:** items 1 to 4 and 6 of section 7 are applied (see section 10). Everything
 else is findings and proposals; the numbers under "Trials" come from a scratch
 copy of the engine.
 
@@ -443,8 +443,8 @@ studio's real advantage. Which is the real business.
 
 ## 10. What was applied
 
-Items 1 to 4 of section 7, without the skill change (withdrawn, section 9) and
-without the awards change (item 6, not yet done).
+Items 1 to 4 of section 7, without the skill change (withdrawn, section 9).
+The awards change (item 6) followed and is in 10.1.
 
 | Fix | Where | Rule |
 |---|---|---|
@@ -494,8 +494,32 @@ Calibration after the change: whole-year gate 18 of 21 (same three misses as
 before), buzz gate passes, variance gate passes, budget-tier gate 4 misses
 (was 5).
 
+### 10.1 Awards cash, applied after the four fixes
+
+Item 6 of section 7. `engine/awards.ts:computeBoxOfficeBump` now pays the
+awards lift on what a film had earned by ceremony day, scaled by how much
+awards attention could still do for it: in full for a platform release still
+in cinemas, half for one that closed within 90 days, a fifth for one long
+closed, and a tenth of any of those for a wide release. It used to pay a
+fraction of the whole run regardless, and nothing at all to a film still
+playing (whose revenue figure is not set until its run ends), which is the
+reverse of the real effect. The label on Awards Night and in the cash history
+is now "Box-office lift"; awards never paid prize money.
+
+Careful and Steady, three seeds, ten years:
+
+| | Awards cash per career before | After | Cash at year 10 before | After |
+|---|--:|--:|--:|--:|
+| Mid-Major Careful | £322M | £20M | £863M | £809M |
+| Mid-Major Steady | £413M | £38M | £1,320M | £799M |
+
+Small studios are unaffected (they earned almost nothing from awards). The
+market gates read exactly as before: 18 of 21 with the same three misses, and
+the budget-tier gate's same four. The top still snowballs; this removes one of
+its engines, not the snowball.
+
 What the remaining decline at the bottom is waiting on: who a small studio can
-hire (section 9), a way to sell a film (item 7), and awards cash (item 6).
+hire (section 9) and a way to sell a film (item 7).
 
 ## 11. Reproducing this
 

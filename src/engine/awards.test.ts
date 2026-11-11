@@ -1,3 +1,4 @@
+import { DOMESTIC_KEEP_SHARE } from '../data/distribution';
 import { describe, it, expect } from 'vitest';
 import type { AwardsCeremony, CrewRole, Film, FilmResults, Gender, Person, ProductionRole } from '../types';
 import { createRng } from './random';
@@ -5,6 +6,7 @@ import {
   accrueMomentum,
   campaignBoost,
   computeBoxOfficeBump,
+  awardsBoxOfficeExposure,
   computeCeremony,
   computeStudioAwardDeltas,
   filmsForAwardsYear,
@@ -231,14 +233,58 @@ describe('payoff', () => {
     expect(computeStudioAwardDeltas(onlyBp, new Set(['f1'])).prestige).toBeCloseTo(WIN_PRESTIGE * AWARD_CATEGORY_WEIGHT['best-picture'], 6);
   });
 
-  it('box-office bump rewards a win over a nomination and respects the cap', () => {
-    const winner = { id: 'f1', results: { studioRevenue: 10_000_000 } } as unknown as Film;
-    const nominee = { id: 'f2', results: { studioRevenue: 10_000_000 } } as unknown as Film;
-    const winnerBump = computeBoxOfficeBump(winner, ceremony);
-    const nomineeBump = computeBoxOfficeBump(nominee, ceremony);
+  // A film that has earned about GBP 10M for its studio over `weeks` weeks,
+  // released so that its run ends `closedDaysBefore` the ceremony (negative =
+  // still playing on the night).
+  function runFilm(id: string, releaseType: 'Limited' | 'Wide', closedDaysBefore: number, weeks = 10): Film {
+    const weekly = 10_000_000 / weeks / DOMESTIC_KEEP_SHARE;
+    return {
+      id,
+      releasedOnDay: ceremony.ceremonyDay - closedDaysBefore - weeks * 7,
+      marketingChoices: { releaseType },
+      results: {},
+      boxOfficeRun: {
+        status: 'finished',
+        weeks: Array.from({ length: weeks }, (_, i) => ({ week: i + 1, gross: weekly, domesticGross: weekly, internationalGross: 0 })),
+      },
+    } as unknown as Film;
+  }
+
+  it('the box-office lift rewards a win over a nomination and respects the cap', () => {
+    const winnerBump = computeBoxOfficeBump(runFilm('f1', 'Limited', -14), ceremony);
+    const nomineeBump = computeBoxOfficeBump(runFilm('f2', 'Limited', -14), ceremony);
     expect(winnerBump).toBeGreaterThan(nomineeBump);
     expect(nomineeBump).toBeGreaterThan(0);
     expect(winnerBump).toBeLessThanOrEqual(10_000_000 * 0.4); // BUMP_CAP_FRACTION
+  });
+
+  it('a film still in cinemas is lifted more than one that left recently, and that more than one long gone', () => {
+    const playing = computeBoxOfficeBump(runFilm('f1', 'Limited', -14), ceremony);
+    const recent = computeBoxOfficeBump(runFilm('f1', 'Limited', 30), ceremony);
+    const longGone = computeBoxOfficeBump(runFilm('f1', 'Limited', 200), ceremony);
+    expect(playing).toBeGreaterThan(recent);
+    expect(recent).toBeGreaterThan(longGone);
+    expect(longGone).toBeGreaterThan(0);
+  });
+
+  it('a wide release that has finished its run gets almost nothing, however many awards it wins', () => {
+    const platform = computeBoxOfficeBump(runFilm('f1', 'Limited', 200), ceremony);
+    const tentpole = computeBoxOfficeBump(runFilm('f1', 'Wide', 200), ceremony);
+    expect(tentpole).toBeLessThan(platform / 5);
+    // Under 1% of what the film earned: awards do about nothing for a tentpole.
+    expect(tentpole).toBeLessThan(10_000_000 * 0.01);
+  });
+
+  it('counts only what the film had earned by ceremony day, and reads the same when looked back on later', () => {
+    const week = (n: number) => ({ week: n, gross: 2_000_000, domesticGross: 2_000_000, internationalGross: 0 });
+    const base = { id: 'f1', releasedOnDay: ceremony.ceremonyDay - 6 * 7, marketingChoices: { releaseType: 'Limited' }, results: {} };
+    // On the night: six weeks settled, the run still going.
+    const onTheNight = { ...base, boxOfficeRun: { status: 'running', weeks: [1, 2, 3, 4, 5, 6].map(week) } } as unknown as Film;
+    // Looked back on once the run has finished, four weeks and GBP 8M of gross later.
+    const lookedBackOn = { ...base, boxOfficeRun: { status: 'finished', weeks: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(week) } } as unknown as Film;
+    expect(awardsBoxOfficeExposure(lookedBackOn, ceremony.ceremonyDay)).toBe(awardsBoxOfficeExposure(onTheNight, ceremony.ceremonyDay));
+    expect(computeBoxOfficeBump(onTheNight, ceremony)).toBeGreaterThan(0);
+    expect(computeBoxOfficeBump(lookedBackOn, ceremony)).toBe(computeBoxOfficeBump(onTheNight, ceremony));
   });
 
   it('nominatedFilmIds collects every nominated film', () => {

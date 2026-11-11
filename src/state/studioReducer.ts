@@ -347,7 +347,7 @@ function settleAwards(
     const playerDeltas = computeStudioAwardDeltas(ceremony, new Set(playerFilms.map((f) => f.id)));
     const playerBump = playerFilms.reduce((sum, f) => sum + computeBoxOfficeBump(f, ceremony), 0);
     studio = {
-      ...recordCashChange(studio, ceremony.ceremonyDay, Math.round(playerBump * scale), 'awards', `${profile.name} prize money`),
+      ...recordCashChange(studio, ceremony.ceremonyDay, Math.round(playerBump * scale), 'awards', `${profile.name} box-office lift`),
       prestige: applyStatChange(studio.prestige, playerDeltas.prestige * scale),
       brand: applyStatChange(studio.brand, playerDeltas.brand * scale),
     };
