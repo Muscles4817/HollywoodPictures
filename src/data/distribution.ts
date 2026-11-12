@@ -104,14 +104,22 @@ export const GENRE_INTERNATIONAL_APPEAL: Record<Genre, number> = {
 export const INTERNATIONAL_DISTRIBUTION_MAX_TIER = 3;
 
 /**
- * How much of the international pool a studio's International Distribution track
- * reaches, by tier. Tier 0 is the hard gate - a studio with no international
- * distribution earns *no* international box office. The progression front-loads
- * the first tier (the leap from no overseas presence to a real one) then tapers.
+ * How much of the international pool a studio reaches, by International
+ * Distribution tier. Tier 0 is a studio with no overseas operation of its own:
+ * it sells what territories it can through a sales agent, which reaches under a
+ * third of the pool and costs a commission on top (SALES_AGENT_FEE below). It
+ * used to reach nothing at all, which no real producer experiences - territory
+ * sales are how independent films are financed (docs/domain/11 §8.3) - and it
+ * cost every small studio roughly half of each film's worldwide gross
+ * (docs/DESIGN_REVIEW_player_economy.md §3.2). Each bought tier is the studio's
+ * own operation: wider reach and no agent.
  * Deliberately NOT modified by Brand this pass (see engine/distribution.ts) - a
  * displayed "100% reach" tier genuinely means 100%.
  */
-export const INTERNATIONAL_REACH_BY_TIER: Record<number, number> = { 0: 0, 1: 0.4, 2: 0.7, 3: 1.0 };
+export const INTERNATIONAL_REACH_BY_TIER: Record<number, number> = { 0: 0.3, 1: 0.5, 2: 0.75, 3: 1.0 };
+
+/** The commission a sales agent takes off overseas receipts when the studio has no international operation (tier 0). Real agents take 10-25% plus expenses. */
+export const SALES_AGENT_FEE = 0.2;
 
 /** Cash cost to *reach* each international tier (every tier is bought - unlike the arm's own tier 1, which is the milestone unlock). Requires the base Distribution Arm first. */
 export const INTERNATIONAL_UPGRADE_COST_BY_TIER: Record<number, number> = { 1: 2_500_000, 2: 5_000_000, 3: 10_000_000 };

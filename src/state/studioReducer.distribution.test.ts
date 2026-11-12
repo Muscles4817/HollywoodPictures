@@ -5,10 +5,11 @@ import { playerReleasedFilms } from '../engine/project';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import {
   DOMESTIC_KEEP_SHARE,
+  INTERNATIONAL_KEEP_SHARE,
   INTERNATIONAL_DISTRIBUTION_MAX_TIER,
   INTERNATIONAL_UPGRADE_COST_BY_TIER,
 } from '../data/distribution';
-import { internationalReachForTier } from '../engine/distribution';
+import { internationalKeepShareForTier, internationalReachForTier, studioCreditFromMarkets } from '../engine/distribution';
 import type { GameState } from './gameState';
 
 /** A release-ready state whose studio has no Distribution Arm (default fixture ships one). */
@@ -86,7 +87,7 @@ describe('SCHEDULE_RELEASE - international reach freeze', () => {
     expect(film.results.internationalReachFraction).toBe(internationalReachForTier(INTERNATIONAL_DISTRIBUTION_MAX_TIER));
   });
 
-  it('a studio with no international distribution ships a hard-gated (reach 0) release - domestic only end to end', () => {
+  it('a studio with no international operation sells abroad through a sales agent: thin reach, lower keep, frozen on the film', () => {
     const base = buildStateWithReadyDraft(4);
     const gated: GameState = {
       ...base,
@@ -94,14 +95,20 @@ describe('SCHEDULE_RELEASE - international reach freeze', () => {
     };
     const released = studioReducer(gated, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const film = playerReleasedFilms(released.projects)[0];
-    expect(film.results.internationalReachFraction).toBe(0);
+    expect(film.results.internationalReachFraction).toBe(internationalReachForTier(0));
+    expect(film.results.internationalReachFraction).toBeGreaterThan(0);
+    expect(film.results.internationalKeepShare).toBe(internationalKeepShareForTier(0));
+    expect(film.results.internationalKeepShare).toBeLessThan(INTERNATIONAL_KEEP_SHARE);
 
     const finished = runToFinish(released);
     const settled = playerReleasedFilms(finished.projects)[0];
-    // Every settled week is domestic-only.
-    for (const w of settled.boxOfficeRun.weeks) {
-      expect(w.internationalGross ?? 0).toBe(0);
-    }
+    // It earns overseas, and what the studio banked reflects the agent's cut.
+    const overseas = settled.boxOfficeRun.weeks.reduce((sum, w) => sum + (w.internationalGross ?? 0), 0);
+    const domestic = settled.boxOfficeRun.weeks.reduce((sum, w) => sum + (w.domesticGross ?? 0), 0);
+    expect(overseas).toBeGreaterThan(0);
+    const banked = studioCreditFromMarkets(domestic, overseas, DOMESTIC_KEEP_SHARE, internationalKeepShareForTier(0));
+    expect(settled.results.studioRevenue).toBeCloseTo(banked, -2);
+    expect(settled.results.studioRevenue!).toBeLessThan(studioCreditFromMarkets(domestic, overseas, DOMESTIC_KEEP_SHARE));
   });
 });
 
@@ -134,12 +141,22 @@ describe('SCHEDULE_RELEASE - distribution gate and frozen deal', () => {
     expect(pAndA).toBeGreaterThan(0);
     expect(film.results.distributionMarketingRecoup).toBe(pAndA);
 
-    // End to end: no arm => domestic only, so studioRevenue is the domestic keep
-    // minus the recouped P&A off the top (engine/boxOfficeRun.ts:finishFilm).
+    // End to end: studioRevenue is the studio's keep of each market - the
+    // distributor's domestic terms, the sales agent's overseas terms (no arm =>
+    // no international operation) - minus the recouped P&A off the top
+    // (engine/boxOfficeRun.ts:finishFilm).
     const finished = runToFinish(released);
     const settled = playerReleasedFilms(finished.projects)[0];
     expect(settled.results.totalBoxOffice).not.toBeNull();
-    const grossCredit = Math.round(settled.results.totalBoxOffice! * settled.results.distributionKeepShare!);
+    const weeks = settled.boxOfficeRun.weeks;
+    const grossCredit = Math.round(
+      studioCreditFromMarkets(
+        weeks.reduce((sum, w) => sum + (w.domesticGross ?? 0), 0),
+        weeks.reduce((sum, w) => sum + (w.internationalGross ?? 0), 0),
+        settled.results.distributionKeepShare!,
+        settled.results.internationalKeepShare,
+      ),
+    );
     expect(settled.results.studioRevenue).toBe(grossCredit - Math.min(settled.results.distributionMarketingRecoup!, grossCredit));
   });
 

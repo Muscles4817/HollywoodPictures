@@ -2,7 +2,7 @@
 // CashLedgerEntry). recordCashChange is the single seam every notable
 // studio-level cash movement goes through, so the money that moved and the
 // reason it moved are recorded together - the player can then open the cash
-// tile and see "Academy Awards prize money +£1.2m" instead of a mystery spike.
+// tile and see "Academy Awards box-office lift +£1.2m" instead of a mystery spike.
 import type { CashLedgerCategory, GameDay, Money, Studio } from '../types';
 
 /** Only the most recent movements are kept - the view is "what changed lately", not a full account history. */

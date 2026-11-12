@@ -122,8 +122,8 @@ export const STAT_INFO = {
   },
   experience: {
     label: 'Experience',
-    what: 'Accumulated career experience.',
-    effect: INERT_SUFFIX,
+    what: 'How long they have been doing this job. Years in the role, not how good they are.',
+    effect: 'Tells you how proven a crew hire is: a long record is a known quantity, a short one is a gamble either way.',
   },
   roleReputation: {
     label: 'Role Reputation',

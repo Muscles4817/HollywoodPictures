@@ -1,7 +1,7 @@
 import type { FilmDraft, Person, TalentProfession } from '../types';
 import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeStaticProductionRisk, rollDayEvent, rollPreProductionDayEvent } from './production';
 import { computePitchExecutionRiskDelta } from './directorPitch';
-import { computeDailyPrepBurn, computeDailyShootBurn } from './cost';
+import { computeDailyPrepBurn, computeDailyShootBurn, draftNegativeCost } from './cost';
 import type { RandomFn } from './random';
 
 /**
@@ -133,7 +133,7 @@ function advancePrepOne(d: FilmDraft, daysToAdvance: number, rng: RandomFn): { d
   const prep = d.preProduction;
   if (!prep || prep.status !== 'in-progress' || !d.script) return { draft: d, charge: 0 };
 
-  const dailyBurn = computeDailyPrepBurn(d.script.scale);
+  const dailyBurn = computeDailyPrepBurn(d.script.scale, draftNegativeCost(d));
   let working = prep;
   let charge = 0;
 

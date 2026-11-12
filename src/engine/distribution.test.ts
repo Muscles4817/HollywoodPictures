@@ -19,6 +19,7 @@ import {
   resolveDistributorDeal,
   splitBoxOfficeGross,
   studioCreditFromMarkets,
+  internationalKeepShareForTier,
   type CommercialAppealInput,
 } from './distribution';
 import { createInitialStudio } from '../state/gameState';
@@ -31,6 +32,7 @@ import {
   GENRE_INTERNATIONAL_APPEAL,
   INTERNATIONAL_DISTRIBUTION_MAX_TIER,
   INTERNATIONAL_KEEP_SHARE,
+  SALES_AGENT_FEE,
   INTERNATIONAL_UPGRADE_COST_BY_TIER,
   SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER,
 } from '../data/distribution';
@@ -204,14 +206,20 @@ describe('International Distribution track helpers', () => {
     expect(internationalUpgradeCost(studioWithIntlTier(INTERNATIONAL_DISTRIBUTION_MAX_TIER))).toBeNull();
   });
 
-  it('tier 0 is the hard gate (reach 0) and the max tier reaches everything (reach 1)', () => {
-    expect(internationalReachForTier(0)).toBe(0);
+  it('tier 0 sells abroad through a sales agent (thin reach, less a commission) and the max tier reaches everything', () => {
+    // No overseas operation is not no overseas income: an agent sells territories.
+    expect(internationalReachForTier(0)).toBeGreaterThan(0);
+    expect(internationalReachForTier(0)).toBeLessThan(internationalReachForTier(1));
+    expect(internationalKeepShareForTier(0)).toBeCloseTo(INTERNATIONAL_KEEP_SHARE * (1 - SALES_AGENT_FEE));
+    expect(internationalKeepShareForTier(1)).toBe(INTERNATIONAL_KEEP_SHARE);
+    // The same overseas gross is worth less to a studio paying an agent.
+    expect(studioCreditFromMarkets(0, 1_000_000, 0.5, internationalKeepShareForTier(0))).toBeLessThan(studioCreditFromMarkets(0, 1_000_000, 0.5));
     expect(internationalReachForTier(INTERNATIONAL_DISTRIBUTION_MAX_TIER)).toBe(1);
     // Reach is monotonically non-decreasing across tiers.
     for (let t = 1; t <= INTERNATIONAL_DISTRIBUTION_MAX_TIER; t++) {
       expect(internationalReachForTier(t)).toBeGreaterThanOrEqual(internationalReachForTier(t - 1));
     }
-    expect(internationalReachForTier(999)).toBe(0); // unknown tier => gated
+    expect(internationalReachForTier(999)).toBe(0); // unknown tier => nothing
   });
 
   it('every genre has an international appeal strictly inside (0, 1) so a film always keeps a domestic half', () => {

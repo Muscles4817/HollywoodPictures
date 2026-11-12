@@ -436,10 +436,15 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
     // script's own cost a second time (engine/releaseFilm.ts) - it was already
     // fully accounted for at ACQUIRE_OPPORTUNITY, long before this Project (or
     // any Project) existed. 'Ignore' is a free test-screening response, so
-    // productionCost is exactly talent + production budget + the real shoot
-    // cost + event swings - and crucially NOT the script cost on top.
+    // productionCost is exactly talent + production budget + the prep overhead
+    // + the real shoot cost + event swings - and crucially NOT the script cost
+    // on top.
     const expectedProductionCost =
-      computeTalentCost(film.talent) + computeProductionBudgetCost(film.productionChoices) + photographyCost + eventsCostDelta;
+      computeTalentCost(film.talent) +
+      computeProductionBudgetCost(film.productionChoices) +
+      (draftBeforeRelease.preProduction?.runningCost ?? 0) +
+      photographyCost +
+      eventsCostDelta;
     expect(film.results.productionCost).toBeCloseTo(expectedProductionCost, -1);
     expect(film.results.productionCost).not.toBeCloseTo(expectedProductionCost + asset.script.cost, 0);
   });

@@ -60,6 +60,16 @@ function summarise(runs: BotRun[]): string[] {
       ` | facility upgrades ${median(runs.map((r) => r.facilityUpgrades))}`,
   );
 
+  // Where a career's money went and came from (state/playerBot.ts:BotRun.cashFlow).
+  const flow = (...keys: string[]) => median(runs.map((r) => keys.reduce((sum, key) => sum + (r.cashFlow[key] ?? 0), 0)));
+  lines.push(
+    `    money out: greenlights ${money(flow('production:greenlight'))}, prep overhead ${money(flow('production:prep'))}, scripts ${money(flow('acquisition'))}, facilities ${money(flow('facility'))}` +
+      ` | in: cinemas net of marketing ${money(flow('theatricalNet'))}, after-market ${money(flow('homeEntertainment', 'licensing', 'merchandising', 'catalogue'))}, awards ${money(flow('awards'))}`,
+  );
+  const viaDistributor = films.filter((f) => f.viaDistributor).length;
+  const wide = films.filter((f) => f.releaseType === 'Wide').length;
+  lines.push(`    releases: ${pct(wide, films.length)} wide, ${pct(viaDistributor, films.length)} through a rented distributor | median gross ${money(median(films.map((f) => f.boxOffice ?? 0)))}`);
+
   const wentNegative = runs.filter((r) => r.years.some((y) => y.cashMin < 0)).length;
   const blocked = runs.filter((r) => r.releaseFirstBlockedOnDay !== null);
   const stalled = runs.filter((r) => r.stalledOnDay !== null);

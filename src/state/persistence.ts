@@ -431,7 +431,17 @@ import { deleteSave, readSave, writeSave } from './saveDatabase';
 //   v98 save sat in localStorage, which a studio outgrew about a year in; it is
 //   not carried over (same pre-launch policy), and any old localStorage save
 //   keys are removed on boot so they stop occupying that origin's quota.
-export const SAVE_VERSION = 99;
+// v99 -> v100 (player-economy fixes, docs/DESIGN_REVIEW_player_economy.md):
+//   FilmResults gained expectedAfterMarket and internationalKeepShare (and
+//   MarketingChoices the latter), and the meaning of stored values moved - a
+//   film's cost now includes its prep overhead, its outcome label is judged on
+//   all income, and tier-0 international reach is no longer zero.
+// v100 -> v101 (talent model stage 1, docs/DESIGN_talent_model.md): careers
+//   gained priorCredits and a real careerStartDay; `experience` now means years
+//   in the role (it was a copy of skill); currentHeat and industryRespect are
+//   their own values; ages are derived from the career. A v100 pool has none of
+//   that.
+export const SAVE_VERSION = 101;
 
 /** Every pre-v99 save lived in localStorage under a key with this prefix. */
 const LEGACY_SAVE_KEY_PREFIX = 'hollywood-pictures-save-v';

@@ -291,6 +291,8 @@ export interface RoleCareerCommon<TRole extends TalentProfession> {
   typicalSalary: Money;
   careerStartDay?: GameDay;
   lastWorkedDay?: GameDay;
+  /** Finished films in this role before the game began (engine/careerHistory.ts). Added to the credits earned in play wherever a career total is shown. Absent on hand-authored people. */
+  priorCredits?: number;
 }
 
 // A director's own leanings on *how* a production gets made - orthogonal to
@@ -1407,6 +1409,8 @@ export interface MarketingChoices {
    * hard gate: domestic only).
    */
   internationalReachFraction?: number;
+  /** The studio's share of overseas gross for this release, frozen with the reach (engine/distribution.ts:internationalKeepShareForTier). Absent = the standard share. */
+  internationalKeepShare?: number;
   /**
    * How the budget is split across channels (docs/DESIGN_REVIEW_marketing_campaign.md).
    * Optional: absent on rival films and on saves predating the campaign
@@ -1566,6 +1570,8 @@ export interface FilmResults {
   distributionKeepShare?: number;
   /** Frozen international distribution reach for this film (0..1), copied from marketingChoices at release. Absent = 0 (domestic only). Box-office settlement reads this, never the studio's live tier. */
   internationalReachFraction?: number;
+  /** The studio's share of overseas gross for this film, copied from marketingChoices at release. Absent = the standard share (rivals, and studios with their own international operation). */
+  internationalKeepShare?: number;
   /**
    * P&A a distributor fronted for this film and recoups in full off the top of
    * the studio's box-office keep (engine/boxOfficeRun.ts) - withheld from the
@@ -1578,6 +1584,14 @@ export interface FilmResults {
   /** For display: the P&A the distributor committed (== distributionMarketingRecoup). Absent for self-distribution. */
   distributionPAndA?: number;
   profit: number | null;
+  /**
+   * What the film was expected to earn after cinemas (home entertainment,
+   * licensing, merchandising, catalogue) when its run ended - the estimate its
+   * outcome label and Brand change were judged with, alongside `profit`
+   * (engine/boxOfficeRun.ts:finishFilm). Not cash: the real after-market income
+   * arrives over years through the ancillary pipeline. Absent until the run ends.
+   */
+  expectedAfterMarket?: number;
   outcome: OutcomeLabel | null;
   // Milestone: Brand Recognition and Prestige (engine/reputation.ts) replaced
   // the single Reputation stat - commercial performance (profit relative to

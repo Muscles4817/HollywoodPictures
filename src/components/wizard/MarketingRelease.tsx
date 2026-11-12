@@ -64,6 +64,7 @@ import {
   distributionArmTier,
   distributorOffersForFilm,
   internationalReachForTier,
+  internationalKeepShareForTier,
   internationalTier,
   resolveDistribution,
   resolveDistributorDeal,
@@ -428,7 +429,8 @@ export function MarketingRelease() {
   // (state/studioReducer.ts:SCHEDULE_RELEASE is the authoritative guard that
   // rejects it). Gate the Release button on it too, and say why, rather than
   // letting the player build a plan the action will silently refuse.
-  const canAffordMarketing = marketingCost <= state.studio.cash;
+  // Floored at zero like the reducer's guard: an overdrawn studio can still release with no campaign.
+  const canAffordMarketing = marketingCost <= Math.max(0, state.studio.cash);
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning =
     releaseTypeProfile.needsMarketing && !onDistributorDeal && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
@@ -756,10 +758,12 @@ export function MarketingRelease() {
 
       <div className="card stack">
         <h3 style={{ margin: 0 }}>International</h3>
-        {intlReach <= 0 ? (
-          <p className="choice-description" style={{ margin: 0, color: 'var(--red)' }}>
-            Domestic release only — you have no international distribution. Build the International Distribution track on
-            your Distribution Arm to earn overseas box office.
+        {intlTier <= 0 ? (
+          <p className="choice-description" style={{ margin: 0 }}>
+            You have no international operation, so a sales agent will sell this film abroad: reaching{' '}
+            {Math.round(intlReach * 100)}% of the overseas audience and leaving you{' '}
+            {Math.round(internationalKeepShareForTier(intlTier) * 100)}% of that gross after their commission. The
+            International Distribution track on your Distribution Arm reaches more and keeps more.
           </p>
         ) : (
           <p className="choice-description" style={{ margin: 0 }}>
@@ -780,7 +784,7 @@ export function MarketingRelease() {
           <div className="stat-value"><Money amount={marketingCost} /></div>
           {!canAffordMarketing && (
             <div className="tracking-note" style={{ color: 'var(--red)' }}>
-              Over budget - you have <Money amount={state.studio.cash} />. Lower your channel spend to release.
+              Over budget - you have <Money amount={Math.max(0, state.studio.cash)} /> to spend. Lower your channel spend to release.
             </div>
           )}
         </div>

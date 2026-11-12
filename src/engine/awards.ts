@@ -16,12 +16,18 @@ import type {
   ProductionRole,
 } from '../types';
 import { yearOf } from './calendar';
+import { domesticKeepShareForFilm, internationalKeepShareForFilm, studioCreditFromMarkets } from './distribution';
 import { computeTalentCompatibility } from './compatibility';
 import { getCrewCareer } from './person';
 import { randFloat, type RandomFn } from './random';
 import {
   AWARD_CATEGORY_WEIGHT,
   AWARD_JITTER_MAGNITUDE,
+  AWARDS_LIFT_BY_RELEASE,
+  AWARDS_LIFT_LONG_CLOSED,
+  AWARDS_LIFT_RECENT_DAYS,
+  AWARDS_LIFT_RECENTLY_CLOSED,
+  AWARDS_LIFT_STILL_PLAYING,
   BUMP_CAP_FRACTION,
   CAMPAIGN_MAX,
   CAMPAIGN_SCALE,
@@ -317,7 +323,49 @@ export function computeStudioAwardDeltas(ceremony: AwardsCeremony, filmIds: Set<
   return { prestige, brand };
 }
 
-/** One-time box-office "Oscar bump" for a film: a capped fraction of its own studio revenue share, scaled by its award haul. */
+/**
+ * What the film had earned its studio from cinemas by a given day: each settled
+ * week's keep of each market, less whatever a distributor had recouped. Read
+ * from the stored weeks rather than results.studioRevenue, which is only set
+ * once the run ends - a film still playing on ceremony day is exactly the one
+ * awards do most for.
+ */
+function theatricalRevenueByDay(film: Film, day: number): number {
+  const weeks = (film.boxOfficeRun?.weeks ?? []).filter((w) => film.releasedOnDay + w.week * 7 <= day);
+  const credit = studioCreditFromMarkets(
+    weeks.reduce((sum, w) => sum + (w.domesticGross ?? w.gross ?? 0), 0),
+    weeks.reduce((sum, w) => sum + (w.internationalGross ?? 0), 0),
+    domesticKeepShareForFilm(film.results.distributionKeepShare),
+    internationalKeepShareForFilm(film.results.internationalKeepShare),
+  );
+  return Math.max(0, credit - Math.min(film.results.distributionMarketingRecoup ?? 0, credit));
+}
+
+/**
+ * 0..1 - how much awards attention could still do for this film's box office on
+ * ceremony day (data/awards.ts): most for a platform release still in cinemas,
+ * almost nothing for a wide release that finished months ago. Depends only on
+ * the film's stored run and the ceremony's own day, so it reads the same when
+ * the ceremony is looked back on later.
+ */
+export function awardsBoxOfficeExposure(film: Film, ceremonyDay: number): number {
+  const weeks = film.boxOfficeRun?.weeks ?? [];
+  const lastWeekEnd = film.releasedOnDay + weeks.length * 7;
+  const stillPlaying = lastWeekEnd > ceremonyDay || (film.boxOfficeRun?.status === 'running' && lastWeekEnd + 7 > ceremonyDay);
+  const timing = stillPlaying
+    ? AWARDS_LIFT_STILL_PLAYING
+    : ceremonyDay - lastWeekEnd <= AWARDS_LIFT_RECENT_DAYS
+      ? AWARDS_LIFT_RECENTLY_CLOSED
+      : AWARDS_LIFT_LONG_CLOSED;
+  const breadth = film.marketingChoices?.releaseType === 'Wide' ? AWARDS_LIFT_BY_RELEASE.wide : AWARDS_LIFT_BY_RELEASE.platform;
+  return timing * breadth;
+}
+
+/**
+ * One-time box-office lift for a film from one ceremony: a capped fraction of
+ * what it had earned the studio from cinemas by ceremony day, scaled by its
+ * award haul and by how much awards could still do for it.
+ */
 export function computeBoxOfficeBump(film: Film, ceremony: AwardsCeremony): number {
   let fraction = 0;
   forEachNomination(ceremony, (nom, weight) => {
@@ -325,7 +373,8 @@ export function computeBoxOfficeBump(film: Film, ceremony: AwardsCeremony): numb
     fraction += (nom.won ? WIN_BUMP_FRACTION : NOMINATION_BUMP_FRACTION) * weight;
   });
   fraction = Math.min(fraction, BUMP_CAP_FRACTION);
-  return Math.round((film.results.studioRevenue ?? 0) * fraction);
+  if (fraction <= 0) return 0;
+  return Math.round(theatricalRevenueByDay(film, ceremony.ceremonyDay) * fraction * awardsBoxOfficeExposure(film, ceremony.ceremonyDay));
 }
 
 /** Every film id that earned at least one nomination - the set the box-office bump iterates. */

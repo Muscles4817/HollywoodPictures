@@ -71,6 +71,13 @@ export interface ReleaseComputationInput {
   // (PhotographyState.runningCost) - not part of computeProductionBudgetCost
   // any more, since it's no longer a flat lump sum (see engine/cost.ts).
   photographyCost: number;
+  /**
+   * Pre-production overhead and prep-event costs (PreProductionState.runningCost).
+   * Already charged day by day during prep; folded into productionCost so the
+   * film's reported cost is what it really cost. The caller nets it out of the
+   * release-time charge (engine/marketSettlement.ts:alreadyCharged). Defaults to 0.
+   */
+  preProductionCost?: number;
   // daysElapsed / recommendedDays from the finished shoot - feeds shooting
   // quality (engine/productionDials.ts:shootingQualityFromRatio) the way a
   // pre-set pace slider used to.
@@ -334,7 +341,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // price.
   const productionCost = Math.max(
     0,
-    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees + (input.stuntTeamFee ?? 0),
+    talentCost + productionBudgetCost + (input.preProductionCost ?? 0) + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees + (input.stuntTeamFee ?? 0),
   );
   // The press tour is a promotional expense - folded into the reported
   // marketingCost (and therefore totalCost) so it reads as part of the campaign.
@@ -419,6 +426,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.marketingChoices.internationalReachFraction ?? 0,
     domesticKeepShareForFilm(input.marketingChoices.distributionKeepShare),
   );
+  // (The opening figure is a gross, so the overseas keep share does not enter it.)
   const openingWeekend = Math.round(openingSplit.domesticGross) + Math.round(openingSplit.internationalGross);
 
   const departmentBlurb = pickDepartmentBlurb(quality, input.genre, rng);
@@ -452,6 +460,9 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     // Frozen international reach - box-office settlement reads this, never the
     // studio's live tier, so a post-release upgrade never lifts this film.
     internationalReachFraction: input.marketingChoices.internationalReachFraction,
+    // Frozen alongside it: the studio's share of that overseas gross (less a
+    // sales agent's commission when it has no international operation).
+    internationalKeepShare: input.marketingChoices.internationalKeepShare,
     // Distributor terms, carried onto the film so box-office settlement recoups
     // the fronted P&A off the top (engine/boxOfficeRun.ts) and the money
     // breakdown can show the fee/P&A lines. All absent for a self-distributed

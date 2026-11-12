@@ -34,7 +34,9 @@ import { CREW_CAREER_KEY } from './person';
 import { deriveHandsOnSeeded, deriveCraftSeeded } from './actingModel';
 import { buildPersonality, resolveHandcraftedPersonality } from './personality';
 import { logAmount, logT } from './interpolate';
-import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
+import { clamp, hashUnit, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
+import { deriveCareerHistory, type CareerHistory } from './careerHistory';
+import { DAYS_PER_YEAR } from './calendar';
 
 // Structural variation on top of the two word banks (data/talentNames.ts).
 // Plain first+last is 690 x 750 = 517,500 combinations - already a 20x widening
@@ -123,9 +125,34 @@ function generateGender(rng: RandomFn): Gender {
 // are only ever generated at RESET_SAVE/a fresh save (both always at
 // GameState.totalDays === 1, Year 1) - see generateTalentPool - so "Year 1"
 // is always genuinely "now" at the moment this runs, not a stale anchor.
-function generateDateOfBirth(rng: RandomFn): GameDate {
-  const age = Math.round((randInt(rng, 20, 68) + randInt(rng, 20, 68)) / 2);
-  return { year: 1 - age, month: randInt(rng, 1, 12), day: randInt(rng, 1, 28) };
+//
+// Age is no longer rolled on its own (docs/DESIGN_talent_model.md, stage 1):
+// the same two rolls now say how young the person started and how long they
+// have been at it, and engine/careerHistory.ts turns those plus their fee
+// position into an age, a career length and a count of prior credits that
+// agree with each other. The four draws are taken in the same order and from
+// the same ranges as before, so the generation stream is unchanged.
+function generateCareerAndBirth(rng: RandomFn, role: TalentProfession | 'Producer', t: number, name: string): { history: CareerHistory; dateOfBirth: GameDate } {
+  const startRoll = (randInt(rng, 20, 68) - 20) / 48;
+  const yearsRoll = (randInt(rng, 20, 68) - 20) / 48;
+  const history = deriveCareerHistory(role, t, startRoll, yearsRoll, hashUnit(`${name}|credits`));
+  return { history, dateOfBirth: { year: 1 - history.age, month: randInt(rng, 1, 12), day: randInt(rng, 1, 28) } };
+}
+
+/**
+ * Standing a person has earned that is not simply their fame. Both were copies
+ * until stage 1: heat a copy of fame, industry respect a copy of reliability.
+ *  - Heat is recent form. It starts around fame and a little above or below it,
+ *    so the pool's average is unchanged; from stage 2 it moves with results.
+ *  - Industry respect is what colleagues think: dependable people who have been
+ *    doing the job a long time have it, whoever the public has heard of.
+ * Both are hash-derived from the person's name, so they consume no rng.
+ */
+function generateStanding(name: string, fame: number, reliability: number, experience: number): { currentHeat: number; industryRespect: number } {
+  return {
+    currentHeat: clamp(Math.round(fame + (hashUnit(`${name}|heat`) - 0.5) * 30), 1, 100),
+    industryRespect: clamp(Math.round(0.5 * reliability + 0.5 * experience + (hashUnit(`${name}|respect`) - 0.5) * 20), 1, 100),
+  };
 }
 
 // Kept off the 1/100 extremes on purpose (see data/genres.ts for the same
@@ -458,8 +485,18 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
   // byte-identical - the sharp edge from docs/DESIGN_REVIEW_acting_model.md §15.
   const name = randomName(rng, `${role}|${t}`, role);
   const gender = generateGender(rng);
-  const dateOfBirth = generateDateOfBirth(rng);
+  const { history, dateOfBirth } = generateCareerAndBirth(rng, role, t, name);
   const personalitySeed = `${role}:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
+  // The career was built above, before its length was known (the rolls for it
+  // come last in the stream); stamp the history onto it now. Experience is how
+  // long they have been doing the job - it used to be a copy of skill.
+  careers = Object.fromEntries(
+    Object.entries(careers).map(([key, career]) => [
+      key,
+      { ...career, experience: history.experience, priorCredits: history.priorCredits, careerStartDay: 1 - history.yearsActive * DAYS_PER_YEAR },
+    ]),
+  ) as PersonCareers;
+  const standing = generateStanding(name, fame, reliability, history.experience);
 
   return {
     id: `talent-${nextSequence('person')}`,
@@ -473,13 +510,13 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
         ego,
         fame,
         prestige: fame,
-        industryRespect: reliability,
-        currentHeat: fame,
+        industryRespect: standing.industryRespect,
+        currentHeat: standing.currentHeat,
         age: 1 - dateOfBirth.year,
       },
       personalitySeed,
     ),
-    reputation: { fame, prestige: fame, industryRespect: reliability, reliability, currentHeat: fame },
+    reputation: { fame, prestige: fame, industryRespect: standing.industryRespect, reliability, currentHeat: standing.currentHeat },
     primaryRole: role,
     careers,
     availability: { commitments: [] },
@@ -619,7 +656,7 @@ function generateProducer(rng: RandomFn, t: number): Person {
   // no-rng archetype derivation, draw order unchanged.
   const name = randomName(rng, `producer|${t}`);
   const gender = generateGender(rng);
-  const dateOfBirth = generateDateOfBirth(rng);
+  const { dateOfBirth } = generateCareerAndBirth(rng, 'Producer', t, name);
   const personalitySeed = `Producer:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
 
   return {

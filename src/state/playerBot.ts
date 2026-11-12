@@ -19,7 +19,7 @@ import {
   recommendEnvironmentStrategy,
 } from '../engine/recommendation';
 import { footageLowerBound } from '../engine/production';
-import { computeDailyPrepBurn } from '../engine/cost';
+import { computeDailyPrepBurn, PREP_DAILY_BURN_FRACTION } from '../engine/cost';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
@@ -48,7 +48,8 @@ import type { Film, FilmDraft, Opportunity, Person, ProductionRole, ReleaseType,
  *    no backend deals, no optional crew, no producers, no stunt team);
  *  - it takes the engine's own recommended production plan for the director;
  *  - it answers every on-set, prep and test-screening decision with the first
- *    option offered;
+ *    option offered, and grants a director's creative demands only when the
+ *    director is proven;
  *  - it releases a full campaign runway after the final cut, and never runs an
  *    awards campaign or a press tour.
  * So its results are a floor for a player using the same strategy with more
@@ -173,6 +174,13 @@ export interface BotFilm {
   quality: number;
   critic: number;
   releaseType: ReleaseType;
+  /** What the studio actually received from cinemas, after the split and any distributor recoupment. */
+  theatricalRevenue: number | null;
+  marketingCost: number;
+  /** Post-theatrical income received so far (home entertainment, licensing, merchandising), from the cash ledger. */
+  ancillary: number;
+  /** Whether the release went out through a rented distributor rather than the studio's own arm. */
+  viaDistributor: boolean;
 }
 
 export interface BotRun {
@@ -200,6 +208,15 @@ export interface BotRun {
   awardWins: number;
   awardNominations: number;
   facilityUpgrades: number;
+  /**
+   * Where the money went and came from over the career, summed from the cash
+   * ledger: its categories, with 'production' split into greenlight
+   * commitments, pre-production overhead and the rest. Marketing and box
+   * office never reach the ledger (they are charged and credited directly), so
+   * they arrive together as 'theatricalNet' - split them with the per-film
+   * figures in `films`.
+   */
+  cashFlow: Record<string, number>;
   /** Films mounted on a stretch (most of the cash on hand) because the usual share could not fund one. */
   stretchedFilms: number;
   finalState: GameState;
@@ -249,9 +266,9 @@ function scriptQuality(script: Script): number {
 }
 
 /**
- * Pre-production burns a fixed overhead every day whatever the film cost
- * (engine/cost.ts), so it has to come off the top before anything else is
- * budgeted - on a small film it is the largest single line.
+ * Pre-production burns overhead every day in proportion to the film's negative,
+ * up to a ceiling for its scale (engine/cost.ts), so it has to be allowed for
+ * before anything else is budgeted.
  */
 const PREP_DAYS_ALLOWANCE = 55;
 
@@ -261,8 +278,13 @@ const PREP_DAYS_ALLOWANCE = 55;
  * overhead, less the marketing that has to be left for the release.
  */
 function negativeBudgetFor(cash: number, strategy: BotStrategy, scale: Script['scale'], share = strategy.filmBudgetShare): number {
-  const overhead = strategy.budgetsForOverhead ? computeDailyPrepBurn(scale) * PREP_DAYS_ALLOWANCE : 0;
-  return (cash * share - overhead) / (1 + strategy.marketingRatio);
+  const allIn = cash * share;
+  if (!strategy.budgetsForOverhead) return allIn / (1 + strategy.marketingRatio);
+  // Overhead is a fraction of the negative until it hits the scale's ceiling,
+  // so the negative is whichever of the two regimes leaves more.
+  const proportional = allIn / (1 + strategy.marketingRatio + PREP_DAILY_BURN_FRACTION * PREP_DAYS_ALLOWANCE);
+  const capped = (allIn - computeDailyPrepBurn(scale, Infinity) * PREP_DAYS_ALLOWANCE) / (1 + strategy.marketingRatio);
+  return Math.max(proportional, capped);
 }
 
 /**
@@ -409,9 +431,13 @@ function startFilm(state: GameState, strategy: BotStrategy, run: BotRun): GameSt
   setPlan();
 
   // A director with strong convictions makes demands that must each be settled
-  // before greenlight. The bot gives the director what they ask for.
+  // before greenlight. Ceding a domain is a bet on the director's ability, so
+  // the bot gives a proven director what they ask for and refuses an unproven
+  // one - giving in to everyone cost its small studios about five quality
+  // points a film.
+  const trustsDirector = (directorCareer?.skill ?? 0) >= 60;
   for (const demand of focusedDraft().development?.demands ?? []) {
-    if (!demand.resolution) s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: true });
+    if (!demand.resolution) s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: trustsDirector });
   }
 
   // The plan's real cost (sets, effects) is only known once it is set. If the
@@ -579,6 +605,10 @@ function toBotFilm(film: Film): BotFilm {
     quality: film.results.qualityScore,
     critic: film.results.criticScore,
     releaseType: film.marketingChoices.releaseType,
+    theatricalRevenue: film.results.studioRevenue,
+    marketingCost: film.results.marketingCost,
+    ancillary: 0,
+    viaDistributor: film.marketingChoices.distributionMethod === 'distributor',
   };
 }
 
@@ -607,12 +637,46 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
     awardWins: 0,
     awardNominations: 0,
     facilityUpgrades: 0,
+    cashFlow: {},
     stretchedFilms: 0,
     finalState: s,
   };
 
   const lastProgress = new Map<string, { signature: string; day: number }>();
   let consecutiveIdleBroke = 0;
+  // The ledger keeps only its last 60 entries, so it is read every day: new
+  // entries are whatever follows the last one seen (entries are immutable, so
+  // reference identity finds it).
+  let lastEntry: unknown = null;
+  let lastCash = s.studio.cash;
+  const ancillaryByTitle = new Map<string, number>();
+  const add = (key: string, amount: number) => {
+    run.cashFlow[key] = (run.cashFlow[key] ?? 0) + amount;
+  };
+  const harvestLedger = () => {
+    const ledger = s.studio.cashLedger ?? [];
+    const from = lastEntry ? ledger.findIndex((entry) => entry === lastEntry) + 1 : 0;
+    let ledgered = 0;
+    for (const entry of ledger.slice(from)) {
+      ledgered += entry.amount;
+      const key =
+        entry.category !== 'production'
+          ? entry.category
+          : entry.reason.startsWith('Pre-production')
+            ? 'production:prep'
+            : entry.reason.startsWith('Greenlit')
+              ? 'production:greenlight'
+              : 'production:other';
+      add(key, entry.amount);
+      if (entry.amount > 0 && entry.reason.includes(' — ')) {
+        const title = entry.reason.slice(entry.reason.lastIndexOf(' — ') + 3);
+        ancillaryByTitle.set(title, (ancillaryByTitle.get(title) ?? 0) + entry.amount);
+      }
+    }
+    if (ledger.length > 0) lastEntry = ledger[ledger.length - 1];
+    add('theatricalNet', s.studio.cash - lastCash - ledgered);
+    lastCash = s.studio.cash;
+  };
   let cashMin = s.studio.cash;
   const endDay = firstDayOfYear(years + 1);
 
@@ -650,6 +714,7 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
     if (s.focusedProjectId) s = studioReducer(s, { type: 'RETURN_TO_DASHBOARD' });
     s = studioReducer(s, { type: 'ADVANCE_DAY' });
     cashMin = Math.min(cashMin, s.studio.cash);
+    harvestLedger();
 
     // Close out each year the clock has now passed. A `while`, not an `if`
     // against the day before the tick: other actions move the calendar too (a
@@ -682,7 +747,9 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
       }
     }
   }
-  run.films = playerFilms.map(toBotFilm).sort((a, b) => a.releasedOnDay - b.releasedOnDay);
+  run.films = playerFilms
+    .map((film) => ({ ...toBotFilm(film), ancillary: ancillaryByTitle.get(film.title) ?? 0 }))
+    .sort((a, b) => a.releasedOnDay - b.releasedOnDay);
   run.finalState = s;
   return run;
 }

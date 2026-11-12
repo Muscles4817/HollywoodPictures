@@ -183,6 +183,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       events: photographyEvents,
       postProductionEvents,
       photographyCost: draft.photography!.runningCost,
+      preProductionCost: draft.preProduction?.runningCost ?? 0,
       shootingRatio,
       studioBrand,
       studioGenreIdentity,
@@ -215,6 +216,8 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
     computeTalentCost(draft.talent) +
     computeProductionBudgetCost(draft.productionChoices!) +
     draft.photography!.runningCost +
+    // Prep overhead was charged day by day; reported in totalCost, so netted here.
+    (draft.preProduction?.runningCost ?? 0) +
     computeEventsCostDelta(postProductionEvents);
   const costCharged = results.totalCost - alreadyCharged;
 
