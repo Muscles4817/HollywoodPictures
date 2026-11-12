@@ -1,6 +1,6 @@
 # Design: the talent model
 
-**Status:** draft for review, revised after the owner's first read. Nothing
+**Status:** draft for review, revised twice after the owner's reads. Nothing
 here is built. Section 8 records what is settled and what is still open.
 
 **Where this comes from:** `docs/DESIGN_REVIEW_player_economy.md` §9. For
@@ -30,8 +30,9 @@ Measured on a generated talent pool and with the player-economy harness:
 
 1. **A fee is a price, not a measurement.** It follows fame and results. Some
    expensive people are coasting, and some cheap people are very good.
-2. **Inexperienced is not untalented.** Experience buys consistency and the
-   ability to handle a large production, not a higher ceiling.
+2. **Inexperienced is not untalented, and nobody is finished.** Experience buys
+   consistency and the ability to handle a large production. Practice turns
+   potential into ability, in whatever the work actually used.
 3. **Ability is judged, not read off a card.** The player sees a track record
    and a read whose confidence depends on how much there is to go on.
 4. **Careers move.** A discovery gets expensive after a hit. People arrive and
@@ -70,36 +71,70 @@ making the standing fields real, and adding the yearly movement.
 
 ### 4.1 What a person is
 
-Each career carries four things that today are one number.
+Each career carries five things that today are one number.
 
 | | What it is | Changes? | Seen by the player? |
 |---|---|---|---|
-| **Talent** | The ceiling of what they can deliver, attribute by attribute (4.1a) | No, fixed for life | Never directly; learned through evidence (4.5) |
-| **Experience** | Credits and years in the role | Grows with each film | Yes, as a track record |
+| **Potential** | How good they could become at each thing their job involves (4.1a) | No, fixed for life | Never. At most inferred from how fast someone is improving |
+| **Ability** | How good they are at each of those things today | Grows through work that uses it, toward their potential | Learned through evidence (4.5) |
+| **Consistency** | How close to their ability they land on an ordinary day | Rises with experience | Yes, as steadiness in the track record |
 | **Standing** | Fame, heat, industry respect | After every film; heat fades | Yes, in words |
 | **Quote** | What the market pays them | Follows standing; rises fast, falls slowly | Yes |
 
-Talent is generated on its own axis, as actor craft already is.
+"Talent" in the everyday sense is **potential**: the part that is fixed.
+**Ability** is what that potential has been turned into so far, and it is not
+fixed. This split is the answer to two things that are both true: some people
+are simply more gifted than others, and people get better at what they
+practise.
 
-### 4.1a What "talent" means, role by role
+### 4.1a Potential and ability, role by role
 
-"Talent" is not one number. It is the set of ability attributes a role already
-has in the engine. Everything else on a person is taste, temperament or
-standing, and none of those is talent.
+Both apply to the same list of attributes, which is the list the engine already
+has for each role.
 
-| Role | Talent: the fixed ability attributes | Today |
+| Role | The attributes | Today |
 |---|---|---|
-| **Actor** | Five strengths: character transformation, emotional performance, charisma, comedy, physical performance. Plus **headroom**: how much more a good director can draw out of them. | Already separate from fee. |
-| **Director** | Four aptitudes: story, visual, performance, craft. | One `skill` number set by fee; the four aptitudes are small offsets around it. |
-| **Writer** | Three craft strengths: structure, characters, dialogue. Plus concept ambition (how original their ideas run). | Set from a `skill` number set by fee. |
+| **Actor** | Character transformation, emotional performance, charisma, comedy, physical performance. Plus **headroom**: how much more a good director can draw out of them. | Already separate from fee; a single fixed value each. |
+| **Director** | Story, visual, performance (working with actors), craft. | One `skill` number set by fee; the four are small offsets around it. |
+| **Writer** | Structure, characters, dialogue, and how original their concepts run. | Set from a `skill` number set by fee. |
 | **Cinematographer, editor, composer, production designer, VFX supervisor, casting director** | Their department's specialties. For a designer: period craft, large builds, location builds, creature builds. For VFX: digital environments, creature animation, compositing, digital doubles. | One `skill` number set by fee; specialties are offsets around it. |
 
-So for directors, writers and crew the change is that the per-attribute values
-become the real thing and the single `skill` number becomes only a summary of
-them. A director can be a superb visual stylist and ordinary with actors, which
-today is possible only for the hand-authored marquee names.
+**How ability grows.** This follows how careers actually develop
+(`docs/domain/12` §4, §8), not a levelling system.
 
-What is **not** talent, and stays as it is:
+- **Ability grows in what the work used.** An actor who keeps getting dramatic
+  parts gets better at emotional performance and no better at comedy. A
+  designer who has only done contemporary films has not learned period craft.
+- **It grows toward potential, fastest early.** The first few films in a new
+  register teach the most. Near their potential, more of the same teaches
+  little.
+- **So people can develop range, within limits they do not know.** A comic
+  actor can become a good dramatic one by doing dramatic work, if the potential
+  is there. Nobody knows whether it is until they try, which is why
+  counter-casting is a gamble for the actor and the studio alike. The reference
+  describes the same thing: one counter-cast role is an anomaly, two is a range
+  (`12` §4.6).
+- **Who you work with matters.** A part under a strong director, or on a
+  well-run production, teaches more than the same part on a poor one. This is
+  the sponsor and mentor effect, and it gives a studio a reason to pair
+  promising people with good ones.
+- **The balance of gift and practice differs by job.** For actors, potential
+  varies widely and shows early: some are remarkable at twenty. For crew heads
+  of department, ability is mostly accumulated craft. The real ladders are ten
+  to twenty years long (`12` §8.1), so potential varies less and experience
+  explains most of the difference. Directors sit between, and peak late: often
+  in their fifties and sixties (`12` §4.7).
+- **Some things decline.** Physical performance fades with age, and a physically
+  demanding lead becomes harder to mount around an older actor (`12` §4.7). The
+  other attributes do not decline with age in this model.
+
+**Consistency** is separate from all of that and is what "experience raises the
+floor" means. An experienced person lands near their ability almost every time.
+An inexperienced one has the same ability on paper and a wider spread of
+outcomes, more so under pressure (4.2). It rises with total credits, whatever
+they were.
+
+What is **not** potential or ability, and stays as it is:
 
 | Kind | Attributes | What it does |
 |---|---|---|
@@ -107,32 +142,34 @@ What is **not** talent, and stays as it is:
 | **Temperament** | Professionalism, ambition, loyalty, ego, temperament, pressure handling, controversy, adaptability; reliability; a writer's consistency. | Decides how they behave: on a troubled shoot (4.2), in a negotiation and over a relationship (4.3). Most of these are carried today and read by nothing. |
 | **Standing** | Fame, heat, industry respect. | Sets the quote (4.3). |
 
-One existing piece stays outside the fixed-talent rule on purpose: an actor's
-**floor**, what they deliver with no help. The acting model generates it as a
-fixed value. Whether experience should raise it is an open question (section 8).
+A note on the tone profile, since it looks like a list of genres: it is taste,
+not ability. It says a director is drawn to suspense, not that they are good at
+it. It can drift slowly toward what someone keeps making, but it is not what
+this section means by getting better.
 
 ### 4.2 What they deliver on a film
 
-A person's work on a film lands between a **floor** and their **ceiling**.
+A person's work on a film lands somewhere up to their **ability** in the
+attributes the film calls on. How close it gets is decided by two things.
 
-- The ceiling is their talent.
-- The floor rises with experience. A veteran's floor sits close to their
-  ceiling; a first-timer's sits well below it.
-- Where in that range the work lands is decided the way it already is for
-  actors: by the production around them, not by a dice roll on the person. A
-  well-run, well-matched, adequately funded shoot gets people's best. A
-  troubled one drags them toward their floor.
-- **Scale is a demand on experience.** An Intimate film asks little of it. An
-  Epic asks a great deal, so a gifted first-timer handed a tentpole is a real
-  risk and the same person on a contained drama is not. This is the honest
-  version of "you cannot hire a great director cheaply": you can, for the right
-  size of film.
+- **Their consistency.** A veteran lands near their ability; a first-timer has
+  a wider spread below it.
+- **The production around them**, the way it already works for actors: not a
+  dice roll on the person. A well-run, well-matched, adequately funded shoot
+  gets people's best. A troubled one drags them down, and drags the
+  inexperienced further.
 
-For actors this is the existing floor-and-headroom model unchanged, with a
-director unlocking the headroom. For directors and crew the "production around
-them" is the existing execution model: reserve, schedule pressure, prep, the
-events that happened. Pressure handling and adaptability, already on every
-person, finally get a job: they decide how far a bad shoot drags someone down.
+**Scale is a demand on experience.** An Intimate film asks little of it. An Epic
+asks a great deal, so a gifted first-timer handed a tentpole is a real risk and
+the same person on a contained drama is not. This is the honest version of "you
+cannot hire a great director cheaply": you can, for the right size of film.
+
+For actors this is the existing floor-and-headroom model, with one change: the
+floor rises with experience where today it is fixed. A director still unlocks
+the headroom. For directors and crew the "production around them" is the
+existing execution model: reserve, schedule pressure, prep, the events that
+happened. Pressure handling and adaptability, already on every person, finally
+get a job: they decide how far a bad shoot drags someone down.
 
 ### 4.3 What they cost
 
@@ -152,6 +189,42 @@ studio*.
 - **It ratchets.** A quote rises as soon as results justify it and falls only
   slowly. This is the documented behaviour of real quotes (`docs/domain/12`
   §2.3).
+
+**How a quote falls.** Slowly, and by how much depends on four things. The
+reference is blunt that "a flop does not end a career; a flop that is
+attributed to you starts the chain" (`12` §4.4), and each of these is a part of
+that.
+
+1. **How badly the film did.** A disappointment costs a little. A bomb costs a
+   lot. The scale is the film's result against what it cost, not a yes or no.
+2. **How much it was their film.** Blame lands on whoever the film was sold on:
+   the lead it was built around and the director, far more than a supporting
+   player or the editor. Being in a film that failed for its own reasons costs
+   much less than being the reason it was made.
+3. **How they personally came off.** The engine already gives each cast member
+   a verdict on their own work. Being singled out as the weak part of a decent
+   film does a little damage each time and real damage if it keeps happening.
+   This is the smaller effect; how the films do is the main one.
+4. **How much standing they have to spend.** An established star with a long
+   record of hits can absorb a bomb or two; it takes a run of them before the
+   market stops believing the quote. Someone with one big film behind them has
+   no such cushion, and one bad follow-up can undo the breakout.
+
+Two details follow from how this really works. Heat falls first and the quote
+follows a film or two later, because deals are signed before results are known.
+And fame barely falls at all: a faded star is still famous, just no longer
+expensive, which makes them an interesting hire.
+
+**Recovery** needs no rule of its own. A faded name cast in a film that is well
+received, especially by a respected director, regains heat through the same
+update that took it away. The reference's routes back (the prestige director,
+the scene-stealing supporting part, the cheap genre film that reaches a big
+audience) all fall out of that.
+
+**Directors** follow the same arc on a longer clock: they fall more slowly,
+recover more completely, and are hurt as much by a reputation for going over
+budget as by a bad film (`12` §4.9). The engine already records overruns and
+on-set trouble, so this can be real.
 
 **What they ask you** starts from the market quote and is moved by the person
 and by your history with them. There is no fixed rule for how long a discovery
@@ -192,9 +265,14 @@ or a share of the back end. That needs no change.
 
 After each film finishes its run, everyone credited on it is updated.
 
-- **Experience** goes up by one credit.
+- **Experience** goes up by one credit, and with it consistency.
+- **Ability** grows in the attributes the film called on, more for a demanding
+  part, more under strong collaborators, less the nearer they are to their
+  potential (4.1a).
+- **Physical performance** eases off with age.
 - **Heat** moves with the film's commercial result, weighted by how much the
-  role is seen to carry it: leads and the director most, crew little.
+  role is seen to carry it and by the person's own notices. A miss is
+  cushioned by standing (4.3).
 - **Fame** moves with how many people saw the film, using the same visibility
   idea Brand now uses. A small film cannot make someone famous; a hit can.
 - **Industry respect** moves with reviews and with nominations and wins.
@@ -259,6 +337,13 @@ That is already true in the game.
 - **The same applies to directors and crew.** A director's acclaimed film may
   owe a great deal to its script; a cinematographer's best work to the director
   and the budget. Their track record is a clue, not a measurement.
+
+**What is learned is ability, not potential.** Evidence shows how good someone
+is now. Potential is never shown; the most the player gets is a sense of
+direction, such as "still getting better" for someone whose recent work
+outshines their earlier work. And because ability keeps moving, a read ages: a
+confident read of someone the studio last used years ago is a read of who they
+were then.
 
 **A read reaches certainty one attribute at a time**, when the studio has seen
 that attribute properly tested on its own films. Someone can be fully known as
@@ -338,7 +423,7 @@ that makes it safe is in place.
 | 3 | **Arrivals and departures.** A yearly intake and retirement. | New faces each year; veterans leave. | M |
 | 4 | **Ability becomes evidence-based knowledge.** The skill rating on directors and crew is replaced by track record plus per-attribute reads, learned from what each film tested. | Hiring a director feels like hiring an actor already does; you learn people by working with them. | L |
 | 5 | **Rivals hire on track record.** | Rivals chase hot people, including yours. | M |
-| 6 | **Untie talent from fee, per attribute; experience sets the floor.** | Hidden ability exists; scale demands experience. | M |
+| 6 | **Untie ability from fee, per attribute. Potential, growth through use, and consistency from experience.** | Hidden ability exists; people develop; scale demands experience. | L |
 | 7 | **Personality prices the relationship, and deals.** Loyalty, ambition and ego move what someone asks of you; multi-film deals. | Some discoveries stay; others have to be signed or lost. | M |
 
 Stage 7's first half (personality moving the ask) is small and could ride with
@@ -352,35 +437,41 @@ acceptance tests in section 6 are for.
 
 Settled with the owner:
 
-1. **Talent is fixed for life.** Defined attribute by attribute in 4.1a.
-2. **Ability can be known for certain, but only through evidence.** Per
+1. **Potential is fixed for life; ability is not.** People get better at what
+   they practise, toward a limit they are born with and nobody can see (4.1,
+   4.1a). This replaces the earlier "talent is fixed", which would have stopped
+   anyone developing range.
+2. **Experience raises the floor**, as consistency, for everyone including
+   actors (4.2).
+3. **Ability can be known for certain, but only through evidence.** Per
    attribute, from roles that tested it, strongly from the studio's own films
    and weakly from other people's (4.5). No film-count rule.
-3. **Newcomers are drawn from the same spread as everyone.** Roughly one in ten
+4. **Newcomers are drawn from the same spread as everyone.** Roughly one in ten
    genuinely good, one in fifty exceptional, and nothing marks them.
-4. **How long a discovery stays affordable depends on the person and the
+5. **How long a discovery stays affordable depends on the person and the
    relationship**: loyalty, ambition, ego and how the work went, with deals as
-   the tool for keeping someone (4.3). No fixed two-film rule.
-5. **The real-world roster keeps its hand-written skill values as talent**,
-   with experience derived from career length and quotes recomputed. Subject to
-   a look at the file.
+   the tool for keeping someone (4.3).
+6. **Quotes fall slowly, by how badly the film did, how much it was theirs, how
+   they came off, and how much standing they have to spend** (4.3). How the
+   films do is the main driver; personal notices are the smaller one.
+7. **A rival knows what the player would**: a weak read of strangers and full
+   knowledge of people it has used.
+8. **The real-world roster keeps its hand-written skill values**, with
+   experience derived from career length and quotes recomputed. Subject to a
+   look at the file, and to deciding whether a written value is that person's
+   ability today or their potential.
 
 Still open:
 
-- **Do quotes ever fall?** Proposed: slowly, after two misses in a row or three
-  years without work. Faded names at a discount are a real and interesting
-  thing to hire.
-- **Does experience raise an actor's floor?** The acting model fixes it. Raising
-  it with experience would make young actors riskier and veterans steadier,
-  which fits "less experienced, not less talented", but it changes a shipped
-  and calibrated model.
-- **How much does a rival know?** Simplest is to give rivals the same
-  weak-evidence read the player has of strangers, plus full knowledge of people
-  they have used. The cheaper alternative is a single noisy read.
-- **The card.** Per-attribute reads with confidence are more to show than one
-  skill rating. This needs a layout pass before stage 4.
-- **When deals arrive.** They can follow the rest (stage 7 below) or come
-  earlier if keeping discoveries feels too hard without them.
+- **The talent card.** Agreed that it needs a design pass. Per-attribute reads
+  with confidence, a track record and a caveat are more than one skill rating.
+  Needed before stage 4.
+- **When deals arrive.** They can follow the rest (stage 7) or come earlier if
+  keeping discoveries feels too hard without them.
+- **How fast ability grows.** The shape is settled (4.1a); the pace is not. Too
+  fast and everyone converges on their potential in a few films; too slow and
+  development is invisible in a ten-year game. This is a number to find with
+  the harness, not to argue about.
 
 ## 9. Risks and limits
 
