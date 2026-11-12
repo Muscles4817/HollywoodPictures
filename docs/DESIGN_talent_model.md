@@ -1,7 +1,7 @@
 # Design: the talent model
 
-**Status:** design agreed with the owner over three rounds. **Stage 1 is built**
-(section 7.1); stages 2 to 7 are not. Section 8 records what is settled and
+**Status:** design agreed with the owner over three rounds. **Stages 1 and 2 are built**
+(sections 7.1 and 7.2); stages 3 to 7 are not. Section 8 records what is settled and
 what is still open.
 
 **Where this comes from:** `docs/DESIGN_REVIEW_player_economy.md` §9. For
@@ -515,6 +515,55 @@ case.
 Hand-authored people (the real-world roster and the marquee directors) are
 untouched: they carry their own ages and standing and have no prior-credit
 count yet.
+
+### 7.2 Stage 2, as built
+
+`engine/careerProgress.ts`. When a film's run ends, everyone credited on it,
+on the player's films and rivals' alike, is updated:
+
+| | Moves with | Notes |
+|---|---|---|
+| **Heat** | How the film did in cinemas, from a full bomb (lost 60% of its cost or more) to a full hit (125% profit or more) | Weighted by role: lead 1.0, director 0.9, supporting 0.35, writer 0.3, down to 0.1 for a casting director. For actors, a quarter of it is their own notices. A miss is cushioned by up to 75% for someone famous and long in the job, and the cushion thins as heat sinks. |
+| **Fame** | How many people saw the film | Never falls for a bomb. Harder to add to the more famous someone is. |
+| **Industry respect** | The reviews | |
+| **Experience** | The credit | Kept in step with the years the career has run. |
+| **Quote** | All of the above | See below. |
+
+Awards add heat and respect for the person named. Each quarter heat closes 16%
+of its gap to fame and fame slips by 0.15%.
+
+**The quote** is read against an anchor: the fee and standing a person had when
+the market first repriced them. The same standing therefore always implies the
+same quote. It rises to that figure at once and falls toward it by 30% of the
+gap at the moment of a bad result and 12% a quarter after.
+
+The first version passed on all of every rise and a share of every fall,
+step by step. That is a ratchet with no way back, and it inflated the whole
+pool: the median actor's fee more than tripled in ten years on the ordinary ups
+and downs of heat. Anchoring fixed it.
+
+**Measured** (four tiers, Careful and Steady, three seeds, ten years):
+
+- **The player's economy reads the same as stage 1**, within seed noise. Median
+  film quality is 41 to 43 at Indie, 47 to 55 at Boutique, 68 at Mid-Major, 73
+  to 74 at Major. Ability has not moved, so this is expected.
+- **The pool keeps its fame.** After ten years mean fame is up 7% for actors
+  and flat for directors and crew.
+- **Fees compress toward the middle.** The median actor's fee is 1.8 to 1.9
+  times what it was and the median director's 1.2 to 1.4 times, while the top
+  decile is slightly down (0.94 to 0.97 for actors, 0.85 for directors). People
+  who work become better known; the famous can only hold their place. With
+  nobody arriving at the bottom and nobody leaving the top, the middle fills
+  up. This is what stage 3 is for, and it is left for stage 3.
+- **A breakout raises an unknown lead's quote by a little under double**, short
+  of the "at least doubles" in section 6. Making breakouts bigger pushes the
+  compression above further, so it also waits for stage 3.
+
+**A limit on the measurement.** The box-office gates read exactly as they did
+after stage 1. That is not evidence of no effect: they run their own market loop
+and do not go through the calendar settlement where careers move, so they
+cannot see this stage at all. The harness, which plays through the real
+reducer, is the only thing that measures it.
 
 ## 8. Decisions
 
