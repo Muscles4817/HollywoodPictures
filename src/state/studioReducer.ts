@@ -1,3 +1,5 @@
+import { AWARD_CATEGORY_WEIGHT } from '../data/awards';
+import { applyAwardsToCareers, applyFilmResultsToCareers, crossedStandingFade, fadeStanding } from '../engine/careerProgress';
 import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, CastCrewFocus, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
@@ -443,6 +445,18 @@ export interface CalendarSettlementResult {
  * discipline GREENLIGHT_PROJECT's commitment write-back uses. A no-op when
  * nothing toured, so it never churns the pool needlessly.
  */
+/**
+ * Careers move on the calendar (engine/careerProgress.ts): everyone credited on
+ * a film whose run just ended has their standing and quote updated, and once a
+ * quarter heat eases back toward normal. Both leave untouched people and
+ * rosters as the same objects, so a pass in which nothing finished and no
+ * quarter turned returns the pool it was given.
+ */
+function withCareersMoved(pool: Record<TalentProfession, Person[]>, finishedFilms: Film[], dayBefore: number, dayAfter: number): Record<TalentProfession, Person[]> {
+  const afterFilms = applyFilmResultsToCareers(pool, finishedFilms, dayAfter);
+  return crossedStandingFade(dayBefore, dayAfter) ? fadeStanding(afterFilms) : afterFilms;
+}
+
 function applyTalentReputationDeltas(pool: Record<TalentProfession, Person[]>, deltas: TalentReputationDelta[]): Record<TalentProfession, Person[]> {
   if (deltas.length === 0) return pool;
   const byId = new Map(deltas.map((d) => [d.personId, d]));
@@ -595,7 +609,12 @@ function runCalendarSettlement(
     rivalStudios: rivalMarket.rivalStudios,
     // Press-tour standing changes land on the pool last, after the rival market
     // has done its own commitment write-backs, so both survive.
-    talentPool: applyTalentReputationDeltas(rivalMarket.talentPool, marketSettlement.playerTalentReputationDeltas),
+    talentPool: withCareersMoved(
+      applyTalentReputationDeltas(rivalMarket.talentPool, marketSettlement.playerTalentReputationDeltas),
+      marketSettlement.finishedFilms,
+      state.totalDays,
+      totalDaysAfter,
+    ),
     opportunities: rivalMarket.opportunities,
     nextOpportunityCheckDay: opportunitySettlement.nextGenerationCheckDay,
     usedSynopses: [...usedSynopses],
@@ -1021,7 +1040,14 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         rngSeed: nextSeed,
         totalDays: totalDaysAfter,
         rivalStudios: result.awardsResult.rivalStudios,
-        talentPool: result.settlement.talentPool,
+        // A nomination or a win is noticed: the people named gain heat and the
+        // respect of colleagues (engine/careerProgress.ts). Only ceremonies held
+        // on this tick are new.
+        talentPool: applyAwardsToCareers(
+          result.settlement.talentPool,
+          result.awardsResult.awards.history.slice(awardsStateOrDefault(state).history.length),
+          (category) => AWARD_CATEGORY_WEIGHT[category as keyof typeof AWARD_CATEGORY_WEIGHT] ?? 1,
+        ),
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
         usedSynopses: result.settlement.usedSynopses,

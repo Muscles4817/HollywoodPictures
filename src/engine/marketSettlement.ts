@@ -46,6 +46,8 @@ export interface TheatricalMarketSettlement {
   rivalDeltas: Map<string, RivalBoxOfficeDelta>;
   /** Post-tour standing changes for player tourers (engine/pressTourMoments.ts), one per tourer across every player film settled this pass - applied to GameState.talentPool by id (state/studioReducer.ts). Empty when no settled player film ran a press tour. */
   playerTalentReputationDeltas: TalentReputationDelta[];
+  /** Every film, player's or rival's, whose theatrical run ended in this pass - what careers are updated from (engine/careerProgress.ts). */
+  finishedFilms: Film[];
 }
 
 function mergeGenreDeltas(a: Partial<Record<Genre, number>>, b: Partial<Record<Genre, number>>): Partial<Record<Genre, number>> {
@@ -296,6 +298,7 @@ export function settleTheatricalMarket(
   let playerGenreIdentityDeltas: Partial<Record<Genre, number>> = {};
   const rivalDeltas = new Map<string, RivalBoxOfficeDelta>();
   const playerTalentReputationDeltas: TalentReputationDelta[] = [];
+  const finishedFilms: Film[] = [];
 
   for (;;) {
     const nextScheduled = scheduled
@@ -336,6 +339,8 @@ export function settleTheatricalMarket(
     const step = advanceEarliestDueFilmByOneWeek(filmsById, totalDays);
     filmsById = step.filmsById;
     const advancedFilm = step.advancedFilmId ? filmsById.get(step.advancedFilmId) : undefined;
+    // Only running films are ever advanced, so one that is finished now finished on this step.
+    if (advancedFilm?.boxOfficeRun.status === 'finished') finishedFilms.push(advancedFilm);
     const owner = advancedFilm?.releasedBy;
     // A film's identity move (nonzero only on the step its run finishes) is keyed
     // on its own genre and credited to whichever studio released it.
@@ -368,5 +373,6 @@ export function settleTheatricalMarket(
     playerCostCharged,
     rivalDeltas,
     playerTalentReputationDeltas,
+    finishedFilms,
   };
 }
