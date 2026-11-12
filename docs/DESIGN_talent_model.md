@@ -128,6 +128,40 @@ has for each role.
   demanding lead becomes harder to mount around an older actor (`12` §4.7). The
   other attributes do not decline with age in this model.
 
+**How fast someone grows is personal.** There is no single pace. Three things
+set it, and between them they produce people who peak early, people who peak
+late, and people who never reach what they could have been.
+
+1. **Temperament.** The traits are already on every person.
+   - *Adaptability* is how quickly they pick up something new. It matters most
+     in an unfamiliar register.
+   - *Professionalism* is how much they take from each job, whatever it was.
+   - *Ambition* is whether they keep pushing once they are comfortable.
+   - *Ego* works against growth where growth depends on taking direction: a
+     high-ego actor learns less from a strong director than a humble one does.
+2. **What they choose to do.** People decide which offers to take, and the
+   engine already models that decision. An ambitious person leans toward the
+   part that stretches them and the director who will push them. A comfortable
+   one takes the familiar part and the bigger cheque, and stops growing. This
+   is also how typecasting happens from the inside: the type generates the
+   offers, and accepting them is the easy choice.
+3. **What they are offered.** Nobody grows in something they are never asked to
+   do. A gifted person who never gets the part that would show it stays where
+   they are. A player, or a rival, taking a chance on them is what changes
+   that.
+
+The shapes of a career come out of those rather than being assigned:
+
+| Shape | How it happens |
+|---|---|
+| **Peaks early** | Starts close to their potential, or grows fast and then coasts: low ambition, or early fame that locks them into one kind of part. |
+| **Peaks late** | Real potential, but years of small or narrow work before someone gives them the part. Common for directors and character actors. |
+| **Keeps growing** | Ambitious, adaptable, and keeps choosing work that tests something new. |
+| **Never peaks** | The potential was there and the temperament or the opportunities were not. Nobody ever finds out, including the player, unless they take the chance. |
+
+So the number to find with the harness is only the *typical* pace. Individuals
+spread widely around it.
+
 **Consistency** is separate from all of that and is what "experience raises the
 floor" means. An experienced person lands near their ability almost every time.
 An inexperienced one has the same ability on paper and a wider spread of
@@ -456,7 +490,10 @@ Settled with the owner:
    films do is the main driver; personal notices are the smaller one.
 7. **A rival knows what the player would**: a weak read of strangers and full
    knowledge of people it has used.
-8. **The real-world roster keeps its hand-written skill values**, with
+8. **Growth is personal.** Temperament, choices and opportunity set each
+   person's pace; early peakers, late bloomers and people who never get there
+   all emerge from that (4.1a).
+9. **The real-world roster keeps its hand-written skill values**, with
    experience derived from career length and quotes recomputed. Subject to a
    look at the file, and to deciding whether a written value is that person's
    ability today or their potential.
@@ -468,10 +505,14 @@ Still open:
   Needed before stage 4.
 - **When deals arrive.** They can follow the rest (stage 7) or come earlier if
   keeping discoveries feels too hard without them.
-- **How fast ability grows.** The shape is settled (4.1a); the pace is not. Too
-  fast and everyone converges on their potential in a few films; too slow and
-  development is invisible in a ten-year game. This is a number to find with
-  the harness, not to argue about.
+- **The typical pace of growth.** How fast any one person grows is set by their
+  temperament, their choices and their opportunities (4.1a). What is left to
+  find is the average those spread around: too fast and most people reach their
+  potential in a few films; too slow and development is invisible in a
+  ten-year game. This is a number to find with the harness.
+- **How much people steer their own careers.** 4.1a has ambitious people
+  preferring parts that stretch them. That needs the offer-acceptance logic to
+  know whether a part is a stretch for this person, which it does not today.
 
 ## 9. Risks and limits
 
