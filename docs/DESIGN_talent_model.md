@@ -1,7 +1,8 @@
 # Design: the talent model
 
-**Status:** draft for review, revised twice after the owner's reads. Nothing
-here is built. Section 8 records what is settled and what is still open.
+**Status:** design agreed with the owner over three rounds. **Stage 1 is built**
+(section 7.1); stages 2 to 7 are not. Section 8 records what is settled and
+what is still open.
 
 **Where this comes from:** `docs/DESIGN_REVIEW_player_economy.md` §9. For
 directors and every crew role the engine sets skill from fee, which is
@@ -466,6 +467,54 @@ stage 2, since both touch how a price is set. Deals are the larger half.
 Stages 1 to 3 change no balance by design and can be checked against today's
 numbers. Stage 6 is the one that moves quality, and it is the one the
 acceptance tests in section 6 are for.
+
+### 7.1 Stage 1, as built
+
+`engine/careerHistory.ts` derives a career's length, prior credits and
+experience from the role and the person's position in its fee range, and the
+generator stamps them onto every generated person.
+
+| | Before | After |
+|---|---|---|
+| Fee and age, directors | 0.06 | 0.58 |
+| Fee and age, crew heads | about 0 | 0.50 to 0.66 |
+| Fee and age, actors | 0.05 | 0.26 |
+| Youngest director in the top fee decile | 20s possible | 42 |
+| Actors under 30 | about 5% | 15% |
+| `experience` | a copy of skill | years in the role, 25 years = fully seasoned |
+| Heat, industry respect | copies of fame and reliability | their own values; the pool's average heat still equals its average fame |
+| Credits shown in the talent database | films released in this world only | those plus the films made before the studio opened |
+
+The link is loose on purpose and differs by job: an actor can be famous young, a
+head of department has climbed a ladder to get there. About a third of the
+cheapest directors are veterans who never became expensive.
+
+Skill, fame and fees are generated exactly as before, and the birth-date draws
+are taken in the same order, so the generation stream is unchanged and every
+existing test passes unmodified.
+
+**What it did to balance.** The player-economy harness reads the same within
+seed noise: median film quality is identical at every tier (41 and 39 at Indie,
+53 and 49 at Boutique, 71 and 70 at Mid-Major), and the same studios survive,
+decline or snowball. The box-office gates moved a little, which the stage was
+not meant to do:
+
+- Whole-year gate: 17 of 21, from 18. The new miss is specialty releases a year
+  at 4.8 against a floor of 5, a figure that has sat on that edge all along.
+- Budget-tier gate: 6 misses, from 4. Small rival films gross about 10% more
+  against their cost (8.05x, from 7.3x, band 4.5 to 7).
+
+Neither the younger acting pool nor any designed effect explains the second
+one. Personality is derived from a hash that includes age, heat and industry
+respect, and personality traits feed on-set events; changing those inputs
+re-rolled everyone's temperament. Holding heat equal to fame recovers about
+half the drift. It is left as is: the band was already failing, the cause is a
+reshuffle and not a rule, and the gates are due a retune at stage 6 in any
+case.
+
+Hand-authored people (the real-world roster and the marquee directors) are
+untouched: they carry their own ages and standing and have no prior-credit
+count yet.
 
 ## 8. Decisions
 
