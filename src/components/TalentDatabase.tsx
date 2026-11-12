@@ -10,7 +10,7 @@ import { TONE_LABELS } from '../data/tones';
 import { STAT_INFO, type StatKey } from '../data/talentStatInfo';
 import { getPersonAge, computeActorAbility } from '../types';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../engine/calendar';
-import { deriveBookedUntil, getCareerForProfession, getWriterCareer, assignmentCost, CREW_ROLES } from '../engine/person';
+import { deriveBookedUntil, getCareerForProfession, getWriterCareer, assignmentCost, CREW_ROLES, getPriorCredits, getYearsActiveAtStart } from '../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../engine/personTraits';
 import { qualitativeMagnitude } from '../engine/talentCardPresentation';
 import { describeActorCraft, describeSignatureGift, describeDirectorTouch, describeRelationship } from '../engine/castingPresentation';
@@ -406,7 +406,20 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
     .filter(Boolean)
     .join(' · ');
   const marquee = award ? formatWinnerMarquee(award) : null;
-  const noCreditsCopy = `No released credits yet — this ${person.primaryRole.toLowerCase()} hasn't worked on a finished film in your world.`;
+  // A career did not begin the day the studio opened: most people arrive with
+  // films behind them (engine/careerHistory.ts). Those are counted, not listed -
+  // only films released in this world have a record to show.
+  const priorCredits = getPriorCredits(person);
+  const yearsActive = getYearsActiveAtStart(person);
+  const earlierWork =
+    priorCredits > 0
+      ? `${priorCredits} film${priorCredits === 1 ? '' : 's'}${yearsActive ? ` over ${yearsActive} year${yearsActive === 1 ? '' : 's'}` : ''} before your studio opened`
+      : yearsActive === 0
+        ? 'New to the job, with no films behind them'
+        : null;
+  const noCreditsCopy = earlierWork
+    ? `${earlierWork}. Nothing released in your world yet.`
+    : `No released credits yet — this ${person.primaryRole.toLowerCase()} hasn't worked on a finished film in your world.`;
 
   return (
     <div className="stack td-detail">
@@ -444,6 +457,9 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
 
       <section className="td-panel">
         <h2>Filmography {credits.length > 0 && <span className="td-count">({credits.length})</span>}</h2>
+        {credits.length > 0 && earlierWork && (
+          <p className="choice-description" style={{ margin: 0 }}>{earlierWork}; the films below are the ones released since.</p>
+        )}
         {credits.length === 0 ? (
           <p className="choice-description" style={{ margin: 0 }}>{noCreditsCopy}</p>
         ) : (
@@ -695,7 +711,7 @@ export function TalentDatabase() {
               key={person.id}
               person={person}
               totalDays={totalDays}
-              credits={(creditsByPerson.get(person.id) ?? []).length}
+              credits={(creditsByPerson.get(person.id) ?? []).length + getPriorCredits(person)}
               onOpen={() => setSelectedId(person.id)}
             />
           ))}

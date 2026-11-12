@@ -291,6 +291,8 @@ export interface RoleCareerCommon<TRole extends TalentProfession> {
   typicalSalary: Money;
   careerStartDay?: GameDay;
   lastWorkedDay?: GameDay;
+  /** Finished films in this role before the game began (engine/careerHistory.ts). Added to the credits earned in play wherever a career total is shown. Absent on hand-authored people. */
+  priorCredits?: number;
 }
 
 // A director's own leanings on *how* a production gets made - orthogonal to

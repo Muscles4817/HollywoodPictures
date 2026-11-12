@@ -82,6 +82,20 @@ export function getRoleReputation(person: Person, role: ProductionRole): Normali
 }
 
 /** 0 (never negative/undefined) if this person has no career under `role` - matches how a missing hire has always been handled at every call site (a cost sum simply doesn't include them). */
+/** Finished films in the person's primary role before the game began (engine/careerHistory.ts); 0 when unrecorded. */
+export function getPriorCredits(person: Person): number {
+  return Math.max(0, ...Object.values(person.careers).map((career) => (career as { priorCredits?: number } | undefined)?.priorCredits ?? 0));
+}
+
+/** Years the person had been working in their role on day one, from the career's start day; undefined when unrecorded. */
+export function getYearsActiveAtStart(person: Person): number | undefined {
+  const starts = Object.values(person.careers).flatMap((career) => {
+    const start = (career as { careerStartDay?: number } | undefined)?.careerStartDay;
+    return start === undefined ? [] : [start];
+  });
+  return starts.length === 0 ? undefined : Math.round((1 - Math.min(...starts)) / 365);
+}
+
 export function getTypicalSalaryForRole(person: Person, role: ProductionRole): Money {
   return getCareerForRole(person, role)?.typicalSalary ?? 0;
 }
