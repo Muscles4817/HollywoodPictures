@@ -224,7 +224,12 @@ describe('a save only writes what changed', () => {
     const dayLater = advanceDays(state, 1);
     const oneDay = await writeSave(dayLater, SAVE_VERSION);
     expect(oneDay.projectsPut).toBeLessThan(state.projects.length / 10);
-    expect(oneDay.talentPut).toBe(0);
+    // A roster is rewritten only when someone in it changed that day (a rival
+    // booked them, a film they were in finished) - never the untouched ones.
+    const rostersTouched = (Object.keys(state.talentPool) as Array<keyof typeof state.talentPool>).filter(
+      (profession) => dayLater.talentPool[profession] !== state.talentPool[profession],
+    ).length;
+    expect(oneDay.talentPut).toBeLessThanOrEqual(rostersTouched);
 
     // Every record skipped must still be current: what is in the database
     // equals the state in memory, not a stale mix.
