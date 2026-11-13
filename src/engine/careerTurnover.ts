@@ -84,10 +84,6 @@ export function leavingChance(person: Person, day: number): { chance: number; re
   return retirement >= drifting ? { chance: retirement, reason: 'retired' } : { chance: drifting, reason: 'left the business' };
 }
 
-function isCommitted(person: Person, day: number): boolean {
-  return person.availability.commitments.some((commitment) => commitment.endDay > day);
-}
-
 /**
  * One year's turnover. `seed` is the save's own random seed (read, not
  * advanced); `protectedIds` are people the player has attached to a film that
@@ -107,7 +103,11 @@ export function turnOverTalent(
     const roster = pool[profession];
     const candidates: Array<Departure & { margin: number }> = [];
     for (const person of roster) {
-      if (protectedIds.has(person.id) || isCommitted(person, day)) continue;
+      // Being booked by a rival does not keep someone: the film they are on
+      // carries its own record of them and finishes without the pool. (Holding
+      // back everyone with a booking meant nobody who was working ever left -
+      // 25 of 900 actors in ten years.)
+      if (protectedIds.has(person.id)) continue;
       const { chance, reason } = leavingChance(person, day);
       if (chance <= 0) continue;
       const margin = chance - hashUnit(`${person.id}|leaves|${year}`);

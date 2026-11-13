@@ -48,18 +48,22 @@ const BLAME_BY_ROLE: Record<ProductionRole, number> = {
   'Casting Director': 0.1,
 };
 
-/** How much being in a widely seen film makes each role known to the public. */
-const PUBLIC_BY_ROLE: Record<ProductionRole, number> = {
+/**
+ * How much of a film's reach attaches to each role: how well known being in it
+ * can make you. The lead of a film everybody saw is known to everybody; its
+ * editor is not.
+ */
+const FAME_SHARE_BY_ROLE: Record<ProductionRole, number> = {
   'Lead Actor': 1,
-  Director: 0.9,
-  'Supporting Actor': 0.25,
-  Writer: 0.1,
-  Composer: 0.1,
-  Cinematographer: 0.03,
-  Editor: 0.03,
-  'VFX Supervisor': 0.03,
-  'Production Designer': 0.03,
-  'Casting Director': 0.02,
+  Director: 1,
+  'Supporting Actor': 0.45,
+  Writer: 0.35,
+  Composer: 0.35,
+  Cinematographer: 0.2,
+  Editor: 0.2,
+  'VFX Supervisor': 0.2,
+  'Production Designer': 0.2,
+  'Casting Director': 0.15,
 };
 
 /** How much a film's reviews reflect on each role in the eyes of colleagues. */
@@ -78,15 +82,31 @@ const RESPECT_BY_ROLE: Record<ProductionRole, number> = {
 
 /** Heat points a full hit (or full bomb) moves the person the film was built around. */
 export const HEAT_SWING = 22;
-/** Fame points a widely seen film can add to an unknown lead. */
-export const FAME_GAIN = 5;
+/**
+ * Fame is the level of the biggest things someone has been seen in. A film has
+ * a reach - how famous it could make its lead - set by its gross: this much at
+ * FAME_REACH_BASE_GROSS, and FAME_REACH_PER_DOUBLING more for each doubling.
+ * Being in it moves a person part of the way (FAME_STEP) from where they are
+ * up to their role's share of that reach, and not at all if they are already
+ * better known than that.
+ *
+ * An earlier rule added fame for every seen film, less the more famous the
+ * person already was, against a decay proportional to fame. That has one
+ * resting point for everybody: over ten years the middle of the pool gained
+ * eight to ten points and the top lost four, and fees crowded toward the
+ * middle (docs/DESIGN_talent_model.md §7.4). Under this rule routine work at
+ * your own level changes nothing, a star stays a star, and a breakout is a
+ * leap.
+ */
+export const FAME_REACH_BASE_GROSS = 15_000_000;
+export const FAME_REACH_AT_BASE = 22;
+export const FAME_REACH_PER_DOUBLING = 12.5;
+export const FAME_STEP = 0.35;
 /** Industry-respect points a rave (or a pan) moves a director. */
 export const RESPECT_SWING = 5;
 
 /** The gross at which a film has been seen widely enough to count in full for the people in it. */
 export const CAREER_FULL_VISIBILITY_GROSS = 60_000_000;
-/** Extra fame, as a share of the base gain, for each doubling of gross past full visibility. */
-export const PHENOMENON_BOOST_PER_DOUBLING = 0.6;
 /** Profit ratio at which a film is as much of a hit as it can be for its people; and loss ratio at which it is a full bomb. */
 const FULL_HIT_RATIO = 1.25;
 const FULL_BOMB_RATIO = 0.6;
@@ -100,12 +120,11 @@ export const HEAT_FADE_PER_QUARTER = 0.16;
 /** How often standing eases back, in days. */
 export const STANDING_FADE_INTERVAL_DAYS = 91;
 /**
- * The public forgets, slowly: the share of fame everyone loses each quarter
- * (a little over 1% a year). Someone working in films people see gains more
- * than this; someone who has stopped fades over decades, not years. It is what
- * keeps the pool's fame, and so its fees, from only ever going up.
+ * The public forgets, very slowly: the share of fame everyone loses each quarter
+ * (0.4% a year). Fame is sticky - a star who stops working is still a name a
+ * decade later - so this is only enough to let the long-retired fade.
  */
-export const FAME_DECAY_PER_QUARTER = 0.003;
+export const FAME_DECAY_PER_QUARTER = 0.001;
 
 /**
  * Quotes go up easily and come down slowly (docs/domain/12 §2.3). When standing
@@ -136,16 +155,11 @@ export function commercialScore(film: Film): number {
   return ratio >= 0 ? Math.min(1, ratio / FULL_HIT_RATIO) : Math.max(-1, ratio / FULL_BOMB_RATIO);
 }
 
-/**
- * How much more a phenomenon does for the people in it than a film that was
- * merely widely seen: 1 up to full visibility, rising with each doubling of the
- * gross beyond it. This is what makes a star - the lead of a film everybody saw
- * is known to everybody - and with people retiring from the top of the pool
- * every year (engine/careerTurnover.ts) it is what refills it.
- */
-export function phenomenonBoost(film: Film): number {
-  const multiple = (film.results.totalBoxOffice ?? 0) / CAREER_FULL_VISIBILITY_GROSS;
-  return multiple <= 1 ? 1 : 1 + PHENOMENON_BOOST_PER_DOUBLING * Math.log2(multiple);
+/** How famous a film could make its lead, 0-97: the level of public awareness a gross that size implies. */
+export function fameReach(film: Film): number {
+  const gross = film.results.totalBoxOffice ?? 0;
+  if (gross <= 0) return 0;
+  return clamp(FAME_REACH_AT_BASE + FAME_REACH_PER_DOUBLING * Math.log2(gross / FAME_REACH_BASE_GROSS), 0, 97);
 }
 
 /** 0.05..1: how widely the film was seen. */
@@ -185,13 +199,10 @@ export function standingDeltaFor(person: Person, role: ProductionRole, experienc
   let heat = HEAT_SWING * BLAME_BY_ROLE[role] * felt * ((1 - NOTICE_WEIGHT) * commercial + NOTICE_WEIGHT * notice);
   if (heat < 0) heat *= 1 - missCushion(person, experience);
 
-  // Fame only rises: being seen makes you known, and a hit more so.
-  const fameGain =
-    // Harder to add to the more famous you already are, but not so hard that a
-    // working star cannot hold their place against the public's forgetting.
-    // Only the people a film is sold on are made by its being a phenomenon.
-    FAME_GAIN * PUBLIC_BY_ROLE[role] * seen * (role === 'Lead Actor' || role === 'Director' ? phenomenonBoost(film) : 1) * (1 - (fame / 100) ** 2) * (0.5 + 0.5 * Math.max(0, commercial)) +
-    Math.max(0, notice) * 1.5 * PUBLIC_BY_ROLE[role] * seen;
+  // Fame only rises, and only toward what this film could make of them: a
+  // hit takes them more of the way, and standout notices a little further.
+  const ceiling = fameReach(film) * FAME_SHARE_BY_ROLE[role];
+  const fameGain = Math.max(0, ceiling - fame) * FAME_STEP * (0.6 + 0.4 * Math.max(0, commercial)) * (1 + 0.25 * Math.max(0, notice));
 
   const reviews = clamp((film.results.criticScore - 55) / 40, -1, 1);
   const respect = RESPECT_SWING * RESPECT_BY_ROLE[role] * (reviews >= 0 ? reviews * (1 - industryRespect / 100) : reviews * 0.6);
@@ -201,12 +212,18 @@ export function standingDeltaFor(person: Person, role: ProductionRole, experienc
 
 // --- The quote --------------------------------------------------------------
 
-/** What the market reads when it prices someone: the public's view for those it knows, colleagues' for the crafts. */
+/**
+ * What the market reads when it prices someone: the public's view for those it
+ * knows; for the crafts, the respect of colleagues and the years behind them.
+ * A head of department's rate climbs with experience - "a veteran does not work
+ * for a newcomer's rate" - which is also what lets a craft's pool hold its
+ * shape when newcomers arrive at the bottom and veterans leave from the top.
+ */
 export function marketValue(person: Person, profession: TalentProfession): number {
   const { fame, currentHeat, industryRespect } = person.reputation;
-  return profession === 'Actor' || profession === 'Director'
-    ? 0.6 * fame + 0.4 * currentHeat
-    : 0.45 * industryRespect + 0.35 * currentHeat + 0.2 * fame;
+  if (profession === 'Actor' || profession === 'Director') return 0.6 * fame + 0.4 * currentHeat;
+  const experience = Math.max(0, ...Object.values(person.careers).map((career) => (career as { experience?: number } | undefined)?.experience ?? 0));
+  return 0.4 * industryRespect + 0.25 * currentHeat + 0.15 * fame + 0.2 * experience;
 }
 
 /**

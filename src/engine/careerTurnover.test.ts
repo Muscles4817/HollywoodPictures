@@ -73,16 +73,19 @@ describe('a year of turnover', () => {
     expect(turn({ seed: 999 }).arrivals.map((p) => p.identity.name)).not.toEqual(result.arrivals.map((p) => p.identity.name));
   });
 
-  it('leaves alone anyone attached to an unreleased film of the player\'s, and anyone booked', () => {
+  it('leaves alone anyone attached to an unreleased film of the player\'s', () => {
     const wouldLeave = result.departures[0].person;
     const spared = turn({ protectedIds: new Set([wouldLeave.id]) });
     expect(spared.departures.some((d) => d.person.id === wouldLeave.id)).toBe(false);
+  });
 
+  it('being booked by a rival does not keep someone from retiring', () => {
+    // Otherwise nobody who is working ever leaves: the film they are on keeps
+    // its own record of them and finishes without the pool.
     const other = result.departures[1].person;
     const booked = withCommitment(other, { projectId: 'x', role: 'Lead Actor', startDay: day - 10, endDay: day + 100 });
     const bookedPool = Object.fromEntries(Object.entries(pool).map(([k, roster]) => [k, roster.map((p) => (p.id === other.id ? booked : p))])) as typeof pool;
-    const withBooking = turnOverTalent(bookedPool, { day, seed: 12345, protectedIds: new Set() });
-    expect(withBooking.departures.some((d) => d.person.id === other.id)).toBe(false);
+    expect(turnOverTalent(bookedPool, { day, seed: 12345, protectedIds: new Set() }).departures.some((d) => d.person.id === other.id)).toBe(true);
   });
 
   it('someone cold who has not worked in years may drift out before retirement age', () => {

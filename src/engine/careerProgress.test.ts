@@ -141,18 +141,29 @@ describe('quotes follow standing: up at once, down slowly, and all the way', () 
     expect(impliedQuote('Actor', anchor, 40) * impliedQuote('Actor', anchor, 60)).toBeCloseTo(1_000_000 ** 2, -6);
   });
 
-  it('a hit followed by cooling off leaves the quote where it started, in time', () => {
+  it('after a hit the quote holds while the heat cools, and a breakout stays a name', () => {
     let current = applyFilmResultsToCareers(pool, [film([{ role: 'Lead Actor', person: newcomer }], HIT)], 400);
     const peak = feeOf(inPool(current, newcomer));
     for (let quarter = 0; quarter < 2; quarter++) current = fadeStanding(current);
-    const soonAfter = feeOf(inPool(current, newcomer));
     // Heat has cooled but the quote has barely moved: the ratchet.
-    expect(soonAfter).toBeGreaterThan(peak * 0.75);
-    for (let quarter = 0; quarter < 80; quarter++) current = fadeStanding(current);
-    // Decades on it has come part of the way back - not all, because the fame a hit that size left behind is real.
-    const settled = feeOf(inPool(current, newcomer));
-    expect(settled).toBeLessThan(peak);
-    expect(settled).toBeGreaterThanOrEqual(feeOf(newcomer));
+    expect(feeOf(inPool(current, newcomer))).toBeGreaterThan(peak * 0.75);
+    for (let quarter = 0; quarter < 40; quarter++) current = fadeStanding(current);
+    // Ten years on they are nowhere near where they started: the lead of a film
+    // that size is a name now, and the quote rests at what that name is worth.
+    expect(feeOf(inPool(current, newcomer))).toBeGreaterThan(feeOf(newcomer) * 2);
+  });
+
+  it('fame is the level of the biggest things someone has been seen in', () => {
+    const lead = (person: Person, results: typeof HIT) => standingDeltaFor(person, 'Lead Actor', 5, film([], results), 0).fame;
+    // A breakout is a leap for an unknown...
+    expect(lead(newcomer, HIT)).toBeGreaterThan(12);
+    // ...nothing for someone already better known than the film could make them...
+    expect(lead(star, HIT)).toBe(0);
+    // ...and routine work at your own level leaves you where you are.
+    const modest = { totalCost: 8_000_000, profit: 1_000_000, totalBoxOffice: 20_000_000 };
+    expect(lead(director, modest)).toBe(0);
+    // A supporting part in the same hit makes far less of a name.
+    expect(standingDeltaFor(newcomer, 'Supporting Actor', 5, film([], HIT), 0).fame).toBeLessThan(lead(newcomer, HIT) / 2);
   });
 });
 
