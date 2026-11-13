@@ -412,6 +412,130 @@ worked on them, in what part, under whom and how it went.
 - Rivals also take chances on newcomers at about the rate their identity
   suggests, which is where the work-list item on rival identity connects.
 
+### 4.7 People decide: saying no, staying busy, slowing down, leaving
+
+Raised by the owner after stage 5, and not yet built. Everything above treats
+people as things that happen to be hired. They are also the ones choosing, and
+that choice is the third thing growth depends on (4.1a), the thing that keeps
+some people busy and others selective, and the honest way to model retirement.
+
+**What exists today.** An actor can turn the player down for five reasons:
+the part does not suit them, the studio's standing does not match what they
+want, the money, their schedule, or bad history with the studio
+(`engine/castingAppeal.ts`). A director weighs taste and appetite for the
+script. Crew never refuse. Nobody ever refuses a rival. And nothing a person
+decides depends on where they are in their career or what they have just done.
+
+**The principle.** One decision, made the same way by everyone: actors,
+directors and crew, whether the offer comes from the player or a rival. A
+person weighs an offer against what they want right now, says yes or no, and
+if it is no the player is told the reason in a sentence. Rivals being refused
+matters as much as the player being refused: without it rivals get whoever they
+choose, and the pool's dynamics are distorted in their favour.
+
+**What a person weighs.** The first four exist in some form and stay.
+
+| | The question they are asking | Driven by |
+|---|---|---|
+| The money | Is it enough? | Quote, relationship, loyalty (4.3) |
+| The part | Does it suit me? | Fit (exists) |
+| The studio | Do I want to be associated with them? | Brand, prestige, history (exists) |
+| The schedule | Am I free? | Bookings (exists) |
+| **What it does for me** | Is this another one of those, or something new? | Ambition, how established they are, what they have done lately |
+| **Who else is on it** | Do I want to work with this director, this cast? | The director's standing and style, pair history, ego |
+| **Whether it is beneath me** | Is this the size of film and of part someone like me does? | Standing, ego; waived for a script or director they love |
+| **Whether I want to work at all** | Do I need a break? | How much they have worked, how the last film went, temperament, age |
+
+**"Another one of those."** This is the centre of it, and it is what the owner
+identified as the biggest effect.
+
+- Everyone has a **type**: what they are known for. It is not a new stat. It is
+  read from their record: the kinds of part and film they have mostly done, and
+  for someone with no record, what they are naturally strongest at.
+- **An unambitious person likes their type.** Offers that match it are easy
+  yeses. They stay busy, stay where they are, and stop growing, because
+  repeating what you can already do teaches nothing (4.1a). They are the
+  dependable working core of the pool.
+- **An ambitious person tires of it, once they can afford to.** Early on they
+  take what comes, like anyone. With some standing behind them they start
+  turning down the fourth version of the part that made them and looking for
+  the one that stretches them: a different register, a better director, a
+  smaller film with a better script. That is how range gets developed, and it
+  is why they work less often and for less money on some films.
+- **A stretch is a risk for them too.** A counter-cast part that goes badly
+  costs heat. The reference describes the escape from typecasting as taking "a
+  much smaller fee and often a smaller part, in exchange for evidence", and
+  needing to do it twice before it counts (`docs/domain/12` §4.6). So an
+  ambitious person offered a stretch by a studio or director they trust says
+  yes cheaply, which is a real opening for a small studio.
+- The player sees it in a line: "She has played three detectives running and
+  wants something else", or "He is glad of the work".
+
+**Who else is on it.** A director already draws actors by standing. Add the
+reverse: some people will not work with a particular director or co-star again
+after a bad experience (pair history exists and records how collaborations
+went), and a person with a high ego will not take second billing to someone
+they consider beneath them.
+
+**Breaks.** Being available is not the same as wanting to work.
+
+- After several films back to back, a person may take time off. How soon
+  depends on temperament: the driven and the professional keep going, others
+  pace themselves.
+- A bad experience prompts one: a bomb that was blamed on them, a troubled
+  shoot.
+- A break is a period in which they turn down everything, or everything except
+  an offer they could not refuse (a director they revere, the part of a
+  lifetime). The player is told: "Taking a year away from films."
+- Breaks end. Someone coming back has cooled a little and is often keen, which
+  makes them good value.
+
+**Slowing down and leaving.** Stage 3 retires people with a yearly chance that
+depends on age. That works as bookkeeping and is not how it happens. Retirement
+is a process, and people go through it at different ages for different reasons.
+
+| Phase | What they do | The player sees |
+|---|---|---|
+| Working | Take offers on the terms above. | Nothing special. |
+| **Selective** | Take fewer films. Money matters less; the part, the director and the people matter more. Leads become supporting parts by choice. | "Works rarely now, and only for the right project." |
+| **Semi-retired** | Turn down nearly everything. Can still be coaxed out by a director they trust or a part written for someone their age. | "Says he has retired. People say that." |
+| Gone | Leave the pool. | In the year's notice (stage 3). |
+
+What moves someone from one phase to the next is personal:
+
+- **Age**, differently by job: the reference has actors moving to character
+  parts and directors peaking in their fifties and sixties (`12` §4.7).
+- **Ambition.** The driven work until they cannot. Others stop when they have
+  enough.
+- **How it is going.** Some leave at the top. More leave because the offers
+  have dried up or got smaller, which is the decline in 4.3 reaching its end.
+- **Burnout:** a run of bombs or bad shoots.
+- **The physical demands** of what they are known for. An action star has to
+  change type or stop sooner than a character actor.
+
+Comebacks follow from the semi-retired phase without a special rule: a faded or
+retired name, cheap and famous, who says yes to the right offer and is good in
+it, regains heat like anyone else.
+
+**What this does to the pool.** It replaces three approximations.
+
+- The age-based retirement chance (stage 3) becomes the phases above.
+- "Rivals hire whoever they pick" (stage 5) becomes "rivals offer, and people
+  choose", so the hottest people are genuinely scarce and a rival can lose
+  someone to the player on something other than price.
+- Growth through choice (4.1a, item 2) becomes real: who diversifies and who
+  repeats is decided by the person.
+
+**What it needs that does not exist yet.**
+
+- A way to say what kind of part an offer is, and what a person's type is, from
+  their record. People generated before the game began have a count of prior
+  credits and no record of what they were, so their type has to be inferred
+  from their strengths until they have made films in this world.
+- The decision applied to crew and to rivals' offers, which never go through it
+  today.
+- A named reason for every kind of refusal, in the house style.
+
 ## 5. Why this does not recreate the exploit
 
 The trial broke for three reasons. Each has an answer here.
@@ -447,7 +571,7 @@ with the best reads.
 
 ## 7. Build order
 
-Seven stages. Each can ship alone, is measurable with the harness, and leaves the
+Eight stages. Each can ship alone, is measurable with the harness, and leaves the
 game playable. The actual untying of skill from fee comes last, once everything
 that makes it safe is in place.
 
@@ -460,6 +584,8 @@ that makes it safe is in place.
 | 5 | **Rivals hire on track record.** | Rivals chase hot people, including yours. | M |
 | 6 | **Untie ability from fee, per attribute. Potential, growth through use, and consistency from experience.** | Hidden ability exists; people develop; scale demands experience. | L |
 | 7 | **Personality prices the relationship, and deals.** Loyalty, ambition and ego move what someone asks of you; multi-film deals. | Some discoveries stay; others have to be signed or lost. | M |
+
+| 8 | **People decide (4.7).** One accept-or-refuse decision for everyone and for rivals' offers; type, stretch and repetition; breaks; retirement as phases. | People turn you down for reasons you can read, the ambitious seek new kinds of part, and veterans slow down before they go. | L |
 
 Stage 7's first half (personality moving the ask) is small and could ride with
 stage 2, since both touch how a price is set. Deals are the larger half.
@@ -724,9 +850,11 @@ Still open:
   find is the average those spread around: too fast and most people reach their
   potential in a few films; too slow and development is invisible in a
   ten-year game. This is a number to find with the harness.
-- **How much people steer their own careers.** 4.1a has ambitious people
-  preferring parts that stretch them. That needs the offer-acceptance logic to
-  know whether a part is a stretch for this person, which it does not today.
+- **How much people steer their own careers.** Now designed as 4.7 (stage 8):
+  what a person weighs, type and stretch, breaks, and retirement as phases. Not
+  built, and where it sits in the order is undecided: it does not depend on
+  stage 4, and it is one of the three things growth depends on, so it could
+  reasonably come before stage 6.
 
 ## 9. Risks and limits
 
