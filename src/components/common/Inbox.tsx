@@ -218,7 +218,10 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
     auditionCards.length +
     nowPlaying.length +
     attentionBids.length;
-  const updatesCount = boxOfficeFinished.length + awardHighlights.length + updateBids.length;
+  // The year's arrivals and departures (engine/careerTurnover.ts) - stored,
+  // newest first; read when the Inbox opens, gone when dismissed.
+  const industryNotices = state.industryNotices ?? [];
+  const updatesCount = boxOfficeFinished.length + awardHighlights.length + updateBids.length + industryNotices.length;
   const nothingAtAll = needsYouCount === 0 && updatesCount === 0;
 
   const groupHeading = (label: string, count: number) => (
@@ -561,6 +564,39 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                       onClose();
                     },
                   }}
+                />
+              );
+            })}
+
+            {industryNotices.map((notice) => {
+              const farewells = notice.notable.map((p) => `${p.name} (${p.role.toLowerCase()}, ${p.age}) has ${p.reason === 'retired' ? 'retired' : 'left the business'}`);
+              const bullets = [
+                ...farewells,
+                ...(notice.collaborators.length > 0
+                  ? [`You had worked with ${notice.collaborators.slice(0, 3).join(', ')}${notice.collaborators.length > 3 ? ` and ${notice.collaborators.length - 3} more` : ''}.`]
+                  : []),
+              ];
+              return (
+                <ActivityCard
+                  key={notice.id}
+                  activity={{
+                    id: notice.id,
+                    tone: 'neutral',
+                    category: 'update',
+                    eyebrow: `Year ${notice.year} · the industry`,
+                    title: `${notice.arrivals} new face${notice.arrivals === 1 ? '' : 's'}, ${notice.departures} farewell${notice.departures === 1 ? '' : 's'}`,
+                    detail:
+                      'People retire and newcomers arrive every year. The new arrivals are young, cheap and unproven - some of them will be worth knowing.',
+                    bullets,
+                  }}
+                  action={{
+                    label: 'Browse the talent',
+                    onClick: () => {
+                      dispatch({ type: 'VIEW_TALENT_DATABASE' });
+                      onClose();
+                    },
+                  }}
+                  onDismiss={() => dispatch({ type: 'DISMISS_INDUSTRY_NOTICE', id: notice.id })}
                 />
               );
             })}

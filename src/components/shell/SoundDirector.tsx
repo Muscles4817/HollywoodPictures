@@ -1,3 +1,4 @@
+import { unreadIndustryNoticeCount } from '../../engine/careerTurnover';
 import { useEffect, useRef } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { useSettings } from '../../settings/SettingsContext';
@@ -36,6 +37,7 @@ export function SoundDirector({ onMainMenu, paused, timeCriticalUnread }: SoundD
   const arrivals =
     inboxBadgeCount(state.projects, null, state.totalDays) +
     unreadBidCount(state.bidNotifications ?? []) +
+    unreadIndustryNoticeCount(state.industryNotices) +
     unacknowledgedAwardHighlights(state).length;
   const prevArrivals = useRef(arrivals);
   const prevCritical = useRef(timeCriticalUnread);

@@ -35,8 +35,8 @@ import { deriveHandsOnSeeded, deriveCraftSeeded } from './actingModel';
 import { buildPersonality, resolveHandcraftedPersonality } from './personality';
 import { logAmount, logT } from './interpolate';
 import { clamp, hashUnit, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
-import { deriveCareerHistory, type CareerHistory } from './careerHistory';
-import { DAYS_PER_YEAR } from './calendar';
+import { CAREER_SHAPES, deriveCareerHistory, experienceFromYears, type CareerHistory } from './careerHistory';
+import { DAYS_PER_YEAR, gameDateFromTotalDays } from './calendar';
 
 // Structural variation on top of the two word banks (data/talentNames.ts).
 // Plain first+last is 690 x 750 = 517,500 combinations - already a 20x widening
@@ -521,6 +521,39 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
     careers,
     availability: { commitments: [] },
     traits: [],
+  };
+}
+
+/**
+ * Someone arriving in the business (engine/careerTurnover.ts): generated like
+ * anyone else from the bottom of the fee range, then given a newcomer's career -
+ * young, with at most a few years and a handful of credits behind them, dated
+ * from `day` rather than from the day the world began.
+ *
+ * `id` is supplied by the caller. The generator's own ids come from a counter
+ * that restarts when the page reloads, which is harmless for a pool made once
+ * at the start of a game and would collide for people made years into one.
+ */
+export function generateNewcomer(role: TalentProfession, rng: RandomFn, day: number, id: string): Person {
+  // Most arrive at the very bottom; a few come in with a little heat already.
+  const t = 0.3 * Math.pow(rng(), 1.5);
+  const base = generateTalent(role, rng, t);
+  const shape = CAREER_SHAPES[role];
+  const yearsActive = randInt(rng, 0, 3);
+  const startAge = shape.startAge[0] + randInt(rng, 0, Math.min(6, shape.startAge[1] - shape.startAge[0]));
+  const priorCredits = Math.round(yearsActive * shape.creditsPerYear * randFloat(rng, 0.5, 1.2));
+  const careers = Object.fromEntries(
+    Object.entries(base.careers).map(([key, career]) => [
+      key,
+      { ...career, experience: experienceFromYears(yearsActive), priorCredits, careerStartDay: day - yearsActive * DAYS_PER_YEAR },
+    ]),
+  ) as PersonCareers;
+  const born = base.identity.dateOfBirth!;
+  return {
+    ...base,
+    id,
+    identity: { ...base.identity, dateOfBirth: { ...born, year: gameDateFromTotalDays(day).year - (startAge + yearsActive) } },
+    careers,
   };
 }
 

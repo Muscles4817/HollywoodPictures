@@ -1,3 +1,4 @@
+import { buildIndustryNotice, crossedIntoNewYear, MAX_INDUSTRY_NOTICES, turnOverTalent } from '../engine/careerTurnover';
 import { AWARD_CATEGORY_WEIGHT } from '../data/awards';
 import { applyAwardsToCareers, applyFilmResultsToCareers, crossedStandingFade, fadeStanding } from '../engine/careerProgress';
 import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, CastCrewFocus, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
@@ -949,8 +950,40 @@ function withDraftsAtAssetHead(state: GameState): GameState {
   return moved ? { ...state, projects } : state;
 }
 
+/**
+ * Once a year the talent pool turns over: some people leave, the same number of
+ * newcomers arrive (engine/careerTurnover.ts), and a note of it goes to the
+ * Inbox. Applied here, once, for the same reason as withDraftsAtAssetHead: it
+ * is a property of the calendar having moved into a new year, whichever action
+ * moved it, so no calendar-advancing case can forget it. It draws nothing from
+ * the game's random stream - the newcomers are generated from a seed derived
+ * from the save's own - so adding it moved no other roll.
+ */
+function withIndustryTurnover(before: GameState, after: GameState): GameState {
+  // A new or reset game starts back at day one; that is not a year passing.
+  if (!crossedIntoNewYear(before.totalDays, after.totalDays) || before.talentDatabaseId !== after.talentDatabaseId) return after;
+
+  // Nobody attached to one of the player's unreleased films vanishes from under it.
+  const protectedIds = new Set<string>();
+  for (const project of after.projects) {
+    if (project.kind === 'player-in-progress' || project.kind === 'scheduled') {
+      for (const assignment of project.draft.talent) protectedIds.add(assignment.person.id);
+    }
+  }
+  const result = turnOverTalent(after.talentPool, { day: after.totalDays, seed: after.rngSeed, protectedIds });
+  if (result.departures.length === 0) return after;
+
+  const workedWith = new Set((after.collaborations ?? []).filter((c) => c.studioId === PLAYER_STUDIO_ID).map((c) => c.personId));
+  const notice = buildIndustryNotice(result, after.totalDays, workedWith);
+  return {
+    ...after,
+    talentPool: result.pool,
+    industryNotices: notice ? [notice, ...(after.industryNotices ?? [])].slice(0, MAX_INDUSTRY_NOTICES) : after.industryNotices,
+  };
+}
+
 export function studioReducer(state: GameState, action: GameAction): GameState {
-  return withDraftsAtAssetHead(applyGameAction(state, action));
+  return withIndustryTurnover(state, withDraftsAtAssetHead(applyGameAction(state, action)));
 }
 
 function applyGameAction(state: GameState, action: GameAction): GameState {
@@ -3342,7 +3375,18 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
     case 'MARK_BID_NOTIFICATIONS_READ': {
       const current = state.bidNotifications ?? [];
       const marked = markAllBidNotificationsRead(current);
-      return marked === current ? state : { ...state, bidNotifications: marked };
+      // Opening the Inbox is also reading the year's arrivals-and-departures
+      // note: it stops counting toward the badge, and stays until dismissed.
+      const notices = state.industryNotices ?? [];
+      const noticesRead = notices.some((notice) => !notice.read) ? notices.map((notice) => (notice.read ? notice : { ...notice, read: true })) : notices;
+      if (marked === current && noticesRead === notices) return state;
+      return { ...state, bidNotifications: marked, industryNotices: noticesRead };
+    }
+
+    case 'DISMISS_INDUSTRY_NOTICE': {
+      const notices = state.industryNotices ?? [];
+      const next = notices.filter((notice) => notice.id !== action.id);
+      return next.length === notices.length ? state : { ...state, industryNotices: next };
     }
 
     // The player dismissed one bid "email" from the Inbox - drop it from the

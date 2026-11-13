@@ -1,3 +1,4 @@
+import type { IndustryNotice } from '../engine/careerTurnover';
 import type {
   TalentDatabase,
   Asset,
@@ -186,6 +187,13 @@ export interface GameState {
    * (there is no migration pass - see state/persistence.ts).
    */
   bidNotifications?: BidNotification[];
+  /**
+   * One stored note per year of who arrived in and left the talent pool
+   * (engine/careerTurnover.ts), newest first, for the Inbox. Stored for the same
+   * reason bid notifications are: the people who left are no longer in state to
+   * derive it from. Kept to the last few years.
+   */
+  industryNotices?: IndustryNotice[];
   /**
    * Award ceremonies the player has acknowledged from the Inbox, keyed by
    * RecentAwardHighlight.id (state/selectors.ts). Awards resolve silently in the
@@ -630,6 +638,8 @@ export type GameAction =
   // Clears every stored bid notification at once - the Inbox's "Clear all"
   // convenience when several have piled up.
   | { type: 'DISMISS_ALL_BID_NOTIFICATIONS' }
+  // The player dismissed a year's arrivals-and-departures note from the Inbox.
+  | { type: 'DISMISS_INDUSTRY_NOTICE'; id: string }
   // Marks one award ceremony acknowledged (GameState.acknowledgedAwardCeremonies)
   // - dispatched when the player clicks through an Inbox "Awards night" beat to
   // the Awards page. Read state is per-ceremony and explicit (state/selectors.ts:

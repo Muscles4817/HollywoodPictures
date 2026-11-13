@@ -444,7 +444,9 @@ import { deleteSave, readSave, writeSave } from './saveDatabase';
 // v101 -> v102 (talent model stage 2): careers gained quoteAnchor and a live
 //   lastWorkedDay, and standing and quotes now move after each film, so a v101
 //   pool would start moving from values that were never anchored.
-export const SAVE_VERSION = 102;
+// v102 -> v103 (talent model stage 3): GameState gained industryNotices, and
+//   the talent pool now turns over each year.
+export const SAVE_VERSION = 103;
 
 /** Every pre-v99 save lived in localStorage under a key with this prefix. */
 const LEGACY_SAVE_KEY_PREFIX = 'hollywood-pictures-save-v';
