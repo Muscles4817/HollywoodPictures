@@ -1,7 +1,7 @@
 # Design: the talent model
 
-**Status:** design agreed with the owner over three rounds. **Stages 1 to 3 are built**
-(sections 7.1 to 7.3); stages 4 to 7 are not. Section 8 records what is settled and
+**Status:** design agreed with the owner over three rounds. **Stages 1, 2, 3 and 5 are built**
+(sections 7.1 to 7.4); stages 4, 6 and 7 are not. Section 8 records what is settled and
 what is still open.
 
 **Where this comes from:** `docs/DESIGN_REVIEW_player_economy.md` §9. For
@@ -575,9 +575,10 @@ into a new year.
   Directors are judged eight years later than everyone else, since their
   careers peak late. Separately, someone who has not worked in six years and
   whose heat is below 35 has an 8% yearly chance of drifting out.
-- **Who is safe.** Anyone attached to an unreleased film of the player's, and
-  anyone currently booked. No profession loses more than 6% of its people in a
-  year.
+- **Who is safe.** Anyone attached to an unreleased film of the player's. (As
+  first built, anyone booked by a rival was safe too; that turned out to mean
+  almost nobody left, and was removed in 7.4.) No profession loses more than
+  6% of its people in a year.
 - **Who arrives.** The same number, in the same profession: generated from the
   bottom 30% of the fee range, aged a few years past the youngest the job
   starts at, with at most three years and a handful of credits behind them.
@@ -588,9 +589,6 @@ into a new year.
   arrived and left, the best-known departures by name, and anyone leaving whom
   the studio had worked with, with a button to the talent database. It counts
   toward the badge until the Inbox is opened and stays until dismissed.
-- **Bigger breakouts.** With people leaving the top every year something has to
-  refill it, so the lead and the director of a phenomenon now gain more fame:
-  60% more for each doubling of gross past £60M.
 
 **Measured** (four tiers, Careful and Steady, three seeds, ten years).
 
@@ -604,22 +602,84 @@ The pool after ten years, against day one:
 | Directors | 1.00x | 1.5x to 1.75x | 0.79x to 0.82x |
 | Cinematographers | 0.91x | 0.74x to 0.82x | 0.80x to 0.87x |
 
-**It did not fix the compression, which I said it would.** Fame now holds, and
-people do arrive and leave. But fees still crowd toward the middle: the median
-actor asks nearly double and the top tenth about a fifth less.
-
-The reason is a missing ladder. Rivals hire near a target price, so their big
-films go to people who are already expensive, and those are the oldest and the
-first to retire. Newcomers and mid-priced people are hired for small and
-middling films, become somewhat better known, and settle in the middle; they
-are rarely given the film that would take them to the top. Tuning the gains
-only trades one symptom for the other (raising them enough to hold the top
-tripled the median fee). The fix is rivals choosing people on track record and
-heat, which is stage 5. The acceptance test in section 6 ("the pool is stable")
-is therefore **not yet met**.
+**It did not fix the compression.** Fame held and people arrived and left, but
+fees still crowded toward the middle: the median actor asked nearly double and
+the top tenth about a fifth less. The explanation offered at the time - rivals
+hire by price, so nobody is given the film that would take them to the top -
+was a guess, and stage 5 showed it to be wrong (7.4).
 
 Also not done: people who leave vanish from the talent database, though the
 films they made keep their record of them.
+
+### 7.4 Stage 5, as built, and what was really wrong with the pool
+
+Stage 5 was taken ahead of stage 4 because the pool's stability was thought to
+be waiting on it.
+
+**Rivals hire on track record** (`engine/rivalCasting.ts`). A rival used to take
+the people whose fee was nearest a target price and pick among them at random.
+It now considers everyone it can afford for the film, from 35% of the target
+up to 112% of it, and takes the best track records by its own imperfect read:
+heat and fame for the people the public knows, the respect of colleagues and
+years in the job for the crafts, each off by up to 14 points either way. A cheap
+person on a run is now in contention for a bigger film; the same person without
+the heat is not. Rivals know only what a player can see of a stranger.
+
+**That alone changed nothing about the pool.** Fees compressed exactly as
+before. So the pool was measured by group over ten years instead of in
+aggregate, and the cause turned out to be in stage 2:
+
+- **Fame had one resting level for everybody.** Gains shrank as fame rose, and
+  decay was proportional to fame. Any working person drifted toward the same
+  point: the middle third of actors gained eight to ten points of fame and the
+  top third lost four.
+- **Almost nobody was leaving.** Anyone a rival had booked was held back from
+  retiring, and working people are always booked: 25 of 900 actors turned over
+  in ten years.
+
+What changed:
+
+- **Fame is the level of the biggest things someone has been seen in.** A film
+  has a reach set by its gross (22 at £15M, 12.5 more for each doubling, so
+  about 47 at £60M, 72 at £240M and the high 90s at £1B). Being in it moves a
+  person 35% of the way from where they are up to their role's share of that
+  reach: all of it for a lead or director, 45% for a supporting part, 15 to 35%
+  for writers and crew. Someone already better known than that gains nothing.
+  Routine work at your own level changes nothing, a star stays a star, and a
+  breakout is a leap. Fame now decays at 0.4% a year.
+- **Craft rates climb with experience.** A head of department's market value
+  now includes years in the job, which is what lets those pools hold their
+  shape when newcomers arrive at the bottom and veterans leave from the top.
+- **Being booked by a rival no longer keeps someone from retiring.** The film
+  they are on carries its own record of them. People on the player's unreleased
+  films are still protected.
+
+**Measured** (four tiers, Careful and Steady, three seeds, ten years). The pool
+after ten years against day one:
+
+| | Mean fame | Median fee | Top-decile fee |
+|---|--:|--:|--:|
+| Actors | 1.02x to 1.04x | 1.35x to 1.48x (was 1.7x to 2.0x) | 0.83x to 0.88x |
+| Directors | 0.97x to 0.99x | 1.09x to 1.32x (was 1.5x to 1.75x) | 0.80x to 0.89x |
+| Cinematographers | 1.02x to 1.04x | 0.65x to 0.69x | 0.92x to 0.97x |
+
+Roughly stable, not exactly. The middle still rises somewhat and the top still
+slips, and the median craft fee falls because newcomers arrive at the very
+bottom. "The pool is stable" in section 6 is **mostly met**: within about a
+third at the median and a fifth at the top over a decade, where it was a factor
+of two.
+
+The player's economy reads the same within seed noise, and median film quality
+is unchanged at every tier. The box-office gates are steady: the whole-year gate
+passes 18 of 21 (it was 17), the buzz gate passes, and the budget-tier gate has
+six misses as it has since stage 1. The variance gate's assertions all pass; it
+was failing only on vitest's 5-second default, which it sat right at, and now
+has an explicit time budget.
+
+Not done in this stage: rivals do not yet remember whom they have worked with,
+so the agreed rule that a rival knows people it has used better than strangers
+waits for stage 4, when ability stops being visible. And a person's loyalty does
+not yet weigh against a rival's offer; that is stage 7.
 
 ## 8. Decisions
 
