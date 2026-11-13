@@ -51,7 +51,7 @@ const BLAME_BY_ROLE: Record<ProductionRole, number> = {
 /** How much being in a widely seen film makes each role known to the public. */
 const PUBLIC_BY_ROLE: Record<ProductionRole, number> = {
   'Lead Actor': 1,
-  Director: 0.5,
+  Director: 0.9,
   'Supporting Actor': 0.25,
   Writer: 0.1,
   Composer: 0.1,
@@ -85,6 +85,8 @@ export const RESPECT_SWING = 5;
 
 /** The gross at which a film has been seen widely enough to count in full for the people in it. */
 export const CAREER_FULL_VISIBILITY_GROSS = 60_000_000;
+/** Extra fame, as a share of the base gain, for each doubling of gross past full visibility. */
+export const PHENOMENON_BOOST_PER_DOUBLING = 0.6;
 /** Profit ratio at which a film is as much of a hit as it can be for its people; and loss ratio at which it is a full bomb. */
 const FULL_HIT_RATIO = 1.25;
 const FULL_BOMB_RATIO = 0.6;
@@ -99,11 +101,11 @@ export const HEAT_FADE_PER_QUARTER = 0.16;
 export const STANDING_FADE_INTERVAL_DAYS = 91;
 /**
  * The public forgets, slowly: the share of fame everyone loses each quarter
- * (about 0.6% a year). Someone working in films people see gains more
+ * (a little over 1% a year). Someone working in films people see gains more
  * than this; someone who has stopped fades over decades, not years. It is what
  * keeps the pool's fame, and so its fees, from only ever going up.
  */
-export const FAME_DECAY_PER_QUARTER = 0.0015;
+export const FAME_DECAY_PER_QUARTER = 0.003;
 
 /**
  * Quotes go up easily and come down slowly (docs/domain/12 §2.3). When standing
@@ -132,6 +134,18 @@ export function commercialScore(film: Film): number {
   if (profit === null || totalCost <= 0) return 0;
   const ratio = profit / totalCost;
   return ratio >= 0 ? Math.min(1, ratio / FULL_HIT_RATIO) : Math.max(-1, ratio / FULL_BOMB_RATIO);
+}
+
+/**
+ * How much more a phenomenon does for the people in it than a film that was
+ * merely widely seen: 1 up to full visibility, rising with each doubling of the
+ * gross beyond it. This is what makes a star - the lead of a film everybody saw
+ * is known to everybody - and with people retiring from the top of the pool
+ * every year (engine/careerTurnover.ts) it is what refills it.
+ */
+export function phenomenonBoost(film: Film): number {
+  const multiple = (film.results.totalBoxOffice ?? 0) / CAREER_FULL_VISIBILITY_GROSS;
+  return multiple <= 1 ? 1 : 1 + PHENOMENON_BOOST_PER_DOUBLING * Math.log2(multiple);
 }
 
 /** 0.05..1: how widely the film was seen. */
@@ -175,7 +189,8 @@ export function standingDeltaFor(person: Person, role: ProductionRole, experienc
   const fameGain =
     // Harder to add to the more famous you already are, but not so hard that a
     // working star cannot hold their place against the public's forgetting.
-    FAME_GAIN * PUBLIC_BY_ROLE[role] * seen * (1 - (fame / 100) ** 2) * (0.5 + 0.5 * Math.max(0, commercial)) +
+    // Only the people a film is sold on are made by its being a phenomenon.
+    FAME_GAIN * PUBLIC_BY_ROLE[role] * seen * (role === 'Lead Actor' || role === 'Director' ? phenomenonBoost(film) : 1) * (1 - (fame / 100) ** 2) * (0.5 + 0.5 * Math.max(0, commercial)) +
     Math.max(0, notice) * 1.5 * PUBLIC_BY_ROLE[role] * seen;
 
   const reviews = clamp((film.results.criticScore - 55) / 40, -1, 1);

@@ -149,9 +149,9 @@ describe('quotes follow standing: up at once, down slowly, and all the way', () 
     // Heat has cooled but the quote has barely moved: the ratchet.
     expect(soonAfter).toBeGreaterThan(peak * 0.75);
     for (let quarter = 0; quarter < 80; quarter++) current = fadeStanding(current);
-    // Decades on it has come most of the way back - not all, because the fame the hit left behind is real.
+    // Decades on it has come part of the way back - not all, because the fame a hit that size left behind is real.
     const settled = feeOf(inPool(current, newcomer));
-    expect(settled).toBeLessThan(peak * 0.9);
+    expect(settled).toBeLessThan(peak);
     expect(settled).toBeGreaterThanOrEqual(feeOf(newcomer));
   });
 });

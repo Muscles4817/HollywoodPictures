@@ -28,6 +28,13 @@ export const RETIREMENT_STARTS_AT = 55;
 /** The yearly chance of leaving at RETIREMENT_STARTS_AT, and at 80. It rises in a line between. */
 const RETIREMENT_CHANCE_AT_START = 0.02;
 const RETIREMENT_CHANCE_AT_80 = 0.25;
+/**
+ * Directors work later than anyone: their careers often peak in their fifties
+ * and sixties, because the currency is trust and track record
+ * (docs/domain/12 §4.7). Everything about leaving for age is this many years
+ * later for them.
+ */
+export const DIRECTOR_EXTRA_WORKING_YEARS = 8;
 /** From here on most go each year, and by the last age everyone has. */
 const RETIREMENT_CHANCE_OVER_80 = 0.5;
 export const LAST_WORKING_AGE = 88;
@@ -64,7 +71,8 @@ function lastWorkedDay(person: Person): number {
 
 /** The chance this person leaves this year, and why they would. */
 export function leavingChance(person: Person, day: number): { chance: number; reason: Departure['reason'] } {
-  const age = ageOn(person, day);
+  // A director is judged against the same curve as everyone else, eight years on.
+  const age = ageOn(person, day) - (person.primaryRole === 'Director' ? DIRECTOR_EXTRA_WORKING_YEARS : 0);
   let retirement = 0;
   if (age >= LAST_WORKING_AGE) retirement = 1;
   else if (age >= 80) retirement = RETIREMENT_CHANCE_OVER_80;

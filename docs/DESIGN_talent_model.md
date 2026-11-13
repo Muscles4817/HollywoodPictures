@@ -1,7 +1,7 @@
 # Design: the talent model
 
-**Status:** design agreed with the owner over three rounds. **Stages 1 and 2 are built**
-(sections 7.1 and 7.2); stages 3 to 7 are not. Section 8 records what is settled and
+**Status:** design agreed with the owner over three rounds. **Stages 1 to 3 are built**
+(sections 7.1 to 7.3); stages 4 to 7 are not. Section 8 records what is settled and
 what is still open.
 
 **Where this comes from:** `docs/DESIGN_REVIEW_player_economy.md` §9. For
@@ -564,6 +564,62 @@ after stage 1. That is not evidence of no effect: they run their own market loop
 and do not go through the calendar settlement where careers move, so they
 cannot see this stage at all. The harness, which plays through the real
 reducer, is the only thing that measures it.
+
+### 7.3 Stage 3, as built
+
+`engine/careerTurnover.ts`, applied once in the reducer as the calendar moves
+into a new year.
+
+- **Who leaves.** Nobody for age before 55. From there the yearly chance rises
+  from 2% to 25% at 80, is 50% after that, and everyone has gone by 88.
+  Directors are judged eight years later than everyone else, since their
+  careers peak late. Separately, someone who has not worked in six years and
+  whose heat is below 35 has an 8% yearly chance of drifting out.
+- **Who is safe.** Anyone attached to an unreleased film of the player's, and
+  anyone currently booked. No profession loses more than 6% of its people in a
+  year.
+- **Who arrives.** The same number, in the same profession: generated from the
+  bottom 30% of the fee range, aged a few years past the youngest the job
+  starts at, with at most three years and a handful of credits behind them.
+- **No dice from the main stream.** Departures are decided by a hash of the
+  person and the year, and newcomers are generated from a seed derived from the
+  save's own, so adding this moved no existing roll.
+- **The player is told.** A stored note per year goes to the Inbox: how many
+  arrived and left, the best-known departures by name, and anyone leaving whom
+  the studio had worked with, with a button to the talent database. It counts
+  toward the badge until the Inbox is opened and stays until dismissed.
+- **Bigger breakouts.** With people leaving the top every year something has to
+  refill it, so the lead and the director of a phenomenon now gain more fame:
+  60% more for each doubling of gross past £60M.
+
+**Measured** (four tiers, Careful and Steady, three seeds, ten years).
+
+The player's economy reads the same as stage 2 within seed noise.
+
+The pool after ten years, against day one:
+
+| | Mean fame | Median fee | Top-decile fee |
+|---|--:|--:|--:|
+| Actors | 1.06x | 1.7x to 2.0x | 0.80x to 0.85x |
+| Directors | 1.00x | 1.5x to 1.75x | 0.79x to 0.82x |
+| Cinematographers | 0.91x | 0.74x to 0.82x | 0.80x to 0.87x |
+
+**It did not fix the compression, which I said it would.** Fame now holds, and
+people do arrive and leave. But fees still crowd toward the middle: the median
+actor asks nearly double and the top tenth about a fifth less.
+
+The reason is a missing ladder. Rivals hire near a target price, so their big
+films go to people who are already expensive, and those are the oldest and the
+first to retire. Newcomers and mid-priced people are hired for small and
+middling films, become somewhat better known, and settle in the middle; they
+are rarely given the film that would take them to the top. Tuning the gains
+only trades one symptom for the other (raising them enough to hold the top
+tripled the median fee). The fix is rivals choosing people on track record and
+heat, which is stage 5. The acceptance test in section 6 ("the pool is stable")
+is therefore **not yet met**.
+
+Also not done: people who leave vanish from the talent database, though the
+films they made keep their record of them.
 
 ## 8. Decisions
 
