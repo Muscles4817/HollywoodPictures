@@ -32,17 +32,20 @@ import { knowledgeAttributes, knowledgeProfession } from './talentKnowledge';
 // --- Tunables ----------------------------------------------------------------
 
 /**
- * The talent spread everyone is drawn from, newcomers included (§8 decision 4):
- * about one in eight is genuinely good (75+), one in forty exceptional (88+),
- * and nothing marks them.
+ * The talent spread everyone is drawn from, newcomers included (§8 decision 4),
+ * centred on the old average ability so the market's level holds.
  */
 export const POTENTIAL_MEAN = 61;
 export const POTENTIAL_SPREAD = 17;
 /**
- * How far a career before the game had already sorted people by price. Not
- * zero - a working market rewards ability, imperfectly - but far from the old
- * one-to-one: it puts the starting correlation between fee and ability for
- * crafts and directors near 0.35, where today's generation had it near 0.8.
+ * How far a working market had already sorted people by price before the game
+ * began. Paying more must still buy better on average: with the link much
+ * weaker, the cheapest people were nearly as good as the dearest and a small
+ * studio's films matched a big one's for a fraction of the money (Boutique ran
+ * to nine figures in the harness). With it here, the cheapest tenth averages
+ * about 45 and the dearest about 72, against 28 and 87 when ability was fee.
+ * The starting fee-to-ability correlation for crafts and directors is about
+ * 0.5, and careers push it a little higher (docs/DESIGN_talent_model.md §7.7).
  */
 export const FEE_LINK = 28;
 /** The floor ability is grown up from: what anyone in the job can already do. */

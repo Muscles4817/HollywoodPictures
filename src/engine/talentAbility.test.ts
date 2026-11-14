@@ -33,8 +33,9 @@ const mean = (p: Person, role: ProductionRole) => {
 describe('ability is untied from fee', () => {
   it('a director\'s fee says a little about their ability, not everything', () => {
     const r = pearson(pool.Director.map(fee), pool.Director.map((p) => mean(p, 'Director')));
-    expect(r).toBeGreaterThan(0.1);
-    expect(r).toBeLessThan(0.5);
+    // About 0.5 at the start (it was about 0.8 when ability was set by fee).
+    expect(r).toBeGreaterThan(0.3);
+    expect(r).toBeLessThan(0.65);
   });
 
   it('potential is never below ability, and is stored for everyone generated', () => {
