@@ -587,6 +587,10 @@ that makes it safe is in place.
 
 | 8 | **People decide (4.7).** One accept-or-refuse decision for everyone and for rivals' offers; type, stretch and repetition; breaks; retirement as phases. | People turn you down for reasons you can read, the ambitious seek new kinds of part, and veterans slow down before they go. | L |
 
+Stages 1, 2, 3 and 5 are built. The agreed order for the rest is 4, 8, 6, 7:
+knowledge first (starting with a design pass on the talent card), then people
+deciding, then untying ability from fee, then deals.
+
 Stage 7's first half (personality moving the ask) is small and could ride with
 stage 2, since both touch how a price is set. Deals are the larger half.
 
@@ -852,9 +856,8 @@ Still open:
   ten-year game. This is a number to find with the harness.
 - **How much people steer their own careers.** Now designed as 4.7 (stage 8):
   what a person weighs, type and stretch, breaks, and retirement as phases. Not
-  built, and where it sits in the order is undecided: it does not depend on
-  stage 4, and it is one of the three things growth depends on, so it could
-  reasonably come before stage 6.
+  built. Order agreed: it comes after stage 4 and before stage 6, because it is
+  one of the three things growth depends on.
 
 ## 9. Risks and limits
 
