@@ -37,14 +37,14 @@ import { knowledgeAttributes, knowledgeProfession } from './talentKnowledge';
  * and nothing marks them.
  */
 export const POTENTIAL_MEAN = 58;
-export const POTENTIAL_SPREAD = 20;
+export const POTENTIAL_SPREAD = 17;
 /**
  * How far a career before the game had already sorted people by price. Not
  * zero - a working market rewards ability, imperfectly - but far from the old
  * one-to-one: it puts the starting correlation between fee and ability for
  * crafts and directors near 0.35, where today's generation had it near 0.8.
  */
-export const FEE_LINK = 10;
+export const FEE_LINK = 28;
 /** The floor ability is grown up from: what anyone in the job can already do. */
 const ABILITY_FLOOR = 30;
 /**
