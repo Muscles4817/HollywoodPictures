@@ -587,8 +587,8 @@ that makes it safe is in place.
 
 | 8 | **People decide (4.7).** One accept-or-refuse decision for everyone and for rivals' offers; type, stretch and repetition; breaks; retirement as phases. | People turn you down for reasons you can read, the ambitious seek new kinds of part, and veterans slow down before they go. | L |
 
-Stages 1 to 5 and 8 are built. The agreed order for the rest is 6, then 7:
-untying ability from fee, then deals.
+Stages 1 to 5 and 8 are built, and the first part of stage 6 (§7.7). Left:
+the rest of stage 6, then stage 7, deals.
 
 Stage 7's first half (personality moving the ask) is small and could ride with
 stage 2, since both touch how a price is set. Deals are the larger half.
@@ -930,6 +930,80 @@ bad experience, or second billing to someone beneath them - is not built. A
 rival's offer is judged without the part, since rivals cast before binding
 characters, so type and stretch do not apply to rivals. Growth through choice
 waits for stage 6, which is next.
+
+### 7.7 Stage 6, as built (part one), and what the acceptance tests show
+
+`engine/talentAbility.ts`.
+
+**Untied at generation.** Directors, writers and crew no longer get ability
+from their place on the fee range. Each draws a potential from one talent
+spread (mean 61, spread 17), with a link to fee of 28 points across the range
+for people already working, and ability is how far their experience has
+brought them from a floor of 30 toward it (crafts start 40% of the way,
+directors 45%, writers 50%; all the way by 70 experience). Actors keep their
+rolled axes, which were already independent of fee, and gain a potential above
+them that is larger the less experienced they are. Directors and the specialty
+crafts now store their attributes (domains, specialties), with `skill` kept as
+their mean. A veteran's industry respect carries their ability (up to 70% of
+it at full maturity), since the business knows who is good after years.
+Everything is hashed from a stable seed - not from the id, which comes from a
+process-wide counter and broke a determinism test until it was moved.
+
+**Growth.** After each finished film, every attribute the film tested
+(`creditTests`, the same measure the studio's reads use) moves 12% of the way
+to potential times how hard it was tested, times a personal pace:
+professionalism and ambition always, adaptability in a register they are
+weaker in, and for actors a director strong with actors adds up to 40%, less
+for a big ego. Physical performance fades 1.2 points a year past 45.
+
+**Delivery.** Experience raises an actor's floor (90% of it for a first-timer,
+all of it by 60 experience). A director's skill counts for less on a Medium
+film (up to 8%) and an Epic (up to 25%) when they lack experience, fading to
+nothing by 50.
+
+**Rivals** weigh industry respect more when choosing a director (0.4, with heat
+0.35 and fame 0.25), and the harness bot now hires on what a player can see -
+the reads, pulled toward an ordinary 50 by doubt - rather than true ability.
+
+**The finding that shaped the numbers.** With a weak fee link the cheapest
+tenth of directors and crew averaged about 50 and the dearest about 64 (when
+ability was fee, 28 and 87). Paying more bought almost nothing, so a small
+studio's films matched a big one's for a fraction of the money and Boutique
+ran to £250-590M in ten years in the harness - the snowball §6 forbids, even
+with the bot hiring blind on reads. A real price gradient with wide scatter is
+what holds the economy: with the settled values the cheapest tenth averages
+about 45 and the dearest about 72. It is knife-edge: widening the scatter
+(spread 23) brought the snowball straight back.
+
+**Acceptance tests (§6), as measured:**
+
+| Test | Result |
+|---|---|
+| Rival film quality holds | **Met.** Whole-year gate 18 of 21 with the same three misses as stage 8. Variance and buzz gates pass. Budget-tier gate seven misses (stage 8: six); big films' median return 0.95x (0.88x at stage 8). |
+| Boutique does not snowball | **Met for Careful, Steady and Scout**: £20-28M cash at year 10. Brand 32-52; prestige reaches the 90s-100. |
+| Indie with Scout beats Indie with Careful | **Not met.** Scout ends near £2M against Careful's £16M. With a real price gradient the cheapest strangers are worse on average, and their reads are too vague to pick out the good ones. Scouting pays only once the studio has used someone, and the bot does not yet build on that. |
+| Fee and talent correlate 0.3-0.5 after fifteen years | **Not met.** Directors 0.55 at the start to 0.69, writers 0.58 to 0.61, cinematographers about 0.5. Actors start at 0 and stay at 0: an actor's standing follows how films do, and the notices that now feed their respect depend more on fit and the director than on the actor's own craft. |
+| A discovery's price doubles after a first hit | Not yet measured with the new spread. |
+| The pool is stable | Mean ability drifts 2-4 points down over fifteen years as experienced people leave and newcomers arrive with their potential unshown. |
+
+Indie and Boutique studios are better off than at stage 8 (Indie Careful
+about £16M at year 10, was about £1M), because cheap crafts are no longer the
+weakest in the pool. Mid-Major and Major read the same within seed noise.
+
+**Open, for the owner:** the two unmet tests pull against the economy. A lower
+correlation needs more scatter, and more scatter puts more cheap, very good
+people in reach of small studios, which is the snowball. Scouting paying off
+needs information - a read good enough to find the hidden ones - rather than
+cheapness. Options include making reads of strangers sharper at the cheap end
+(a casting director or department head vouching, screen tests for crew), a
+Scout that rehires what it has learned, and accepting a correlation nearer
+0.6 for the crafts. For actors, sorting would need their own craft to show in
+their notices, or a market that starts with some sorting already.
+
+Not built yet: consistency for directors and crew (how far a bad shoot drags
+someone down, by pressure handling and adaptability); reads that age as
+ability moves; "still getting better" on the card; the inexperience cost for
+crew and actors on big films.
 
 ## 8. Decisions
 
