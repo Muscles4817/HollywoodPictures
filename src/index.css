@@ -2029,6 +2029,8 @@ textarea, input, select {
    and the one caveat worth reading before an offer. A read is a bar whose
    width is the doubt: narrow and dark for what you saw on your own set, wide
    and grey for a second-hand guess, dashed for never tested. */
+.talent-career-line { font-style: italic; }
+
 .dossier-caveat {
   margin-top: 12px;
   padding: 10px 12px;

@@ -21,6 +21,7 @@
 // eligibility gates resolved *before* `overall` is even compared against a
 // threshold - see ActorScheduleAssessment and `belowSalaryFloor` below, and
 // resolveOfferResponse's own ordering.
+import { careerPull, offerLure, partAxis, unwillingToWork, STRETCH_FLOOR_DISCOUNT, type CareerPull, type CareerPullReason, type Unwilling, type UnwillingReason } from './careerChoices';
 import type { GameDay, Money, Person, ProductionRole, Script, ScriptCharacter, Studio, TalentAssignment } from '../types';
 import { computeActorCharacterCompatibility } from './compatibility';
 import { computeScriptScore } from './scoring';
@@ -61,6 +62,10 @@ export type ActorAppealResult = ActorAppealFactors & {
   schedule: ActorScheduleAssessment;
   /** offeredSalary < this person's effective minimum - a hard gate, checked ahead of `overall` (see resolveOfferResponse and engine/castingCalls.ts's pool-eligibility filter). `salaryFit` above still carries a low score in this case, purely for display (e.g. sorting an applicant list), never for the accept/decline or pool-inclusion decision. */
   belowSalaryFloor: boolean;
+  /** How the offer sits with where they are in their career (engine/careerChoices.ts, stage 8): their type, a stretch, whether it is beneath them, slowing down. Already folded into `overall`. */
+  careerPull: CareerPull;
+  /** On a break or retired, and this offer is not enough to change it - a hard no, ahead of everything else. */
+  unwilling: Unwilling | null;
   /** The discounted salary floor this specific offer was judged against (computeEffectiveMinimumSalary) - the raw career minimum pulled down by project prestige, director draw and relationship loyalty. Surfaced here so negotiation (engine/castingNegotiation.ts) and presentation can read the same floor the accept/decline used, without recomputing the prestige signal. */
   effectiveMinimum: Money;
 };
@@ -347,7 +352,12 @@ export function computeActorAppeal(
   // offer reducer alike - and is captured onto the signed agreedSalary at cast
   // time, not conjured at greenlight.
   const castingDirectorSkill = castingDirectorSkillOf(currentTalent);
-  const effectiveMinimum = computeEffectiveMinimumSalary(person, career.minimumSalary, prestigeSignal, directorDraw, relationship, castingDirectorSkill);
+  // Where they are in their career (stage 8): an ambitious name takes the
+  // stretch they want for less; a type they are tired of, or a part beneath
+  // them, appeals less; on a break or retired they need real coaxing.
+  const pull = careerPull(person, { axis: partAxis(character), scale: script.scale, lead: character.prominence === 'Lead' }, plannedStartDay);
+  const unwilling = unwillingToWork(person, plannedStartDay, offerLure(director, relationship.warmth));
+  const effectiveMinimum = computeEffectiveMinimumSalary(person, career.minimumSalary, prestigeSignal, directorDraw, relationship, castingDirectorSkill) * (pull.stretch ? STRETCH_FLOOR_DISCOUNT : 1);
 
   const factors: ActorAppealFactors = {
     suitability: computeActorCharacterCompatibility(person, character) ?? 50,
@@ -369,10 +379,13 @@ export function computeActorAppeal(
     // not a fifth 50-neutral weighted factor - that keeps the stranger baseline
     // every weight above was tuned against exactly where it was, while a real
     // history still tilts the score.
-    relationshipAppealDelta(relationship);
+    relationshipAppealDelta(relationship) +
+    pull.delta;
 
   return {
     ...factors,
+    careerPull: pull,
+    unwilling,
     overall: clamp(overall, 0, 100),
     schedule: computeScheduleAssessment(person, plannedStartDay),
     belowSalaryFloor: offeredSalary < effectiveMinimum,
@@ -405,7 +418,10 @@ export function overallWithSalaryFit(appeal: ActorAppealResult, salaryFit: numbe
 // hidden probability.
 
 /** Which factor to blame - the single lowest-scoring one among suitability/reputation/salary, whichever of the three wasn't already the reason via a hard gate (schedule/below-floor salary are resolved in resolveOfferResponse before this is ever called). brandFit/prestigeFit collapse into one combined reputationFit reading, matching how `overall` itself blends them - using Math.max here instead would let a balanced actor (moderate on both, low on neither) get falsely blamed on reputation. */
-export type OfferRejectionReason = 'suitability' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship';
+export type OfferRejectionReason = 'suitability' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship' | CareerPullReason | UnwillingReason;
+
+/** A career reason big enough to name when they say no (stage 8). */
+const CAREER_BLAME = -6;
 
 export type OfferResponse = { status: 'accepted' } | { status: 'rejected'; reason: OfferRejectionReason };
 
@@ -420,6 +436,7 @@ function offerRejectionReason(factors: ActorAppealFactors, reputationFit: number
 
 /** The single lowest-scoring soft factor to blame for a below-threshold appeal - suitability, blended reputation fit, or salary. Exported so engine/castingNegotiation.ts blames a rejection with the exact same logic resolveOfferResponse uses, rather than a second parallel judgement. Hard gates (schedule/relationship) are resolved by the caller before this is read. */
 export function offerBlameReason(appeal: ActorAppealResult): OfferRejectionReason {
+  if (appeal.careerPull.reason && appeal.careerPull.delta <= CAREER_BLAME) return appeal.careerPull.reason;
   return offerRejectionReason(appeal, appeal.brandFit + appeal.prestigeFit);
 }
 
@@ -456,6 +473,7 @@ export function computeAcceptanceThreshold(person: Person, relationship: Relatio
  * score the way they used to be as small weighted terms.
  */
 export function resolveOfferResponse(appeal: ActorAppealResult, person: Person, relationship: RelationshipStanding = NO_RELATIONSHIP): OfferResponse {
+  if (appeal.unwilling) return { status: 'rejected', reason: appeal.unwilling.reason };
   if (appeal.schedule.status !== 'available') return { status: 'rejected', reason: 'schedule' };
   if (appeal.belowSalaryFloor) return { status: 'rejected', reason: 'salary' };
   // A deep-enough grudge is a hard gate, like schedule/salary above - the

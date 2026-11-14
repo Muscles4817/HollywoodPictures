@@ -405,6 +405,8 @@ describe('resolveOfferResponse', () => {
       schedule: { status: 'available', availableFromDay: 1, delayDays: 0 },
       belowSalaryFloor: false,
       effectiveMinimum: 100_000,
+      careerPull: { delta: 0, reason: null, note: null, stretch: false },
+      unwilling: null,
     };
     const response = resolveOfferResponse(appeal, person);
     expect(response.status).toBe('rejected');

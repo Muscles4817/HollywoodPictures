@@ -622,6 +622,24 @@ export interface Person {
   careers: PersonCareers;
   availability: PersonAvailability;
   traits: PersonTrait[];
+  /**
+   * The films they have finished in this world, newest first, kept short
+   * (engine/careerChoices.ts): when, and for an actor what the part leaned on.
+   * It is what their type and their workload are read from. Absent until their
+   * first film here.
+   */
+  recentWork?: RecentWork[];
+  /** Turning down films until this day: a break (engine/careerChoices.ts). Absent when working. */
+  breakUntilDay?: GameDay;
+}
+
+/** One finished film in a person's recent record. */
+export interface RecentWork {
+  day: GameDay;
+  /** For an actor, the attribute the part leaned on most. */
+  part?: keyof ActingStyle;
+  /** The film went badly and they took the blame. */
+  blamed?: boolean;
 }
 
 // --- Screenplay identity (docs/DESIGN.md - screenplay redesign) -----------
@@ -2638,7 +2656,7 @@ export interface RoleNegotiation {
   /** The actor's counter, present only when status is 'countered'. */
   counterSalary?: Money;
   /** Why they passed, present only when status is 'rejected' - mirrors engine/castingAppeal.ts:OfferRejectionReason (kept as a local union so types/ needn't import from engine/; the reducer only ever writes those values). */
-  reason?: 'suitability' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship';
+  reason?: 'suitability' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship' | 'typecast' | 'beneath' | 'selective' | 'on-break' | 'retired';
 }
 
 /**

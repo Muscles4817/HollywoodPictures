@@ -17,26 +17,22 @@
 //
 // Pure: plain data in, plain data out.
 import type { Person, TalentProfession } from '../types';
-import { DAYS_PER_YEAR, gameDateFromTotalDays, yearOf } from './calendar';
+import { DAYS_PER_YEAR, formatGameDateWithMonth, gameDateFromTotalDays, yearOf } from './calendar';
 import { createRng, hashUnit } from './random';
 import { generateNewcomer } from './talentGenerator';
+import { careerPhase, isOnBreak } from './careerChoices';
 
 // --- Tunables ---------------------------------------------------------------
 
-/** Nobody leaves for age before this. */
-export const RETIREMENT_STARTS_AT = 55;
-/** The yearly chance of leaving at RETIREMENT_STARTS_AT, and at 80. It rises in a line between. */
-const RETIREMENT_CHANCE_AT_START = 0.02;
-const RETIREMENT_CHANCE_AT_80 = 0.25;
 /**
- * Directors work later than anyone: their careers often peak in their fifties
- * and sixties, because the currency is trust and track record
- * (docs/domain/12 §4.7). Everything about leaving for age is this many years
- * later for them.
+ * Leaving for age follows where someone is in their career (engine/careerChoices.ts,
+ * stage 8), not their age alone: people slow down at their own age, and it is
+ * the semi-retired who actually go. These are the yearly chances in each phase.
  */
-export const DIRECTOR_EXTRA_WORKING_YEARS = 8;
+const LEAVING_WHILE_SELECTIVE = 0.04;
+const LEAVING_WHILE_SEMI_RETIRED = 0.25;
 /** From here on most go each year, and by the last age everyone has. */
-const RETIREMENT_CHANCE_OVER_80 = 0.5;
+const LEAVING_OVER_80 = 0.5;
 export const LAST_WORKING_AGE = 88;
 
 /** Years without a film after which a cold career starts to end, the heat below which it counts as cold, and the yearly chance. */
@@ -71,14 +67,12 @@ function lastWorkedDay(person: Person): number {
 
 /** The chance this person leaves this year, and why they would. */
 export function leavingChance(person: Person, day: number): { chance: number; reason: Departure['reason'] } {
-  // A director is judged against the same curve as everyone else, eight years on.
-  const age = ageOn(person, day) - (person.primaryRole === 'Director' ? DIRECTOR_EXTRA_WORKING_YEARS : 0);
+  const age = ageOn(person, day);
+  const phase = careerPhase(person, day);
   let retirement = 0;
   if (age >= LAST_WORKING_AGE) retirement = 1;
-  else if (age >= 80) retirement = RETIREMENT_CHANCE_OVER_80;
-  else if (age >= RETIREMENT_STARTS_AT) {
-    retirement = RETIREMENT_CHANCE_AT_START + ((age - RETIREMENT_STARTS_AT) / (80 - RETIREMENT_STARTS_AT)) * (RETIREMENT_CHANCE_AT_80 - RETIREMENT_CHANCE_AT_START);
-  }
+  else if (phase === 'semi-retired') retirement = age >= 80 ? LEAVING_OVER_80 : LEAVING_WHILE_SEMI_RETIRED;
+  else if (phase === 'selective') retirement = LEAVING_WHILE_SELECTIVE;
   const idleYears = (day - lastWorkedDay(person)) / DAYS_PER_YEAR;
   const drifting = idleYears >= IDLE_YEARS_BEFORE_LEAVING && person.reputation.currentHeat < COLD_HEAT ? IDLE_LEAVING_CHANCE : 0;
   return retirement >= drifting ? { chance: retirement, reason: 'retired' } : { chance: drifting, reason: 'left the business' };
@@ -155,12 +149,84 @@ export interface IndustryNotice {
   /** People who left with whom the studio had made a film. */
   collaborators: string[];
   read: boolean;
+  /**
+   * 'career' (stage 8): news about people the studio has worked with - a
+   * break begun, a decision to slow down or retire - rather than the year's
+   * turnover. Absent means turnover.
+   */
+  kind?: 'turnover' | 'career';
+  /** For a career notice: one sentence per person. */
+  news?: string[];
+}
+
+/** Career news from the last few weeks is gathered into one notice, not one per person. */
+const CAREER_NEWS_WINDOW_DAYS = 30;
+const MAX_CAREER_NEWS = 8;
+
+/**
+ * What changed, between two moments, for the people the studio has worked
+ * with: someone starting a break, or moving into a slower phase of their
+ * career. These happen on the background tick, so the player must be told
+ * (docs/DESIGN_notification_contract.md).
+ */
+export function careerNews(
+  before: Record<TalentProfession, Person[]>,
+  after: Record<TalentProfession, Person[]>,
+  dayBefore: number,
+  dayAfter: number,
+  collaboratorIds: ReadonlySet<string>,
+): string[] {
+  if (collaboratorIds.size === 0) return [];
+  const was = new Map<string, Person>();
+  for (const roster of Object.values(before)) for (const person of roster) if (collaboratorIds.has(person.id)) was.set(person.id, person);
+  const news: string[] = [];
+  for (const roster of Object.values(after)) {
+    for (const person of roster) {
+      const prior = was.get(person.id);
+      if (!prior) continue;
+      const name = person.identity.name;
+      if (isOnBreak(person, dayAfter) && !isOnBreak(prior, dayBefore)) {
+        news.push(`${name} is taking time away from films until ${formatGameDateWithMonth(person.breakUntilDay!)}.`);
+        continue;
+      }
+      const from = careerPhase(prior, dayBefore);
+      const to = careerPhase(person, dayAfter);
+      if (from === to) continue;
+      if (to === 'selective') news.push(`${name} is slowing down, and will only work now for the right project.`);
+      else if (to === 'semi-retired') news.push(`${name} says they have retired. The right offer might still bring them back.`);
+    }
+  }
+  return news;
+}
+
+/** Fold fresh career news into the notices: onto a recent unread career notice, or as a new one. */
+export function withCareerNews(notices: IndustryNotice[] | undefined, news: string[], day: number): IndustryNotice[] | undefined {
+  if (news.length === 0) return notices;
+  const list = notices ?? [];
+  const recent = list.find((n) => n.kind === 'career' && !n.read && day - n.day <= CAREER_NEWS_WINDOW_DAYS);
+  if (recent) {
+    const merged = { ...recent, news: [...(recent.news ?? []), ...news].slice(-MAX_CAREER_NEWS) };
+    return list.map((n) => (n === recent ? merged : n));
+  }
+  const notice: IndustryNotice = {
+    id: `career-${day}`,
+    year: yearOf(day),
+    day,
+    arrivals: 0,
+    departures: 0,
+    notable: [],
+    collaborators: [],
+    read: false,
+    kind: 'career',
+    news: news.slice(0, MAX_CAREER_NEWS),
+  };
+  return [notice, ...list].slice(0, MAX_INDUSTRY_NOTICES);
 }
 
 const NOTABLE_FAME = 55;
 const MAX_NOTABLE = 4;
 /** How many years of notices are kept. */
-export const MAX_INDUSTRY_NOTICES = 3;
+export const MAX_INDUSTRY_NOTICES = 4;
 
 export function buildIndustryNotice(result: TurnoverResult, day: number, collaboratorIds: ReadonlySet<string>): IndustryNotice | null {
   if (result.departures.length === 0) return null;

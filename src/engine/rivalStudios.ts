@@ -1,3 +1,4 @@
+import { careerPull, isTakingWork, type OfferShape } from './careerChoices';
 import { chooseRivalHires } from './rivalCasting';
 import type {
   Film,
@@ -31,7 +32,7 @@ import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
 import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE, campaignSpendFor } from '../data/release';
-import { clamp, pick, randFloat, randInt, weightedPick, type RandomFn } from './random';
+import { clamp, hashUnit, pick, randFloat, randInt, weightedPick, type RandomFn } from './random';
 import { deriveReleaseWindowFromDay } from './calendar';
 // The seasonal read the AI scores days with is the same one the player's own
 // date pickers show (engine/releaseDateReading.ts) - one formula, so the frames
@@ -1062,6 +1063,17 @@ function considerBiddingOnOpportunity(
  * if capacity or cash no longer supports it by the time this runs, same
  * "skip the attempt" shape as every other failure mode here.
  */
+/** How often someone the offer does not suit turns a rival down. Hashed per production, so it never touches the shared stream. */
+const RIVAL_REFUSAL_WHEN_UNSUITED = 0.7;
+
+/** Whether a person would take this rival production at all (stage 8). */
+export function wouldTakeRivalOffer(person: Person, offer: OfferShape, day: number, productionId: string): boolean {
+  if (!isTakingWork(person, day)) return false;
+  const pull = careerPull(person, offer, day);
+  if (pull.delta > -6) return true;
+  return hashUnit(`${person.id}|rival-offer|${productionId}`) >= RIVAL_REFUSAL_WHEN_UNSUITED;
+}
+
 /** Everyone a rival has put in one of its released films. */
 export function peopleUsedBy(films: Film[], studioName: string): Set<string> {
   const used = new Set<string>();
@@ -1120,7 +1132,12 @@ function startRivalProductionFromWonScript(
     const capacity = effectiveRoleCapacity(role, script);
     const profession = professionForProductionRole(role);
     const targetPrice = logAmount(spendPlan.talentSpendT, ROLE_GENERATION_PROFILES[profession].salaryRange);
-    const available = talentPool[profession].filter((t) => isPersonAvailableOnDay(t, totalDays) && !bookedIds.has(t.id));
+    // People choose (stage 8): nobody on a break or retired takes a rival's
+    // call, and someone slowing down or too big for a small film mostly says no.
+    const offer = { scale: script.scale, lead: role === 'Lead Actor' || role === 'Director' };
+    const available = talentPool[profession].filter(
+      (t) => isPersonAvailableOnDay(t, totalDays) && !bookedIds.has(t.id) && wouldTakeRivalOffer(t, offer, totalDays, productionId),
+    );
     if (available.length < capacity.min) return null;
     // Whoever it can afford with the best track record, by its own imperfect
     // read - not, as it used to be, a random draw among the nearest in price

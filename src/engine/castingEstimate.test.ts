@@ -37,6 +37,8 @@ function appeal(overrides: Partial<ActorAppealResult> = {}): ActorAppealResult {
     schedule: { status: 'available', availableFromDay: 1, delayDays: 0 },
     belowSalaryFloor: false,
     effectiveMinimum: 300_000,
+    careerPull: { delta: 0, reason: null, note: null, stretch: false },
+    unwilling: null,
     ...overrides,
   };
 }

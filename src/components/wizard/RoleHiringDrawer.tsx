@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { offerLure, unwillingToWork } from '../../engine/careerChoices';
 import { useStudio } from '../../state/StudioContext';
 import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
@@ -301,6 +302,17 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
     }
     const appeal = directorAppealByPersonId.get(person.id);
     let hardBlocked = false;
+    // People choose their work (stage 8): on a break or retired, they won't
+    // take this - crew included - unless a studio they're close to, or a
+    // director they revere, is asking.
+    const attachedDirector = draft.talent.find((a) => a.role === 'Director')?.person;
+    const unwilling = appeal && appeal !== 'prestige-gate'
+      ? appeal.unwilling
+      : unwillingToWork(person, state.totalDays, offerLure(attachedDirector, relationshipFor(person).warmth));
+    if (unwilling) {
+      signals.push({ label: unwilling.reason === 'on-break' ? 'Taking a break' : 'Retired', tone: 'blocked' });
+      hardBlocked = true;
+    }
     if (appeal === 'prestige-gate') {
       signals.push({ label: 'Wants more prestige', tone: 'blocked' });
       hardBlocked = true;

@@ -13,6 +13,7 @@
 // director whose fame implies they'd never actually consider such an
 // offer. The gate below is checked first, ahead of any scoring: below it,
 // no script quality or salary makes the studio interesting to them.
+import { careerPull, offerLure, unwillingToWork, type CareerPull, type CareerPullReason, type Unwilling, type UnwillingReason } from './careerChoices';
 import type { Distribution, DirectorProductionStyle, GameDay, Money, Person, Script, Studio, Tone } from '../types';
 import { TONES } from '../data/tones';
 import { getDirectorCareer } from './person';
@@ -63,6 +64,10 @@ export type DirectorAppealResult = DirectorAppealFactors & {
    * landing any director on any film (the specific wrong Phase A removes).
    */
   belowTasteFloor: boolean;
+  /** Where they are in their career (stage 8): slowing down, or a film beneath them. Already folded into `overall`. */
+  careerPull: CareerPull;
+  /** On a break or retired, and a studio they are close to is not enough to change it. */
+  unwilling: Unwilling | null;
 };
 
 // A director's own fame sets a floor on how prestigious a studio has to be
@@ -265,13 +270,20 @@ export function computeDirectorAppeal(
     salaryFit: computeSalaryFit(offeredSalary, effectiveMinimum, career.typicalSalary),
   };
 
+  // Stage 8: a director slowing down needs the right project; a big name with
+  // an ego may think a small film beneath them; on a break or retired only a
+  // studio they are close to brings them back.
+  const pull = careerPull(person, { scale: script.scale, lead: true }, plannedStartDay);
+  const unwilling = unwillingToWork(person, plannedStartDay, offerLure(undefined, relationship.warmth));
+
   const reputationFit = factors.brandFit + factors.prestigeFit;
   const overall =
     factors.scriptFit * WEIGHTS.scriptFit +
     reputationFit * WEIGHTS.reputationFit +
     factors.salaryFit * WEIGHTS.salaryFit +
     // A delta from neutral (0 for strangers) - see the actor path's own note.
-    relationshipAppealDelta(relationship);
+    relationshipAppealDelta(relationship) +
+    pull.delta;
 
   return {
     ...factors,
@@ -279,10 +291,12 @@ export function computeDirectorAppeal(
     schedule: computeScheduleAssessment(person, plannedStartDay),
     belowSalaryFloor: offeredSalary < effectiveMinimum,
     belowTasteFloor: computeDirectorTasteFit(person, script) < TASTE_FLOOR,
+    careerPull: pull,
+    unwilling,
   };
 }
 
-export type DirectorOfferRejectionReason = 'prestige-gate' | 'script-fit' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship';
+export type DirectorOfferRejectionReason = 'prestige-gate' | 'script-fit' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship' | CareerPullReason | UnwillingReason;
 
 export type DirectorOfferResponse = { status: 'accepted' } | { status: 'rejected'; reason: DirectorOfferRejectionReason };
 
@@ -308,6 +322,7 @@ export function resolveDirectorOfferResponse(
 ): DirectorOfferResponse | null {
   if (outcome === null) return null;
   if (outcome === 'prestige-gate') return { status: 'rejected', reason: 'prestige-gate' };
+  if (outcome.unwilling) return { status: 'rejected', reason: outcome.unwilling.reason };
   if (outcome.schedule.status !== 'available') return { status: 'rejected', reason: 'schedule' };
   if (outcome.belowSalaryFloor) return { status: 'rejected', reason: 'salary' };
   // The creative veto - a hard gate like the salary floor above (Phase A): a
@@ -318,6 +333,7 @@ export function resolveDirectorOfferResponse(
   if (relationshipRefuses(relationship)) return { status: 'rejected', reason: 'relationship' };
   const threshold = computeAcceptanceThreshold(person, relationship);
   if (outcome.overall >= threshold) return { status: 'accepted' };
+  if (outcome.careerPull.reason && outcome.careerPull.delta <= -6) return { status: 'rejected', reason: outcome.careerPull.reason };
   const reputationFit = outcome.brandFit + outcome.prestigeFit;
   return { status: 'rejected', reason: directorRejectionReason(outcome, reputationFit) };
 }

@@ -85,6 +85,7 @@ export function estimateAcceptanceOdds(
   offeredSalary: Money,
   relationship: RelationshipStanding = NO_RELATIONSHIP,
 ): AcceptanceOdds {
+  if (appeal.unwilling) return 'no';
   if (appeal.schedule.status !== 'available') return 'no';
   if (relationshipRefuses(relationship)) return 'no';
 

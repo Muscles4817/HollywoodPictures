@@ -222,6 +222,7 @@ export function resolveNegotiation(
   askingPrice: Money,
   relationship: RelationshipStanding = NO_RELATIONSHIP,
 ): NegotiationOutcome {
+  if (appeal.unwilling) return { status: 'rejected', reason: appeal.unwilling.reason };
   if (appeal.schedule.status !== 'available') return { status: 'rejected', reason: 'schedule' };
   if (relationshipRefuses(relationship)) return { status: 'rejected', reason: 'relationship' };
 

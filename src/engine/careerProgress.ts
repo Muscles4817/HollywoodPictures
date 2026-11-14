@@ -24,7 +24,9 @@
 //
 // Pure: plain data in, plain data out. No rng - a career moves on what
 // happened, not on a roll.
-import type { AwardsCeremony, Film, Person, ProductionRole, TalentProfession } from '../types';
+import { partAxis, recordWork, decideBreak } from './careerChoices';
+import { characterForRoleSlot } from './castRequirements';
+import type { AwardsCeremony, Film, Person, ProductionRole, RecentWork, TalentProfession } from '../types';
 import { readCastPerformances, type PerformanceBand } from './castPerformance';
 import { experienceFromYears } from './careerHistory';
 import { DAYS_PER_YEAR } from './calendar';
@@ -109,6 +111,8 @@ export const RESPECT_SWING = 5;
 export const CAREER_FULL_VISIBILITY_GROSS = 60_000_000;
 /** Profit ratio at which a film is as much of a hit as it can be for its people; and loss ratio at which it is a full bomb. */
 const FULL_HIT_RATIO = 1.25;
+/** A film this bad, with them at the top of the bill, is pinned on them (stage 8: it can send them on a break). */
+const BLAMED_BOMB = -0.6;
 const FULL_BOMB_RATIO = 0.6;
 /** How much an actor's own notices count next to how the film did. The film is the main thing. */
 const NOTICE_WEIGHT = 0.25;
@@ -320,6 +324,8 @@ export function applyFilmResultsToCareers(pool: TalentPool, finishedFilms: Film[
 
   const deltas = new Map<string, StandingDelta>();
   const worked = new Set<string>();
+  // What each film was for them, for their record and whether they now take a break (stage 8).
+  const work = new Map<string, Array<{ filmId: string; entry: RecentWork }>>();
   const byId = new Map<string, Person>();
   for (const roster of Object.values(pool)) for (const person of roster) byId.set(person.id, person);
 
@@ -332,6 +338,12 @@ export function applyFilmResultsToCareers(pool: TalentPool, finishedFilms: Film[
       worked.add(person.id);
       const career = person.careers[careerKeyFor(assignment.role)] as { experience?: number } | undefined;
       const delta = standingDeltaFor(person, assignment.role, career?.experience ?? 0, film, notices.get(person.id) ?? 0);
+      const character = assignment.characterId
+        ? film.script.cast.find((c) => c.id === assignment.characterId)
+        : characterForRoleSlot(film.script, assignment.role, film.talent.filter((a) => a.role === assignment.role).indexOf(assignment));
+      const blamed = commercialScore(film) <= BLAMED_BOMB && BLAME_BY_ROLE[assignment.role] >= 0.6;
+      const entry: RecentWork = { day, ...(character ? { part: partAxis(character) } : {}), ...(blamed ? { blamed } : {}) };
+      work.set(person.id, [...(work.get(person.id) ?? []), { filmId: film.id, entry }]);
       const sum = deltas.get(person.id) ?? { heat: 0, fame: 0, respect: 0 };
       deltas.set(person.id, { heat: sum.heat + delta.heat, fame: sum.fame + delta.fame, respect: sum.respect + delta.respect });
     }
@@ -339,7 +351,13 @@ export function applyFilmResultsToCareers(pool: TalentPool, finishedFilms: Film[
 
   return mapPool(pool, (person) => {
     if (!worked.has(person.id)) return person;
-    return withCredit(withStanding(person, deltas.get(person.id)!, QUOTE_FALL_ON_RESULT), day);
+    let next = withCredit(withStanding(person, deltas.get(person.id)!, QUOTE_FALL_ON_RESULT), day);
+    for (const { filmId, entry } of work.get(person.id) ?? []) {
+      next = recordWork(next, entry);
+      const breakUntil = decideBreak(next, filmId, day);
+      if (breakUntil !== undefined) next = { ...next, breakUntilDay: breakUntil };
+    }
+    return next;
   });
 }
 

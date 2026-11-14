@@ -1,4 +1,4 @@
-import { buildIndustryNotice, crossedIntoNewYear, MAX_INDUSTRY_NOTICES, turnOverTalent } from '../engine/careerTurnover';
+import { buildIndustryNotice, careerNews, crossedIntoNewYear, MAX_INDUSTRY_NOTICES, turnOverTalent, withCareerNews } from '../engine/careerTurnover';
 import { AWARD_CATEGORY_WEIGHT } from '../data/awards';
 import { applyAwardsToCareers, applyFilmResultsToCareers, crossedStandingFade, fadeStanding } from '../engine/careerProgress';
 import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, CastCrewFocus, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
@@ -982,8 +982,23 @@ function withIndustryTurnover(before: GameState, after: GameState): GameState {
   };
 }
 
+/**
+ * Career news (talent model stage 8): when someone the studio has worked with
+ * starts a break or slows down - things that happen on the background tick -
+ * the player is told in the Inbox. Only looked for when the pool or the year
+ * has changed, since nothing else can move either.
+ */
+function withCareerNewsFor(before: GameState, after: GameState): GameState {
+  if (before.talentDatabaseId !== after.talentDatabaseId) return after;
+  if (before.talentPool === after.talentPool && yearOf(before.totalDays) === yearOf(after.totalDays)) return after;
+  const workedWith = new Set((after.collaborations ?? []).filter((c) => c.studioId === PLAYER_STUDIO_ID).map((c) => c.personId));
+  const news = careerNews(before.talentPool, after.talentPool, before.totalDays, after.totalDays, workedWith);
+  if (news.length === 0) return after;
+  return { ...after, industryNotices: withCareerNews(after.industryNotices, news, after.totalDays) };
+}
+
 export function studioReducer(state: GameState, action: GameAction): GameState {
-  return withIndustryTurnover(state, withDraftsAtAssetHead(applyGameAction(state, action)));
+  return withCareerNewsFor(state, withIndustryTurnover(state, withDraftsAtAssetHead(applyGameAction(state, action))));
 }
 
 function applyGameAction(state: GameState, action: GameAction): GameState {
