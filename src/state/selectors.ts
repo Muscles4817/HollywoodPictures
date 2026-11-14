@@ -1,3 +1,4 @@
+import { unreadIndustryNoticeCount } from '../engine/careerTurnover';
 import type { AncillaryWindow, AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, StuntTeam, TalentAssignment, WizardStep } from '../types';
 import { yearOf } from '../engine/calendar';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
@@ -529,6 +530,7 @@ export function attentionBadgeCount(state: GameState): number {
   return (
     inboxBadgeCount(state.projects, state.focusedProjectId, state.totalDays) +
     unreadBidCount(state.bidNotifications ?? []) +
+    unreadIndustryNoticeCount(state.industryNotices) +
     unacknowledgedAwardHighlights(state).length
   );
 }

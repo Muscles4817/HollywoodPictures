@@ -2025,6 +2025,93 @@ textarea, input, select {
 
 /* Progressive disclosure - the default card stays short; depth is one click
    away, and a new system adds a group here rather than a permanent row above. */
+/* --- Talent dossier (talent model stage 4): track record, per-attribute reads,
+   and the one caveat worth reading before an offer. A read is a bar whose
+   width is the doubt: narrow and dark for what you saw on your own set, wide
+   and grey for a second-hand guess, dashed for never tested. */
+.dossier-caveat {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.dossier-caveat-label {
+  display: block;
+  font-size: 0.68em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.dossier-caveat-text {
+  margin: 0;
+  font-family: var(--font-typed);
+  font-size: 0.86em;
+  line-height: 1.4;
+}
+.dossier { display: flex; flex-direction: column; gap: 14px; }
+.dossier-section { display: flex; flex-direction: column; gap: 6px; }
+.dossier-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.7em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.dossier-heading-note {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 1.1em;
+  color: var(--text-muted);
+}
+.dossier-films, .dossier-reads { list-style: none; margin: 0; padding: 0; }
+.dossier-film {
+  display: grid;
+  grid-template-columns: 2.6em 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+}
+.dossier-film-year { font-family: var(--font-typed); font-size: 0.8em; color: var(--text-muted); }
+.dossier-film-main { display: flex; flex-direction: column; min-width: 0; }
+.dossier-film-title { font-size: 0.86em; font-weight: 700; }
+.dossier-film-part { font-size: 0.76em; color: var(--text-muted); }
+.dossier-yours {
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: 0.72em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--text);
+  color: var(--surface);
+  vertical-align: 1px;
+}
+.dossier-film-outcome { font-size: 0.76em; font-weight: 700; text-align: right; color: var(--text-muted); }
+.dossier-film-outcome--good { color: var(--green); }
+.dossier-film-outcome--bad { color: var(--red); }
+.dossier-note { margin: 2px 0 0; font-size: 0.78em; color: var(--text-muted); }
+.dossier-read {
+  display: grid;
+  grid-template-columns: 1fr 6.5em;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 0;
+}
+.dossier-read-text { display: flex; flex-direction: column; min-width: 0; }
+.dossier-read-line { font-size: 0.84em; }
+.dossier-read-basis { font-size: 0.74em; color: var(--text-muted); }
+.dossier-bar { display: block; height: 9px; background: var(--surface-2); }
+.dossier-bar-fill { display: block; height: 9px; background: var(--text-faint); }
+.dossier-bar-fill--seen { background: var(--text); }
+.dossier-bar--untested { height: 7px; background: transparent; border: 1px dashed var(--text-muted); }
+
 .talent-more {
   margin-top: 12px;
   border-top: 1px solid var(--border);

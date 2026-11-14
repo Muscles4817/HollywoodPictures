@@ -11,7 +11,9 @@ import { describeCastingProjection } from '../../engine/castPerformancePresentat
 import { describeCrewPhilosophy } from '../../engine/crewPhilosophy';
 import { describeStandoutSpecialty } from '../../engine/crewSpecialty';
 import type { CastAffinity } from '../../engine/pairHistory';
-import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveFitConfidence, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
+import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveFitConfidence, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes, knownAxisCoverage, gateAxesByKnowledge, deriveFitReadFromKnowledge } from '../../engine/talentCardPresentation';
+import type { TalentKnowledge } from '../../engine/talentKnowledge';
+import { TalentDossier, DossierCaveat, describeRecordSize } from './TalentDossier';
 import { describeRelationshipStanding, type RelationshipStanding } from '../../engine/relationships';
 import { AFFORDABILITY_LABEL, type AffordabilityTier } from '../../engine/affordability';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
@@ -99,7 +101,7 @@ export function deriveRoleFitBreakdown(
   category: RoleCategory,
   script: Script | null,
   character: ScriptCharacter | null,
-): { title: string; noun: 'fit' | 'tone'; rows: Array<{ label: string; matchScore: number; strength: number; demandWeight?: number }> } | null {
+): { title: string; noun: 'fit' | 'tone'; rows: Array<{ key?: string; label: string; matchScore: number; strength: number; demandWeight?: number }> } | null {
   if (category === 'actor' && character) {
     const actorCareer = person.careers.actor;
     if (!actorCareer) return null;
@@ -109,7 +111,7 @@ export function deriveRoleFitBreakdown(
     return {
       title: 'Role fit',
       noun: 'fit',
-      rows: breakdown.map((a) => ({ label: ACTING_STYLE_LABELS[a.axis], matchScore: a.matchScore, strength: a.actorValue, demandWeight: a.demandWeight })),
+      rows: breakdown.map((a) => ({ key: a.axis, label: ACTING_STYLE_LABELS[a.axis], matchScore: a.matchScore, strength: a.actorValue, demandWeight: a.demandWeight })),
     };
   }
   if (script && (category === 'actor' || category === 'director')) {
@@ -163,7 +165,7 @@ function BarRow({ label, value }: { label: string; value: number }) {
  * not a clean green. The hiring drawers pass it; the on-set decision card
  * doesn't know the budget, and passes nothing.
  */
-export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, budget = null, castingDirectorSkill = null, relationship = null, castAffinity = null, audited = false }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; budget?: AffordabilityTier | null; castingDirectorSkill?: number | null; relationship?: RelationshipStanding | null; castAffinity?: CastAffinity | null; audited?: boolean }) {
+export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, budget = null, castingDirectorSkill = null, relationship = null, castAffinity = null, audited = false, knowledge = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; budget?: AffordabilityTier | null; castingDirectorSkill?: number | null; relationship?: RelationshipStanding | null; castAffinity?: CastAffinity | null; audited?: boolean; knowledge?: TalentKnowledge | null }) {
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
@@ -181,17 +183,31 @@ export function TalentStats({ person, role, category, script, character = null, 
   // that tier first and gate on it. Only the axes you'd actually know are shown
   // in full; the rest are veiled as "Unknown". The "why" line reasons over the
   // known axes only, so it never cites a dimension the breakdown hides.
-  const readTier = roleFit ? deriveFitConfidence(person, fitAssist).tier : 'high';
-  const gatedRows = roleFit ? gateKnownAxes(roleFit.rows, readTier) : null;
-  // How much of the role you can vouch for then caps the OVERALL verdict's
-  // confidence and pulls its centre toward neutral - so two dazzling axes out of
-  // five no longer read as "an excellent fit" until a screen test reveals the
-  // rest (deriveFitRead's coverage regression).
-  const coverage = gatedRows ? knownAxisCoverage(gatedRows) : 1;
-  // Crew have no per-axis role-fit to veil (coverage stays 1), but they still get
-  // the person-readability band and history sharpening - read for how good a
-  // "hire" they are, not how well they "fit" a part. Actors/directors read "fit".
-  const fitRead = overallScore !== null ? deriveFitRead(overallScore, person, fitAssist, coverage, roleFit ? 'fit' : 'hire') : null;
+  // With what the studio has seen of them (talent model stage 4), the read's
+  // confidence comes from evidence, per attribute: the films that tested it,
+  // your own counting for far more than other people's. Without it (a caller
+  // that has no film history to hand), the older fame-based read stands in.
+  const partWeights = roleFit && roleFit.noun === 'fit'
+    ? Object.fromEntries(roleFit.rows.filter((r) => r.key).map((r) => [r.key!, r.demandWeight ?? 0]))
+    : undefined;
+  let gatedRows: ReturnType<typeof gateKnownAxes> | null;
+  let fitRead: ReturnType<typeof deriveFitRead> | null;
+  if (knowledge) {
+    gatedRows = roleFit ? gateAxesByKnowledge(roleFit.rows, knowledge) : null;
+    fitRead = overallScore !== null ? deriveFitReadFromKnowledge(overallScore, person, knowledge, partWeights, roleFit ? 'fit' : 'hire') : null;
+  } else {
+    const readTier = roleFit ? deriveFitConfidence(person, fitAssist).tier : 'high';
+    gatedRows = roleFit ? gateKnownAxes(roleFit.rows, readTier) : null;
+    // How much of the role you can vouch for then caps the OVERALL verdict's
+    // confidence and pulls its centre toward neutral - so two dazzling axes out of
+    // five no longer read as "an excellent fit" until a screen test reveals the
+    // rest (deriveFitRead's coverage regression).
+    const coverage = gatedRows ? knownAxisCoverage(gatedRows) : 1;
+    // Crew have no per-axis role-fit to veil (coverage stays 1), but they still get
+    // the person-readability band and history sharpening - read for how good a
+    // "hire" they are, not how well they "fit" a part. Actors/directors read "fit".
+    fitRead = overallScore !== null ? deriveFitRead(overallScore, person, fitAssist, coverage, roleFit ? 'fit' : 'hire') : null;
+  }
   const fitReason = gatedRows ? deriveFitReason(gatedRows.filter((r) => r.known), roleFit!.noun) : null;
 
   // Both optional (see PersonIdentity's own comment, types/index.ts) - real,
@@ -354,6 +370,22 @@ export function TalentStats({ person, role, category, script, character = null, 
             ? `You can't ${verb} them until then - their existing commitments won't clear in time.`
             : `Hiring them would delay production by ${delayDays} day${delayDays === 1 ? '' : 's'}.`}
         </p>
+      )}
+
+      {/* What the studio actually knows (talent model stage 4): the one caveat
+          worth reading before an offer, always visible; the films and the
+          per-attribute reads behind it one click away. */}
+      {knowledge?.caveat && <DossierCaveat text={knowledge.caveat} />}
+      {knowledge && (
+        <details className="talent-more talent-more--dossier">
+          <summary className="talent-more-toggle" onClick={(e) => e.stopPropagation()}>
+            <span className="talent-more-chevron" aria-hidden="true">›</span>
+            Track record &amp; what you know · {describeRecordSize(knowledge)}
+          </summary>
+          <div className="talent-more-body">
+            <TalentDossier knowledge={knowledge} />
+          </div>
+        </details>
       )}
 
       {/* Everything deeper is one click away, so the default card stays short

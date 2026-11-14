@@ -27,7 +27,7 @@ import {
   type AptitudeBand,
   type DirectorAptitudeRead,
 } from './creativeAptitudes';
-import { describeDirectorAptitudes } from './creativeAptitudes';
+import { describeDirectorAptitudes, type EvidenceReads } from './creativeAptitudes';
 import { getDirectorCareer } from './person';
 import { directorHandsOn, stableUnit } from './actingModel';
 import { NO_RELATIONSHIP, type RelationshipStanding } from './relationships';
@@ -228,13 +228,16 @@ export function describeDemandCompetence(
   director: Person,
   demand: CreativeDemand,
   relationship: RelationshipStanding = NO_RELATIONSHIP,
+  knowledge?: EvidenceReads,
 ): DemandCompetenceRead {
-  const read: DirectorAptitudeRead = describeDirectorAptitudes(director, relationship);
+  const read: DirectorAptitudeRead = describeDirectorAptitudes(director, relationship, knowledge);
   const governor = demandGovernor(demand.domain);
   const band = read.domains[governor];
   const noun = APTITUDE_DOMAIN_NOUN[governor];
   if (!band) {
-    return { text: `You don't yet know this director's ${noun} well enough to judge - work with them more to read it.` };
+    return { text: knowledge
+      ? `Nothing you've seen tells you about this director's ${noun} - no film of theirs has tested it where you could see.`
+      : `You don't yet know this director's ${noun} well enough to judge - work with them more to read it.` };
   }
   return { band, text: `Their ${noun} is ${BAND_JUDGEMENT[band]}.` };
 }

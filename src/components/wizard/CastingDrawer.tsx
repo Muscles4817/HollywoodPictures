@@ -9,7 +9,8 @@ import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine
 import { computeActorAppeal, countActorsFreedByDelay, computeSalaryFit, overallWithSalaryFit } from '../../engine/castingAppeal';
 import { estimateDeal } from '../../engine/castingEstimate';
 import { askingPriceCentre } from '../../engine/castingNegotiation';
-import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveFitConfidence, deriveRiskRead, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
+import { deriveFitReadAssist, deriveFitReason, deriveRiskRead, gateAxesByKnowledge, deriveFitReadFromKnowledge } from '../../engine/talentCardPresentation';
+import { buildCreditIndex, deriveTalentKnowledge, type TalentKnowledge } from '../../engine/talentKnowledge';
 import { deriveCastingDirectorTake, describeCastingDirectorTake, type CastingDirectorTake } from '../../engine/castingDirectorAdvice';
 import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, describeAuditionResult, type CandidateSignal } from '../../engine/castingPresentation';
 import { forecastOpenCasting } from '../../engine/castingCalls';
@@ -190,6 +191,7 @@ function CandidateCard({
   castingDirectorSkill,
   relationship,
   castAffinity,
+  knowledge,
 }: {
   person: Person;
   role: 'Lead Actor' | 'Supporting Actor';
@@ -214,6 +216,8 @@ function CandidateCard({
   relationship: RelationshipStanding;
   /** The candidate's most notable chemistry with someone already on the cast (engine/pairHistory.ts), or null. */
   castAffinity: CastAffinity | null;
+  /** What the studio knows of them, from the films it has seen (engine/talentKnowledge.ts). */
+  knowledge: TalentKnowledge;
   actionLabel: string;
   /** Make this candidate's offer at the given amount (Phase 1a - the per-candidate offer, not the advertised default). */
   onMakeOffer: (amount: number) => void;
@@ -366,7 +370,7 @@ function CandidateCard({
       )}
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
-      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} budget={budget} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} audited={audited} />
+      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} budget={budget} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} audited={audited} knowledge={knowledge} />
       {castingDirectorTake && (
         <div className={`cd-take cd-take--${castingDirectorTake.recommendation}`}>
           <span className="cd-take__label">Casting director&rsquo;s take</span>
@@ -648,6 +652,15 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // This candidate's screen test for this Character (Phase 4). Completeness is
   // derived from the clock, not stored - audited once readyOnDay has passed.
   const auditionFor = (person: Person) => (draft.auditions ?? []).find((a) => a.characterId === character.id && a.personId === person.id) ?? null;
+  // What the studio knows of each candidate (talent model stage 4): a read per
+  // attribute from the films it has seen them in, sharpened by a casting
+  // director's eye and by a completed screen test for this part.
+  const creditIndex = buildCreditIndex(state.projects);
+  const knowledgeFor = (person: Person): TalentKnowledge => {
+    const audition = auditionFor(person);
+    const audited = !!audition && state.totalDays >= audition.readyOnDay;
+    return deriveTalentKnowledge(person, role, creditIndex, { castingDirectorSkill, character, audited });
+  };
 
   /** Make (or raise) an offer at the current target salary - the reducer rolls/reuses the actor's asking price and resolves accept/counter/reject (engine/castingNegotiation.ts). */
   // Phase 1a: the offer is candidate-specific now, passed from the card's own
@@ -745,10 +758,10 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     const fitBreakdown = deriveRoleFitBreakdown(person, role, 'actor', draft.script, character);
     // Read the fit exactly as the card does - through the same coverage veil - so
     // the casting director's take never claims more certainty than the card shows.
-    const readTier = deriveFitConfidence(person, assist).tier;
-    const gated = fitBreakdown ? gateKnownAxes(fitBreakdown.rows, readTier) : null;
-    const coverage = gated ? knownAxisCoverage(gated) : 1;
-    const fitRead = deriveFitRead(fitScore, person, assist, coverage);
+    const knowledge = knowledgeFor(person);
+    const gated = fitBreakdown ? gateAxesByKnowledge(fitBreakdown.rows, knowledge) : null;
+    const weights = fitBreakdown ? Object.fromEntries(fitBreakdown.rows.filter((r) => r.key).map((r) => [r.key!, r.demandWeight ?? 0])) : undefined;
+    const fitRead = deriveFitReadFromKnowledge(fitScore, person, knowledge, weights);
     const fitReason = gated ? deriveFitReason(gated.filter((r) => r.known), fitBreakdown!.noun) : null;
     return deriveCastingDirectorTake({
       castingDirectorSkill,
@@ -840,6 +853,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         castingDirectorSkill,
         castingDirectorTake: castingDirectorTakeFor(person),
         relationship: relationshipFor(person),
+        knowledge: knowledgeFor(person),
       }))
     : [];
 
@@ -898,6 +912,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         castingDirectorSkill={castingDirectorSkill}
         relationship={relationshipFor(person)}
         castAffinity={castAffinityFor(person)}
+        knowledge={knowledgeFor(person)}
       />
     );
   };

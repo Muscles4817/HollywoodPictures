@@ -441,7 +441,12 @@ import { deleteSave, readSave, writeSave } from './saveDatabase';
 //   in the role (it was a copy of skill); currentHeat and industryRespect are
 //   their own values; ages are derived from the career. A v100 pool has none of
 //   that.
-export const SAVE_VERSION = 101;
+// v101 -> v102 (talent model stage 2): careers gained quoteAnchor and a live
+//   lastWorkedDay, and standing and quotes now move after each film, so a v101
+//   pool would start moving from values that were never anchored.
+// v102 -> v103 (talent model stage 3): GameState gained industryNotices, and
+//   the talent pool now turns over each year.
+export const SAVE_VERSION = 103;
 
 /** Every pre-v99 save lived in localStorage under a key with this prefix. */
 const LEGACY_SAVE_KEY_PREFIX = 'hollywood-pictures-save-v';

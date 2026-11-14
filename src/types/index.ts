@@ -291,6 +291,13 @@ export interface RoleCareerCommon<TRole extends TalentProfession> {
   typicalSalary: Money;
   careerStartDay?: GameDay;
   lastWorkedDay?: GameDay;
+  /**
+   * The quote and the standing it was set against, the last time the market
+   * priced this person (engine/careerProgress.ts). Later quotes are read from
+   * it, so the same standing always implies the same quote. Absent until their
+   * standing first moves.
+   */
+  quoteAnchor?: { salary: Money; value: number };
   /** Finished films in this role before the game began (engine/careerHistory.ts). Added to the credits earned in play wherever a career total is shown. Absent on hand-authored people. */
   priorCredits?: number;
 }

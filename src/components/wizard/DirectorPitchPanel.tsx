@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { buildCreditIndex, deriveTalentKnowledge, type TalentKnowledge } from '../../engine/talentKnowledge';
 import { useStudio } from '../../state/StudioContext';
 import { deriveFocusedDraft } from '../../state/selectors';
 import { describePitch, type PitchPosture } from '../../engine/directorPitch';
@@ -103,6 +104,7 @@ export function DirectorPitchPanel({ advertisedFee }: DirectorPitchPanelProps) {
                 pitch={pitch}
                 director={director}
                 relationshipCollaborations={state.collaborations ?? []}
+                knowledge={deriveTalentKnowledge(director, 'Director', buildCreditIndex(state.projects))}
                 onChoose={() => dispatch({ type: 'SELECT_DIRECTOR_PITCH', directorId: pitch.directorId })}
               />
             );
@@ -117,11 +119,13 @@ interface PitchCardProps {
   pitch: DirectorPitch;
   director: Person;
   relationshipCollaborations: Parameters<typeof playerRelationshipWith>[0];
+  /** What the studio has seen of this director (engine/talentKnowledge.ts). */
+  knowledge: TalentKnowledge;
   onChoose: () => void;
 }
 
-function PitchCard({ pitch, director, relationshipCollaborations, onChoose }: PitchCardProps) {
-  const read = describePitch(pitch, director, playerRelationshipWith(relationshipCollaborations, director));
+function PitchCard({ pitch, director, relationshipCollaborations, knowledge, onChoose }: PitchCardProps) {
+  const read = describePitch(pitch, director, playerRelationshipWith(relationshipCollaborations, director), knowledge);
   return (
     <Card>
       <div className="row-between">

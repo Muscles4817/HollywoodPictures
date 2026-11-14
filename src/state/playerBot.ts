@@ -155,6 +155,37 @@ const STUCK_AFTER_DAYS = 240;
 const STALLED_AFTER_DAYS = 365;
 const RELEASE_RUNWAY_DAYS = CAMPAIGN_FULL_ROLLOUT_WEEKS * 7;
 
+/** A profession's roster in summary. */
+export interface PoolStats {
+  people: number;
+  meanFame: number;
+  meanHeat: number;
+  medianFee: number;
+  /** The fee only one person in ten exceeds. */
+  topDecileFee: number;
+  /** Total of everyone's quote - what it would cost to hire the whole profession once. */
+  totalFees: number;
+}
+
+function poolStats(state: GameState): Record<string, PoolStats> {
+  const stats: Record<string, PoolStats> = {};
+  for (const [profession, roster] of Object.entries(state.talentPool)) {
+    const fees = roster
+      .map((person) => Math.max(0, ...Object.values(person.careers).map((career) => (career as { typicalSalary?: number } | undefined)?.typicalSalary ?? 0)))
+      .sort((a, b) => a - b);
+    const mean = (pick: (person: Person) => number) => roster.reduce((sum, person) => sum + pick(person), 0) / Math.max(1, roster.length);
+    stats[profession] = {
+      people: roster.length,
+      meanFame: mean((person) => person.reputation.fame),
+      meanHeat: mean((person) => person.reputation.currentHeat),
+      medianFee: fees[Math.floor(fees.length / 2)] ?? 0,
+      topDecileFee: fees[Math.floor(fees.length * 0.9)] ?? 0,
+      totalFees: fees.reduce((sum, fee) => sum + fee, 0),
+    };
+  }
+  return stats;
+}
+
 export interface BotYear {
   year: number;
   cashEnd: number;
@@ -217,6 +248,12 @@ export interface BotRun {
    * figures in `films`.
    */
   cashFlow: Record<string, number>;
+  /**
+   * The talent pool on day one and on the last day, by profession - whether
+   * careers moving (engine/careerProgress.ts) leaves the world about where it
+   * started, or lets fame and fees drift.
+   */
+  pool: { start: Record<string, PoolStats>; end: Record<string, PoolStats> };
   /** Films mounted on a stretch (most of the cash on hand) because the usual share could not fund one. */
   stretchedFilms: number;
   finalState: GameState;
@@ -638,6 +675,7 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
     awardNominations: 0,
     facilityUpgrades: 0,
     cashFlow: {},
+    pool: { start: poolStats(s), end: poolStats(s) },
     stretchedFilms: 0,
     finalState: s,
   };
@@ -750,6 +788,7 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
   run.films = playerFilms
     .map((film) => ({ ...toBotFilm(film), ancillary: ancillaryByTitle.get(film.title) ?? 0 }))
     .sort((a, b) => a.releasedOnDay - b.releasedOnDay);
+  run.pool.end = poolStats(s);
   run.finalState = s;
   return run;
 }

@@ -15,6 +15,7 @@ import { fameCraftContrast } from './actingModel';
 import { clamp } from './random';
 import { NO_RELATIONSHIP, type RelationshipStanding } from './relationships';
 import type { Person } from '../types';
+import { CERTAIN_CONFIDENCE, FAIR_CONFIDENCE, weightedConfidence, type TalentKnowledge } from './talentKnowledge';
 
 // --- Magnitude words -------------------------------------------------------
 // A 0-100 reputation/skill value as the qualitative band a player actually
@@ -472,6 +473,100 @@ export function deriveFitRead(trueScore: number, person: Person, assist: FitRead
     confidenceLabel: CONFIDENCE_LABEL[tier],
     uncertaintyCause: cause,
     assistNote: assist.source && assist.level >= ASSIST_NOTABLE ? ASSIST_NOTE[assist.source] : null,
+  };
+}
+
+// --- The fit read from evidence (talent model stage 4) ----------------------
+// docs/DESIGN_talent_model.md §4.5. The read above takes its confidence from how
+// famous someone is. This one takes it from what the studio has actually seen:
+// per attribute, from the films that tested it (engine/talentKnowledge.ts). A
+// famous stranger is a second-hand read; someone you have used three times in
+// action films is known cold on action and a guess on comedy.
+
+/** Weighted confidence at or above this reads "high"; the fair bar reads "medium". */
+const KNOWLEDGE_HIGH = 0.7;
+
+function knowledgeTier(confidence: number): FitConfidence {
+  if (confidence >= KNOWLEDGE_HIGH) return 'high';
+  if (confidence >= FAIR_CONFIDENCE) return 'medium';
+  return 'low';
+}
+
+/** Is this attribute read well enough to vouch for, row by row in the fit breakdown? */
+export function isAttributeKnown(knowledge: TalentKnowledge, key: string): boolean {
+  const read = knowledge.reads.find((r) => r.key === key);
+  return !!read && read.confidence >= FAIR_CONFIDENCE;
+}
+
+/**
+ * Veils the per-axis fit rows the studio has no real read on. Rows carry the
+ * attribute `key` they score; rows without one (a director's tone - taste, not
+ * ability, and visible from their work) always show.
+ */
+export function gateAxesByKnowledge(
+  rows: Array<{ key?: string; label: string; matchScore: number; strength: number; demandWeight?: number }>,
+  knowledge: TalentKnowledge,
+): GatedAxis[] {
+  return rows.map((r) => ({ label: r.label, matchScore: r.matchScore, strength: r.strength, demandWeight: r.demandWeight, known: r.key === undefined || isAttributeKnown(knowledge, r.key) }));
+}
+
+function knowledgeCause(person: Person, knowledge: TalentKnowledge): string {
+  if (knowledge.reads.every((r) => r.tier === 'untested')) return 'an unproven name, with nothing to go on';
+  if (knowledge.ownFilms === 0) return "all you have is what they did for other people";
+  if (person.reputation.reliability < WILDCARD_RELIABILITY) return 'they blow hot and cold - hard to bank on';
+  return "you haven't seen them do what this asks";
+}
+
+/**
+ * The hedged fit read, with its confidence taken from evidence. `weights` says
+ * how much the part leans on each attribute (absent: all equally). Same shape
+ * as deriveFitRead, so the card and comparison render it the same way.
+ */
+export function deriveFitReadFromKnowledge(
+  trueScore: number,
+  person: Person,
+  knowledge: TalentKnowledge,
+  weights?: Record<string, number>,
+  subject: FitSubject = 'fit',
+): FitRead {
+  const confidence = weightedConfidence(knowledge, weights);
+  let covered = 0;
+  let total = 0;
+  for (const r of knowledge.reads) {
+    const w = weights ? (weights[r.key] ?? 0) : 1;
+    total += w;
+    if (r.confidence >= FAIR_CONFIDENCE) covered += w;
+  }
+  const coverage = total > 0 ? covered / total : 1;
+  // A reputation flatters or undersells a stranger; evidence sees through it.
+  const bias = perceivedFitBias(person) * (1 - confidence);
+  const regressed = trueScore * coverage + NEUTRAL_FIT_PRIOR * (1 - coverage);
+  const perceived = clamp(regressed + bias, 0, 100);
+  const tier = lowerTier(knowledgeTier(confidence), coverageTier(coverage));
+  const halfWidth = BAND_HALF_WIDTH[tier] * (1 - confidence * WITHIN_TIER_SHAVE);
+  const cause = tier === 'high' ? null : coverage < FULL_COVERAGE ? COVERAGE_CAUSE : knowledgeCause(person, knowledge);
+  const strongest = knowledge.reads.reduce<TalentKnowledge['reads'][number] | null>((best, r) => (!best || r.confidence > best.confidence ? r : best), null);
+  const assistNote =
+    strongest && strongest.confidence >= CERTAIN_CONFIDENCE * 0.75
+      ? strongest.source === 'own'
+        ? "you've worked together, so you know what you're getting"
+        : strongest.source === 'audition'
+          ? "you've seen them read for the part"
+          : strongest.source === 'casting-director'
+            ? 'your casting director has a read on this one'
+            : null
+      : null;
+  const word = fitQualityWord(perceived);
+  const phrase = `${word === 'excellent' ? 'an' : 'a'} ${word} ${subject}`;
+  return {
+    perceived,
+    confidence: tier,
+    low: clamp(perceived - halfWidth, 0, 100),
+    high: clamp(perceived + halfWidth, 0, 100),
+    verdict: HEDGE[tier](phrase),
+    confidenceLabel: CONFIDENCE_LABEL[tier],
+    uncertaintyCause: cause,
+    assistNote,
   };
 }
 

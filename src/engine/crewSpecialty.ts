@@ -24,7 +24,7 @@ export type PdSpecialty = 'periodCraft' | 'scaleBuild' | 'locationBuild' | 'crea
 export type VfxSpecialty = 'digitalEnvironments' | 'creatureAnimation' | 'compositing' | 'digitalDoubles';
 export type CrewSpecialty = PdSpecialty | VfxSpecialty;
 
-const DEPT_SPECIALTIES: Record<SpecialtyDepartment, CrewSpecialty[]> = {
+export const DEPT_SPECIALTIES: Record<SpecialtyDepartment, CrewSpecialty[]> = {
   productionDesign: ['periodCraft', 'scaleBuild', 'locationBuild', 'creatureBuild'],
   vfx: ['digitalEnvironments', 'creatureAnimation', 'compositing', 'digitalDoubles'],
 };
@@ -160,4 +160,14 @@ export function specialtyWeightedCapability(
         ? `Their weaker area is ${label}, which is exactly what this film leans on.`
         : `Squarely within their range on ${label}, the film's main demand.`;
   return { skill, note };
+}
+
+/** How much a film loads each modelled specialty, from a department workload's contributions (talent knowledge reads what a film tested). */
+export function specialtyLoads(contributions: WorkloadContribution[]): Partial<Record<CrewSpecialty, number>> {
+  const out: Partial<Record<CrewSpecialty, number>> = {};
+  for (const c of contributions) {
+    const spec = LEAF_SPECIALTY[c.key];
+    if (spec) out[spec] = (out[spec] ?? 0) + c.load;
+  }
+  return out;
 }

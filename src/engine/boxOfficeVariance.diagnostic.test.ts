@@ -146,5 +146,7 @@ describe.skipIf(!enabled)('box office outcome variance calibration', () => {
     lines.push(`  median per-plan coefficient of variation: ${median(planCvs).toFixed(3)} (near 0 = deterministic)`);
     console.log(lines.join('\n'));
     expect(failures, `\n${failures.join('\n')}\n`).toEqual([]);
-  });
+    // An explicit budget: this run sits right at vitest's 5 s default, so it
+    // failed on time alone whenever the machine was busy or casting got slower.
+  }, 60_000);
 });

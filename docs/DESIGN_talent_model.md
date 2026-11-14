@@ -1,7 +1,7 @@
 # Design: the talent model
 
-**Status:** design agreed with the owner over three rounds. **Stage 1 is built**
-(section 7.1); stages 2 to 7 are not. Section 8 records what is settled and
+**Status:** design agreed with the owner over three rounds. **Stages 1, 2, 3 and 5 are built**
+(sections 7.1 to 7.4); stages 4, 6 and 7 are not. Section 8 records what is settled and
 what is still open.
 
 **Where this comes from:** `docs/DESIGN_REVIEW_player_economy.md` §9. For
@@ -412,6 +412,130 @@ worked on them, in what part, under whom and how it went.
 - Rivals also take chances on newcomers at about the rate their identity
   suggests, which is where the work-list item on rival identity connects.
 
+### 4.7 People decide: saying no, staying busy, slowing down, leaving
+
+Raised by the owner after stage 5, and not yet built. Everything above treats
+people as things that happen to be hired. They are also the ones choosing, and
+that choice is the third thing growth depends on (4.1a), the thing that keeps
+some people busy and others selective, and the honest way to model retirement.
+
+**What exists today.** An actor can turn the player down for five reasons:
+the part does not suit them, the studio's standing does not match what they
+want, the money, their schedule, or bad history with the studio
+(`engine/castingAppeal.ts`). A director weighs taste and appetite for the
+script. Crew never refuse. Nobody ever refuses a rival. And nothing a person
+decides depends on where they are in their career or what they have just done.
+
+**The principle.** One decision, made the same way by everyone: actors,
+directors and crew, whether the offer comes from the player or a rival. A
+person weighs an offer against what they want right now, says yes or no, and
+if it is no the player is told the reason in a sentence. Rivals being refused
+matters as much as the player being refused: without it rivals get whoever they
+choose, and the pool's dynamics are distorted in their favour.
+
+**What a person weighs.** The first four exist in some form and stay.
+
+| | The question they are asking | Driven by |
+|---|---|---|
+| The money | Is it enough? | Quote, relationship, loyalty (4.3) |
+| The part | Does it suit me? | Fit (exists) |
+| The studio | Do I want to be associated with them? | Brand, prestige, history (exists) |
+| The schedule | Am I free? | Bookings (exists) |
+| **What it does for me** | Is this another one of those, or something new? | Ambition, how established they are, what they have done lately |
+| **Who else is on it** | Do I want to work with this director, this cast? | The director's standing and style, pair history, ego |
+| **Whether it is beneath me** | Is this the size of film and of part someone like me does? | Standing, ego; waived for a script or director they love |
+| **Whether I want to work at all** | Do I need a break? | How much they have worked, how the last film went, temperament, age |
+
+**"Another one of those."** This is the centre of it, and it is what the owner
+identified as the biggest effect.
+
+- Everyone has a **type**: what they are known for. It is not a new stat. It is
+  read from their record: the kinds of part and film they have mostly done, and
+  for someone with no record, what they are naturally strongest at.
+- **An unambitious person likes their type.** Offers that match it are easy
+  yeses. They stay busy, stay where they are, and stop growing, because
+  repeating what you can already do teaches nothing (4.1a). They are the
+  dependable working core of the pool.
+- **An ambitious person tires of it, once they can afford to.** Early on they
+  take what comes, like anyone. With some standing behind them they start
+  turning down the fourth version of the part that made them and looking for
+  the one that stretches them: a different register, a better director, a
+  smaller film with a better script. That is how range gets developed, and it
+  is why they work less often and for less money on some films.
+- **A stretch is a risk for them too.** A counter-cast part that goes badly
+  costs heat. The reference describes the escape from typecasting as taking "a
+  much smaller fee and often a smaller part, in exchange for evidence", and
+  needing to do it twice before it counts (`docs/domain/12` §4.6). So an
+  ambitious person offered a stretch by a studio or director they trust says
+  yes cheaply, which is a real opening for a small studio.
+- The player sees it in a line: "She has played three detectives running and
+  wants something else", or "He is glad of the work".
+
+**Who else is on it.** A director already draws actors by standing. Add the
+reverse: some people will not work with a particular director or co-star again
+after a bad experience (pair history exists and records how collaborations
+went), and a person with a high ego will not take second billing to someone
+they consider beneath them.
+
+**Breaks.** Being available is not the same as wanting to work.
+
+- After several films back to back, a person may take time off. How soon
+  depends on temperament: the driven and the professional keep going, others
+  pace themselves.
+- A bad experience prompts one: a bomb that was blamed on them, a troubled
+  shoot.
+- A break is a period in which they turn down everything, or everything except
+  an offer they could not refuse (a director they revere, the part of a
+  lifetime). The player is told: "Taking a year away from films."
+- Breaks end. Someone coming back has cooled a little and is often keen, which
+  makes them good value.
+
+**Slowing down and leaving.** Stage 3 retires people with a yearly chance that
+depends on age. That works as bookkeeping and is not how it happens. Retirement
+is a process, and people go through it at different ages for different reasons.
+
+| Phase | What they do | The player sees |
+|---|---|---|
+| Working | Take offers on the terms above. | Nothing special. |
+| **Selective** | Take fewer films. Money matters less; the part, the director and the people matter more. Leads become supporting parts by choice. | "Works rarely now, and only for the right project." |
+| **Semi-retired** | Turn down nearly everything. Can still be coaxed out by a director they trust or a part written for someone their age. | "Says he has retired. People say that." |
+| Gone | Leave the pool. | In the year's notice (stage 3). |
+
+What moves someone from one phase to the next is personal:
+
+- **Age**, differently by job: the reference has actors moving to character
+  parts and directors peaking in their fifties and sixties (`12` §4.7).
+- **Ambition.** The driven work until they cannot. Others stop when they have
+  enough.
+- **How it is going.** Some leave at the top. More leave because the offers
+  have dried up or got smaller, which is the decline in 4.3 reaching its end.
+- **Burnout:** a run of bombs or bad shoots.
+- **The physical demands** of what they are known for. An action star has to
+  change type or stop sooner than a character actor.
+
+Comebacks follow from the semi-retired phase without a special rule: a faded or
+retired name, cheap and famous, who says yes to the right offer and is good in
+it, regains heat like anyone else.
+
+**What this does to the pool.** It replaces three approximations.
+
+- The age-based retirement chance (stage 3) becomes the phases above.
+- "Rivals hire whoever they pick" (stage 5) becomes "rivals offer, and people
+  choose", so the hottest people are genuinely scarce and a rival can lose
+  someone to the player on something other than price.
+- Growth through choice (4.1a, item 2) becomes real: who diversifies and who
+  repeats is decided by the person.
+
+**What it needs that does not exist yet.**
+
+- A way to say what kind of part an offer is, and what a person's type is, from
+  their record. People generated before the game began have a count of prior
+  credits and no record of what they were, so their type has to be inferred
+  from their strengths until they have made films in this world.
+- The decision applied to crew and to rivals' offers, which never go through it
+  today.
+- A named reason for every kind of refusal, in the house style.
+
 ## 5. Why this does not recreate the exploit
 
 The trial broke for three reasons. Each has an answer here.
@@ -447,7 +571,7 @@ with the best reads.
 
 ## 7. Build order
 
-Seven stages. Each can ship alone, is measurable with the harness, and leaves the
+Eight stages. Each can ship alone, is measurable with the harness, and leaves the
 game playable. The actual untying of skill from fee comes last, once everything
 that makes it safe is in place.
 
@@ -460,6 +584,11 @@ that makes it safe is in place.
 | 5 | **Rivals hire on track record.** | Rivals chase hot people, including yours. | M |
 | 6 | **Untie ability from fee, per attribute. Potential, growth through use, and consistency from experience.** | Hidden ability exists; people develop; scale demands experience. | L |
 | 7 | **Personality prices the relationship, and deals.** Loyalty, ambition and ego move what someone asks of you; multi-film deals. | Some discoveries stay; others have to be signed or lost. | M |
+
+| 8 | **People decide (4.7).** One accept-or-refuse decision for everyone and for rivals' offers; type, stretch and repetition; breaks; retirement as phases. | People turn you down for reasons you can read, the ambitious seek new kinds of part, and veterans slow down before they go. | L |
+
+Stages 1, 2, 3, 4 and 5 are built. The agreed order for the rest is 8, 6, 7:
+people deciding, then untying ability from fee, then deals.
 
 Stage 7's first half (personality moving the ask) is small and could ride with
 stage 2, since both touch how a price is set. Deals are the larger half.
@@ -516,6 +645,228 @@ Hand-authored people (the real-world roster and the marquee directors) are
 untouched: they carry their own ages and standing and have no prior-credit
 count yet.
 
+### 7.2 Stage 2, as built
+
+`engine/careerProgress.ts`. When a film's run ends, everyone credited on it,
+on the player's films and rivals' alike, is updated:
+
+| | Moves with | Notes |
+|---|---|---|
+| **Heat** | How the film did in cinemas, from a full bomb (lost 60% of its cost or more) to a full hit (125% profit or more) | Weighted by role: lead 1.0, director 0.9, supporting 0.35, writer 0.3, down to 0.1 for a casting director. For actors, a quarter of it is their own notices. A miss is cushioned by up to 75% for someone famous and long in the job, and the cushion thins as heat sinks. |
+| **Fame** | How many people saw the film | Never falls for a bomb. Harder to add to the more famous someone is. |
+| **Industry respect** | The reviews | |
+| **Experience** | The credit | Kept in step with the years the career has run. |
+| **Quote** | All of the above | See below. |
+
+Awards add heat and respect for the person named. Each quarter heat closes 16%
+of its gap to fame and fame slips by 0.15%.
+
+**The quote** is read against an anchor: the fee and standing a person had when
+the market first repriced them. The same standing therefore always implies the
+same quote. It rises to that figure at once and falls toward it by 30% of the
+gap at the moment of a bad result and 12% a quarter after.
+
+The first version passed on all of every rise and a share of every fall,
+step by step. That is a ratchet with no way back, and it inflated the whole
+pool: the median actor's fee more than tripled in ten years on the ordinary ups
+and downs of heat. Anchoring fixed it.
+
+**Measured** (four tiers, Careful and Steady, three seeds, ten years):
+
+- **The player's economy reads the same as stage 1**, within seed noise. Median
+  film quality is 41 to 43 at Indie, 47 to 55 at Boutique, 68 at Mid-Major, 73
+  to 74 at Major. Ability has not moved, so this is expected.
+- **The pool keeps its fame.** After ten years mean fame is up 7% for actors
+  and flat for directors and crew.
+- **Fees compress toward the middle.** The median actor's fee is 1.8 to 1.9
+  times what it was and the median director's 1.2 to 1.4 times, while the top
+  decile is slightly down (0.94 to 0.97 for actors, 0.85 for directors). People
+  who work become better known; the famous can only hold their place. With
+  nobody arriving at the bottom and nobody leaving the top, the middle fills
+  up. This is what stage 3 is for, and it is left for stage 3.
+- **A breakout raises an unknown lead's quote by a little under double**, short
+  of the "at least doubles" in section 6. Making breakouts bigger pushes the
+  compression above further, so it also waits for stage 3.
+
+**A limit on the measurement.** The box-office gates read exactly as they did
+after stage 1. That is not evidence of no effect: they run their own market loop
+and do not go through the calendar settlement where careers move, so they
+cannot see this stage at all. The harness, which plays through the real
+reducer, is the only thing that measures it.
+
+### 7.3 Stage 3, as built
+
+`engine/careerTurnover.ts`, applied once in the reducer as the calendar moves
+into a new year.
+
+- **Who leaves.** Nobody for age before 55. From there the yearly chance rises
+  from 2% to 25% at 80, is 50% after that, and everyone has gone by 88.
+  Directors are judged eight years later than everyone else, since their
+  careers peak late. Separately, someone who has not worked in six years and
+  whose heat is below 35 has an 8% yearly chance of drifting out.
+- **Who is safe.** Anyone attached to an unreleased film of the player's. (As
+  first built, anyone booked by a rival was safe too; that turned out to mean
+  almost nobody left, and was removed in 7.4.) No profession loses more than
+  6% of its people in a year.
+- **Who arrives.** The same number, in the same profession: generated from the
+  bottom 30% of the fee range, aged a few years past the youngest the job
+  starts at, with at most three years and a handful of credits behind them.
+- **No dice from the main stream.** Departures are decided by a hash of the
+  person and the year, and newcomers are generated from a seed derived from the
+  save's own, so adding this moved no existing roll.
+- **The player is told.** A stored note per year goes to the Inbox: how many
+  arrived and left, the best-known departures by name, and anyone leaving whom
+  the studio had worked with, with a button to the talent database. It counts
+  toward the badge until the Inbox is opened and stays until dismissed.
+
+**Measured** (four tiers, Careful and Steady, three seeds, ten years).
+
+The player's economy reads the same as stage 2 within seed noise.
+
+The pool after ten years, against day one:
+
+| | Mean fame | Median fee | Top-decile fee |
+|---|--:|--:|--:|
+| Actors | 1.06x | 1.7x to 2.0x | 0.80x to 0.85x |
+| Directors | 1.00x | 1.5x to 1.75x | 0.79x to 0.82x |
+| Cinematographers | 0.91x | 0.74x to 0.82x | 0.80x to 0.87x |
+
+**It did not fix the compression.** Fame held and people arrived and left, but
+fees still crowded toward the middle: the median actor asked nearly double and
+the top tenth about a fifth less. The explanation offered at the time - rivals
+hire by price, so nobody is given the film that would take them to the top -
+was a guess, and stage 5 showed it to be wrong (7.4).
+
+Also not done: people who leave vanish from the talent database, though the
+films they made keep their record of them.
+
+### 7.4 Stage 5, as built, and what was really wrong with the pool
+
+Stage 5 was taken ahead of stage 4 because the pool's stability was thought to
+be waiting on it.
+
+**Rivals hire on track record** (`engine/rivalCasting.ts`). A rival used to take
+the people whose fee was nearest a target price and pick among them at random.
+It now considers everyone it can afford for the film, from 35% of the target
+up to 112% of it, and takes the best track records by its own imperfect read:
+heat and fame for the people the public knows, the respect of colleagues and
+years in the job for the crafts, each off by up to 14 points either way. A cheap
+person on a run is now in contention for a bigger film; the same person without
+the heat is not. Rivals know only what a player can see of a stranger.
+
+**That alone changed nothing about the pool.** Fees compressed exactly as
+before. So the pool was measured by group over ten years instead of in
+aggregate, and the cause turned out to be in stage 2:
+
+- **Fame had one resting level for everybody.** Gains shrank as fame rose, and
+  decay was proportional to fame. Any working person drifted toward the same
+  point: the middle third of actors gained eight to ten points of fame and the
+  top third lost four.
+- **Almost nobody was leaving.** Anyone a rival had booked was held back from
+  retiring, and working people are always booked: 25 of 900 actors turned over
+  in ten years.
+
+What changed:
+
+- **Fame is the level of the biggest things someone has been seen in.** A film
+  has a reach set by its gross (22 at £15M, 12.5 more for each doubling, so
+  about 47 at £60M, 72 at £240M and the high 90s at £1B). Being in it moves a
+  person 35% of the way from where they are up to their role's share of that
+  reach: all of it for a lead or director, 45% for a supporting part, 15 to 35%
+  for writers and crew. Someone already better known than that gains nothing.
+  Routine work at your own level changes nothing, a star stays a star, and a
+  breakout is a leap. Fame now decays at 0.4% a year.
+- **Craft rates climb with experience.** A head of department's market value
+  now includes years in the job, which is what lets those pools hold their
+  shape when newcomers arrive at the bottom and veterans leave from the top.
+- **Being booked by a rival no longer keeps someone from retiring.** The film
+  they are on carries its own record of them. People on the player's unreleased
+  films are still protected.
+
+**Measured** (four tiers, Careful and Steady, three seeds, ten years). The pool
+after ten years against day one:
+
+| | Mean fame | Median fee | Top-decile fee |
+|---|--:|--:|--:|
+| Actors | 1.02x to 1.04x | 1.35x to 1.48x (was 1.7x to 2.0x) | 0.83x to 0.88x |
+| Directors | 0.97x to 0.99x | 1.09x to 1.32x (was 1.5x to 1.75x) | 0.80x to 0.89x |
+| Cinematographers | 1.02x to 1.04x | 0.65x to 0.69x | 0.92x to 0.97x |
+
+Roughly stable, not exactly. The middle still rises somewhat and the top still
+slips, and the median craft fee falls because newcomers arrive at the very
+bottom. "The pool is stable" in section 6 is **mostly met**: within about a
+third at the median and a fifth at the top over a decade, where it was a factor
+of two.
+
+The player's economy reads the same within seed noise, and median film quality
+is unchanged at every tier. The box-office gates are steady: the whole-year gate
+passes 18 of 21 (it was 17), the buzz gate passes, and the budget-tier gate has
+six misses as it has since stage 1. The variance gate's assertions all pass; it
+was failing only on vitest's 5-second default, which it sat right at, and now
+has an explicit time budget.
+
+Not done in this stage: rivals do not yet remember whom they have worked with,
+so the agreed rule that a rival knows people it has used better than strangers
+waits for stage 4, when ability stops being visible. And a person's loyalty does
+not yet weigh against a rival's offer; that is stage 7.
+
+### 7.5 Stage 4, as built
+
+**What a read is.** `engine/talentKnowledge.ts` derives, for one person in one
+role, a read of each attribute the job involves: an actor's five, a director's
+four (storytelling, visual command, working with actors, shaping the cut), a
+production designer's or VFX supervisor's specialties, and a single "craft" for
+the other crafts and writers (the engine still has one number for them). Each
+read has a centre, a band, a confidence, a verdict in words ("Strong", "Very
+likely good", "Good to strong", "Probably good", "Hard to say", "Untested") and
+the basis behind it ("You saw it on two of your films", "One film for another
+studio", "What they are known for"). Nothing is stored: it is rebuilt from the
+released films, indexed by person once per projects array.
+
+**Where evidence comes from**, as built:
+
+| Source | Strength | Notes |
+|---|---|---|
+| Your own film | One demanding lead takes a read about half way; three make it certain | Tested only on what the part asked: a character's demands for an actor, the script's scale, spectacle and cast for a director, the department workload's specialties for a designer or VFX head |
+| Another studio's film | 0.3 of an own film, and never past 60% confidence | For actors, work under a director who is strong with actors flatters the read until your own evidence replaces it |
+| The career before the game | Second-hand, per credit, weighted by how strong the attribute is and how famous they are | So a veteran is known for their strengths and a mystery in what they are never cast for |
+| A casting director | Up to half-way on every actor attribute, by skill | Unbiased |
+| A screen test | Most of the way, on what the part asks | |
+
+An unconfirmed read sits off the truth by a per-person, per-attribute amount
+(up to 16 points), which shrinks as confidence grows, so a read is not just a
+wider band around the right answer.
+
+**What it changes.** The talent card's fit read now takes its confidence from
+this evidence, weighted by what the part asks for, instead of from fame; the
+per-axis breakdown veils the axes nobody has seen; the reputation bias (a famous
+coaster reads better than they are) fades with evidence. The casting director's
+take and the two-candidate comparison read the same way. The director's
+creative-demand read and the pitch cards reveal a domain when a film has shown
+it, banded by the read rather than the truth. The card gains a "Before you
+offer" caveat, always visible, and a "Track record & what you know" section one
+click away: the last four films with year, part, how each went and, for actors,
+their own notices, then the reads. Rivals read anyone they have put in one of
+their own released films by real ability, without noise (noise is still drawn,
+so the stream does not move).
+
+**Design pass.** The layout follows the canvas the user approved
+(https://claude.ai/artifact/XapUz9yK2Bg4ZNoGFDQw4Z) with one change: the track
+record and reads sit behind a disclosure, since the same card is used in
+candidate lists of twenty or more; the caveat stays on the face of the card.
+
+**Measured.** The whole-year gate passes 18 of 21 with the same three misses as
+stage 5, within seed noise. The full suite passes. No save change: knowledge is
+derived.
+
+**Not done.** The on-set replacement card still uses the older fame-based read
+(it has no film history to hand). The staffing board's read of crew already
+hired still compares their true skill with the workload. A read does not yet age
+(a read of someone last used years ago is a read of who they were then); with
+ability fixed until stage 6 there is nothing for it to drift from. "Still
+getting better" waits for growth in stage 6. Screen tests for crew, and a
+department head vouching for someone, are not built.
+
 ## 8. Decisions
 
 Settled with the owner:
@@ -559,9 +910,10 @@ Still open:
   find is the average those spread around: too fast and most people reach their
   potential in a few films; too slow and development is invisible in a
   ten-year game. This is a number to find with the harness.
-- **How much people steer their own careers.** 4.1a has ambitious people
-  preferring parts that stretch them. That needs the offer-acceptance logic to
-  know whether a part is a stretch for this person, which it does not today.
+- **How much people steer their own careers.** Now designed as 4.7 (stage 8):
+  what a person weighs, type and stretch, breaks, and retirement as phases. Not
+  built. Order agreed: it comes after stage 4 and before stage 6, because it is
+  one of the three things growth depends on.
 
 ## 9. Risks and limits
 

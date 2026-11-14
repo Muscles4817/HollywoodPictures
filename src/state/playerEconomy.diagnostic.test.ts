@@ -14,7 +14,7 @@
 // run one TIERS value per process to do tiers in parallel.
 import { describe, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
-import { BOT_STRATEGIES, runBot, type BotRun } from './playerBot';
+import { BOT_STRATEGIES, runBot, type BotRun, type PoolStats } from './playerBot';
 import { DIFFICULTY_TIERS } from '../data/difficulty';
 
 const YEARS = Number(process.env.YEARS ?? 10);
@@ -69,6 +69,16 @@ function summarise(runs: BotRun[]): string[] {
   const viaDistributor = films.filter((f) => f.viaDistributor).length;
   const wide = films.filter((f) => f.releaseType === 'Wide').length;
   lines.push(`    releases: ${pct(wide, films.length)} wide, ${pct(viaDistributor, films.length)} through a rented distributor | median gross ${money(median(films.map((f) => f.boxOffice ?? 0)))}`);
+
+  // Did the talent pool stay where it started? (median across seeds of end / start)
+  const drift = (profession: string, pick: (s: PoolStats) => number) =>
+    median(runs.map((r) => pick(r.pool.end[profession]) / Math.max(1e-9, pick(r.pool.start[profession]))));
+  lines.push(
+    `    pool after ${YEARS}y vs day 1: ` +
+      ['Actor', 'Director', 'Cinematographer']
+        .map((p) => `${p} fame x${drift(p, (s) => s.meanFame).toFixed(2)} heat x${drift(p, (s) => s.meanHeat).toFixed(2)} median fee x${drift(p, (s) => s.medianFee).toFixed(2)} top-decile fee x${drift(p, (s) => s.topDecileFee).toFixed(2)}`)
+        .join(' | '),
+  );
 
   const wentNegative = runs.filter((r) => r.years.some((y) => y.cashMin < 0)).length;
   const blocked = runs.filter((r) => r.releaseFirstBlockedOnDay !== null);
