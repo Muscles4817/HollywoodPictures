@@ -587,9 +587,8 @@ that makes it safe is in place.
 
 | 8 | **People decide (4.7).** One accept-or-refuse decision for everyone and for rivals' offers; type, stretch and repetition; breaks; retirement as phases. | People turn you down for reasons you can read, the ambitious seek new kinds of part, and veterans slow down before they go. | L |
 
-Stages 1, 2, 3 and 5 are built. The agreed order for the rest is 4, 8, 6, 7:
-knowledge first (starting with a design pass on the talent card), then people
-deciding, then untying ability from fee, then deals.
+Stages 1, 2, 3, 4 and 5 are built. The agreed order for the rest is 8, 6, 7:
+people deciding, then untying ability from fee, then deals.
 
 Stage 7's first half (personality moving the ask) is small and could ride with
 stage 2, since both touch how a price is set. Deals are the larger half.
@@ -810,6 +809,63 @@ Not done in this stage: rivals do not yet remember whom they have worked with,
 so the agreed rule that a rival knows people it has used better than strangers
 waits for stage 4, when ability stops being visible. And a person's loyalty does
 not yet weigh against a rival's offer; that is stage 7.
+
+### 7.5 Stage 4, as built
+
+**What a read is.** `engine/talentKnowledge.ts` derives, for one person in one
+role, a read of each attribute the job involves: an actor's five, a director's
+four (storytelling, visual command, working with actors, shaping the cut), a
+production designer's or VFX supervisor's specialties, and a single "craft" for
+the other crafts and writers (the engine still has one number for them). Each
+read has a centre, a band, a confidence, a verdict in words ("Strong", "Very
+likely good", "Good to strong", "Probably good", "Hard to say", "Untested") and
+the basis behind it ("You saw it on two of your films", "One film for another
+studio", "What they are known for"). Nothing is stored: it is rebuilt from the
+released films, indexed by person once per projects array.
+
+**Where evidence comes from**, as built:
+
+| Source | Strength | Notes |
+|---|---|---|
+| Your own film | One demanding lead takes a read about half way; three make it certain | Tested only on what the part asked: a character's demands for an actor, the script's scale, spectacle and cast for a director, the department workload's specialties for a designer or VFX head |
+| Another studio's film | 0.3 of an own film, and never past 60% confidence | For actors, work under a director who is strong with actors flatters the read until your own evidence replaces it |
+| The career before the game | Second-hand, per credit, weighted by how strong the attribute is and how famous they are | So a veteran is known for their strengths and a mystery in what they are never cast for |
+| A casting director | Up to half-way on every actor attribute, by skill | Unbiased |
+| A screen test | Most of the way, on what the part asks | |
+
+An unconfirmed read sits off the truth by a per-person, per-attribute amount
+(up to 16 points), which shrinks as confidence grows, so a read is not just a
+wider band around the right answer.
+
+**What it changes.** The talent card's fit read now takes its confidence from
+this evidence, weighted by what the part asks for, instead of from fame; the
+per-axis breakdown veils the axes nobody has seen; the reputation bias (a famous
+coaster reads better than they are) fades with evidence. The casting director's
+take and the two-candidate comparison read the same way. The director's
+creative-demand read and the pitch cards reveal a domain when a film has shown
+it, banded by the read rather than the truth. The card gains a "Before you
+offer" caveat, always visible, and a "Track record & what you know" section one
+click away: the last four films with year, part, how each went and, for actors,
+their own notices, then the reads. Rivals read anyone they have put in one of
+their own released films by real ability, without noise (noise is still drawn,
+so the stream does not move).
+
+**Design pass.** The layout follows the canvas the user approved
+(https://claude.ai/artifact/XapUz9yK2Bg4ZNoGFDQw4Z) with one change: the track
+record and reads sit behind a disclosure, since the same card is used in
+candidate lists of twenty or more; the caveat stays on the face of the card.
+
+**Measured.** The whole-year gate passes 18 of 21 with the same three misses as
+stage 5, within seed noise. The full suite passes. No save change: knowledge is
+derived.
+
+**Not done.** The on-set replacement card still uses the older fame-based read
+(it has no film history to hand). The staffing board's read of crew already
+hired still compares their true skill with the workload. A read does not yet age
+(a read of someone last used years ago is a read of who they were then); with
+ability fixed until stage 6 there is nothing for it to drift from. "Still
+getting better" waits for growth in stage 6. Screen tests for crew, and a
+department head vouching for someone, are not built.
 
 ## 8. Decisions
 
