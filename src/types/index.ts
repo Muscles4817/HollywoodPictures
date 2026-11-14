@@ -2835,6 +2835,8 @@ export interface FilmDraft {
   shortlist?: ShortlistEntry[];
   /** Casting Redesign, Phase 4 - screen tests the studio has arranged for candidates on this draft's characters, at most one per (character, actor). Each takes calendar time to complete (AuditionRecord.readyOnDay) and then reads as a confident fit. Read as `[]` when absent (older drafts). */
   auditions?: AuditionRecord[];
+  /** Crew whose reels the studio has reviewed for this film (talent model stage 6): a proper look at their work, which sharpens the read. */
+  reelsSeen?: Array<{ personId: PersonId; role: ProductionRole }>;
   /** Director bake-off (Phase B2) - an open pitch round for the Director role: directors preparing pitches and the pitches received, awaiting the player's pick. Absent when no round is open (the default; a director can still be hired directly via the offer path). Cleared on select/pass. */
   directorPitches?: DirectorPitchProcess;
   /** Director bake-off (Phase B2) - the pitch the player selected when hiring this draft's director, frozen for the downstream production bets it promises (tonal take, production approach) to read in Phase B3. Absent when the director was hired via the direct offer path rather than a pitch. */

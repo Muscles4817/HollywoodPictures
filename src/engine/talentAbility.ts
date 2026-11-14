@@ -48,6 +48,8 @@ export const POTENTIAL_SPREAD = 17;
  * 0.5, and careers push it a little higher (docs/DESIGN_talent_model.md §7.7).
  */
 export const FEE_LINK = 28;
+/** The same for actors, across their five axes: a lighter sort, since an actor's price follows fame more than craft. */
+export const ACTOR_FEE_LINK = 12;
 /** The floor ability is grown up from: what anyone in the job can already do. */
 const ABILITY_FLOOR = 30;
 /**
@@ -120,7 +122,13 @@ export function untieAbility(person: Person, t: number, seed: string): Person {
   const experience = (Object.values(careers)[0] as { experience?: number } | undefined)?.experience ?? 0;
 
   if (careers.actor) {
-    const style = careers.actor.actingStyle;
+    // A working market has already sorted actors a little by how good they
+    // are (stage 6, the owner's call): an expensive actor is better than a
+    // cheap one on average, by a little, everywhere. Applied once, on the
+    // first pass - a newcomer is re-derived for their few years, not re-sorted.
+    const style = careers.actor.potential
+      ? careers.actor.actingStyle
+      : (Object.fromEntries(ACTING_STYLE_AXES.map((axis) => [axis, clamp(Math.round(careers.actor!.actingStyle[axis] + ACTOR_FEE_LINK * (t - 0.5)), 1, 100)])) as unknown as ActingStyle);
     const roomScale = ACTOR_ROOM_VETERAN + (ACTOR_ROOM_YOUNG - ACTOR_ROOM_VETERAN) * (1 - clamp(experience / MATURE_EXPERIENCE, 0, 1));
     const potential: Record<string, number> = {};
     for (const axis of ACTING_STYLE_AXES) {
@@ -128,7 +136,7 @@ export function untieAbility(person: Person, t: number, seed: string): Person {
       const room = roomScale * hashUnit(`${seed}|room|${axis}`) ** 1.5 * 1.6;
       potential[axis] = clamp(Math.round(style[axis] + room), style[axis], 100);
     }
-    careers.actor = { ...careers.actor, potential };
+    careers.actor = { ...careers.actor, actingStyle: style, potential };
     return { ...person, careers };
   }
 

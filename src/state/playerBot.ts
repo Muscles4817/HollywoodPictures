@@ -449,12 +449,17 @@ export function expectedAbility(knowledge: TalentKnowledge, weights?: Record<str
 
 /** A scout gives up this much expected ability for each halving of the fee. */
 const SCOUT_POINTS_PER_HALVING = 6;
+/** How many crew reels a scout reviews per role before choosing. */
+const SCOUT_REELS_PER_ROLE = 3;
 
 function candidateScore(person: Person, role: ProductionRole, script: Script, slot: number, strategy: BotStrategy, knowledge: TalentKnowledge, cheapest = 1): number {
   if (strategy.castBy === 'cheapest') return -getTypicalSalaryForRole(person, role);
   if (strategy.castBy === 'scout') {
     const value = candidateScore(person, role, script, slot, { ...strategy, castBy: 'fit' }, knowledge);
-    return value - SCOUT_POINTS_PER_HALVING * Math.log2(Math.max(1, getTypicalSalaryForRole(person, role)) / Math.max(1, cheapest));
+    // Someone it has learned is good is worth paying for again: the price
+    // counts for less the better the studio knows them (its discoveries).
+    const known = knowledge.reads.length ? knowledge.reads.reduce((sum, r) => sum + (r.source === 'own' ? r.confidence : 0), 0) / knowledge.reads.length : 0;
+    return value - SCOUT_POINTS_PER_HALVING * (1 - known) * Math.log2(Math.max(1, getTypicalSalaryForRole(person, role)) / Math.max(1, cheapest));
   }
   if (strategy.castBy === 'fame') return person.reputation.fame;
   if (role === 'Lead Actor' || role === 'Supporting Actor') {
@@ -490,7 +495,21 @@ function hireCastAndCrew(state: GameState, strategy: BotStrategy, talentBudget: 
     const shortlist = withinBudget.length > 0 ? withinBudget : [...pool].sort((a, b) => getTypicalSalaryForRole(a, role) - getTypicalSalaryForRole(b, role)).slice(0, 1);
     const credits = buildCreditIndex(s.projects);
     const cheapest = Math.min(...shortlist.map((person) => getTypicalSalaryForRole(person, role)));
-    const score = new Map(shortlist.map((person) => [person.id, candidateScore(person, role, script, slot, strategy, deriveTalentKnowledge(person, role, credits), cheapest)]));
+    const knowledgeOf = (state: GameState, person: Person) => {
+      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId))!;
+      return deriveTalentKnowledge(person, role, credits, {
+        colleagues: d.talent,
+        reelSeen: (d.reelsSeen ?? []).some((r) => r.personId === person.id && r.role === role),
+      });
+    };
+    let score = new Map(shortlist.map((person) => [person.id, candidateScore(person, role, script, slot, strategy, knowledgeOf(s, person), cheapest)]));
+    // A scout looks properly at the cheap crew it is drawn to before choosing.
+    if (strategy.castBy === 'scout' && !['Lead Actor', 'Supporting Actor', 'Director', 'Writer'].includes(role)) {
+      for (const person of [...shortlist].sort((a, b) => score.get(b.id)! - score.get(a.id)!).slice(0, SCOUT_REELS_PER_ROLE)) {
+        s = studioReducer(s, { type: 'REVIEW_REEL', role, personId: person.id, personName: person.identity.name });
+      }
+      score = new Map(shortlist.map((person) => [person.id, candidateScore(person, role, script, slot, strategy, knowledgeOf(s, person), cheapest)]));
+    }
     const ranked = [...shortlist].sort((a, b) => score.get(b.id)! - score.get(a.id)!);
     // The reducer can still refuse a hire (a rule this filter does not model); try down the list.
     for (const person of ranked.slice(0, 8)) {

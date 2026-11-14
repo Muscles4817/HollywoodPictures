@@ -41,6 +41,7 @@ import {
 import type { PressTourResponseId } from '../data/pressTourMoments';
 import { backendDealFromOffer } from '../engine/backend';
 import { recordCashChange } from '../engine/cashLedger';
+import { reelReviewCost } from '../engine/talentKnowledge';
 import {
   accrueAncillaryAwardsPremium,
   accrueRivalAncillary,
@@ -1990,6 +1991,23 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
     // Casting Director's skill); completeness is then DERIVED from the clock, so
     // no tick is needed to "finish" it. No-op if one's already been arranged for
     // this pair - you don't audition someone twice.
+    // Talent model stage 6: a crew candidate's reel, reviewed for this film. A
+    // look at the work rather than a test shoot, so it lands the same day - it
+    // costs a small fee and sharpens every read of them (engine/talentKnowledge.ts).
+    case 'REVIEW_REEL': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const seen = focusedDraft.reelsSeen ?? [];
+      if (seen.some((r) => r.personId === action.personId && r.role === action.role)) return state;
+      const person = Object.values(state.talentPool).flat().find((p) => p.id === action.personId);
+      if (!person) return state;
+      const cost = reelReviewCost(getTypicalSalaryForRole(person, action.role));
+      if (cost > state.studio.cash) return state;
+      const studio = recordCashChange(state.studio, state.totalDays, -cost, 'production', `Reviewed ${action.personName}'s reel`);
+      const next = { ...focusedDraft, reelsSeen: [...seen, { personId: action.personId, role: action.role }] };
+      return { ...state, studio, projects: replaceDraft(state.projects, next) };
+    }
+
     case 'REQUEST_AUDITION': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;

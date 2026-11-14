@@ -67,6 +67,14 @@ describe('ability is untied from fee', () => {
   });
 });
 
+describe('actors start lightly sorted by fee', () => {
+  it('an expensive actor is a little better than a cheap one, on average', () => {
+    const r = pearson(pool.Actor.map(fee), pool.Actor.map((p) => mean(p, 'Lead Actor')));
+    expect(r).toBeGreaterThan(0.2);
+    expect(r).toBeLessThan(0.6);
+  });
+});
+
 describe('growth through use', () => {
   const actor: Person = (() => {
     const base = pool.Actor[3];

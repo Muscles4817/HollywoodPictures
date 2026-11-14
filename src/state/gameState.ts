@@ -439,6 +439,8 @@ export type GameAction =
   // completes it reads as the strongest possible fit. No-op if one's already
   // been arranged for this pair.
   | { type: 'REQUEST_AUDITION'; characterId: string; role: 'Lead Actor' | 'Supporting Actor'; personId: string; personName?: string }
+  /** Review a crew candidate's reel for the focused film: costs a small fee, sharpens the read the same day (talent model stage 6). */
+  | { type: 'REVIEW_REEL'; role: ProductionRole; personId: string; personName: string }
   // Casting QOL - mark the completed screen tests the player has now SEEN as
   // acknowledged (fired when the character's casting drawer opens), so the "an
   // audition came back" Inbox beat pings exactly once. Omit characterId to

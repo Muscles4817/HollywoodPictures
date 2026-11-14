@@ -7,6 +7,7 @@ import {
   ELSEWHERE_CONFIDENCE_CAP,
   FAIR_CONFIDENCE,
   readFor,
+  reelReviewCost,
   type TalentKnowledge,
 } from './talentKnowledge';
 import { gateAxesByKnowledge, deriveFitReadFromKnowledge } from './talentCardPresentation';
@@ -57,7 +58,7 @@ function film(script: Script, talent: Array<{ role: ProductionRole; person: Pers
 
 const lead = (person: Person) => ({ role: 'Lead Actor' as const, person });
 const directedBy = (person: Person) => ({ role: 'Director' as const, person });
-const know = (projects: Project[], person: Person = actor, role: ProductionRole = 'Lead Actor', opts = {}) =>
+const know = (projects: Project[], person: Person = actor, role: ProductionRole = 'Lead Actor', opts: Parameters<typeof deriveTalentKnowledge>[3] = {}) =>
   deriveTalentKnowledge(person, role, buildCreditIndex(projects), opts);
 const conf = (k: TalentKnowledge, key: string) => readFor(k, key)!.confidence;
 
@@ -215,5 +216,34 @@ describe('rivals know the people they have used', () => {
     const b = chooseRivalHires(candidates, 'Lead Actor', fee, 1, createRng(2), used);
     expect(a).toEqual(b);
     expect(knownAbility(best, 'Lead Actor')).toBeGreaterThan(0);
+  });
+});
+
+describe('vouching and reels (stage 6)', () => {
+  const editor = pool.Editor[3];
+  const dp = pool.Cinematographer[3];
+  const elsewhere = [film(baseScript, [{ role: 'Editor', person: editor }, directedBy(plainDirector)], { rival: 'Rival' })];
+
+  it('someone on the film who has worked with them vouches, and the read firms up', () => {
+    const stranger = know(elsewhere, editor, 'Editor');
+    const vouched = know(elsewhere, editor, 'Editor', { colleagues: [{ role: 'Director', person: plainDirector }] });
+    expect(vouched.vouchedBy?.name).toBe(plainDirector.identity.name);
+    expect(conf(vouched, 'craft')).toBeGreaterThan(conf(stranger, 'craft') + 0.2);
+    expect(vouched.caveat).toMatch(/vouches for them/);
+    expect(readFor(vouched, 'craft')!.basis).toMatch(/has worked with them/);
+  });
+
+  it('nobody vouches for someone they never worked with', () => {
+    expect(know(elsewhere, editor, 'Editor', { colleagues: [{ role: 'Cinematographer', person: dp }] }).vouchedBy).toBeNull();
+  });
+
+  it("a reviewed reel sharpens a crew member's read, and only a crew member's", () => {
+    expect(conf(know([], editor, 'Editor', { reelSeen: true }), 'craft')).toBeGreaterThan(conf(know([], editor, 'Editor'), 'craft') + 0.4);
+    expect(conf(know([], actor, 'Lead Actor', { reelSeen: true }), 'comedy')).toBe(conf(know([], actor, 'Lead Actor'), 'comedy'));
+  });
+
+  it('a reel costs a sliver of their quote, with a floor', () => {
+    expect(reelReviewCost(10_000)).toBe(2_000);
+    expect(reelReviewCost(5_000_000)).toBe(100_000);
   });
 });
