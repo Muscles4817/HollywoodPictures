@@ -8,10 +8,10 @@ import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateStuntTeamPool } from '../engine/stuntTeams';
 import { firstDayOfYear } from '../engine/calendar';
 import { asPlayerDraft, findProject, playerReleasedFilms, projectId, scheduledPlayerReleases } from '../engine/project';
-import { availableCandidatesForRole, getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../engine/person';
+import { availableCandidatesForRole, getDirectorCareer, getTypicalSalaryForRole } from '../engine/person';
 import { personMeetsCharacterAge, personMeetsCharacterGender } from '../engine/casting';
 import { characterForRoleSlot, effectiveRoleCapacity } from '../engine/castRequirements';
-import { computeActorCharacterCompatibility, computeTalentCompatibility } from '../engine/compatibility';
+import { ACTING_STYLE_TO_CHARACTER_TRAIT, computeActorCharacterCompatibility, computeTalentCompatibility } from '../engine/compatibility';
 import {
   recommendEffectsAmbition,
   recommendEffectsStrategy,
@@ -19,7 +19,7 @@ import {
   recommendEnvironmentStrategy,
 } from '../engine/recommendation';
 import { footageLowerBound } from '../engine/production';
-import { knowledgeAttributes } from '../engine/talentKnowledge';
+import { buildCreditIndex, deriveTalentKnowledge, knowledgeAttributes, weightedConfidence, type TalentKnowledge } from '../engine/talentKnowledge';
 import { computeDailyPrepBurn, PREP_DAILY_BURN_FRACTION } from '../engine/cost';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -412,17 +412,38 @@ function slotBudgets(script: Script, talentBudget: number): Array<{ role: Produc
   return slots;
 }
 
-function candidateScore(person: Person, role: ProductionRole, script: Script, slot: number, strategy: BotStrategy): number {
+/**
+ * What a player can expect of someone from what the studio has seen of them
+ * (talent model stage 4): each attribute's read, pulled toward an ordinary
+ * 50 by how unsure it is. The bot hires on this, never on true ability, which
+ * no player sees - since stage 6 untied ability from fee, reading the truth
+ * would be exactly the exploit the design guards against (§5).
+ */
+export function expectedAbility(knowledge: TalentKnowledge, weights?: Record<string, number>): number {
+  let num = 0;
+  let den = 0;
+  for (const r of knowledge.reads) {
+    const w = weights ? (weights[r.key] ?? 0) : 1;
+    num += w * (r.confidence * r.centre + (1 - r.confidence) * 50);
+    den += w;
+  }
+  return den > 0 ? num / den : 50;
+}
+
+function candidateScore(person: Person, role: ProductionRole, script: Script, slot: number, strategy: BotStrategy, knowledge: TalentKnowledge): number {
   if (strategy.castBy === 'cheapest') return -getTypicalSalaryForRole(person, role);
   if (strategy.castBy === 'fame') return person.reputation.fame;
   if (role === 'Lead Actor' || role === 'Supporting Actor') {
     const character = characterForRoleSlot(script, role, slot);
-    return (character ? computeActorCharacterCompatibility(person, character) : null) ?? 0;
+    const fit = (character ? computeActorCharacterCompatibility(person, character) : null) ?? 0;
+    // The fit as far as the studio can see it: regressed to a coin flip by doubt.
+    const weights = character ? Object.fromEntries(Object.entries(ACTING_STYLE_TO_CHARACTER_TRAIT).map(([axis, trait]) => [axis, character.traits[trait]])) : undefined;
+    const sure = weightedConfidence(knowledge, weights);
+    return sure * fit + (1 - sure) * 50;
   }
-  const career = getCareerForRole(person, role) as { skill?: number } | null;
-  const skill = career?.skill ?? 0;
-  // A director is judged on taste for this script as much as on craft; crew on craft alone.
-  return role === 'Director' ? (skill + (computeTalentCompatibility(person, role, script) ?? 0)) / 2 : skill;
+  // A director is judged on taste for this script (visible from their work) as much as on craft; crew on craft alone.
+  const ability = expectedAbility(knowledge);
+  return role === 'Director' ? (ability + (computeTalentCompatibility(person, role, script) ?? 0)) / 2 : ability;
 }
 
 /** Hire every mandatory role on the focused draft. Returns the state after the hires that took. */
@@ -443,7 +464,9 @@ function hireCastAndCrew(state: GameState, strategy: BotStrategy, talentBudget: 
     const withinBudget = pool.filter((person) => getTypicalSalaryForRole(person, role) <= budget);
     // Nobody at the price: take the cheapest there is rather than leave the role empty.
     const shortlist = withinBudget.length > 0 ? withinBudget : [...pool].sort((a, b) => getTypicalSalaryForRole(a, role) - getTypicalSalaryForRole(b, role)).slice(0, 1);
-    const ranked = [...shortlist].sort((a, b) => candidateScore(b, role, script, slot, strategy) - candidateScore(a, role, script, slot, strategy));
+    const credits = buildCreditIndex(s.projects);
+    const score = new Map(shortlist.map((person) => [person.id, candidateScore(person, role, script, slot, strategy, deriveTalentKnowledge(person, role, credits))]));
+    const ranked = [...shortlist].sort((a, b) => score.get(b.id)! - score.get(a.id)!);
     // The reducer can still refuse a hire (a rule this filter does not model); try down the list.
     for (const person of ranked.slice(0, 8)) {
       const next = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person, characterId: character?.id });
@@ -507,7 +530,7 @@ function startFilm(state: GameState, strategy: BotStrategy, run: BotRun): GameSt
   // the bot gives a proven director what they ask for and refuses an unproven
   // one - giving in to everyone cost its small studios about five quality
   // points a film.
-  const trustsDirector = (directorCareer?.skill ?? 0) >= 60;
+  const trustsDirector = !!directorCareer && !!director && expectedAbility(deriveTalentKnowledge(director, 'Director', buildCreditIndex(s.projects))) >= 60;
   for (const demand of focusedDraft().development?.demands ?? []) {
     if (!demand.resolution) s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: trustsDirector });
   }
