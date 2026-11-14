@@ -75,7 +75,7 @@ export interface BotStrategy {
   /** How the screenplay is chosen among the affordable ones. */
   scriptBy: 'quality' | 'cheapest';
   /** How a role is filled among the affordable candidates. */
-  castBy: 'fit' | 'fame' | 'cheapest';
+  castBy: 'fit' | 'fame' | 'cheapest' | 'scout';
   /** 'auto' goes Wide once the film's negative cost passes `wideAbove`. */
   release: ReleaseType | 'auto';
   wideAbove: number;
@@ -99,6 +99,23 @@ export const BOT_STRATEGIES: BotStrategy[] = [
     marketingRatio: 0.5,
     scriptBy: 'quality',
     castBy: 'fit',
+    release: 'auto',
+    wideAbove: 15_000_000,
+    upgradeShare: 0.1,
+    budgetsForOverhead: true,
+  },
+  {
+    // Talent model §6: the strategy untying ability from fee is meant to reward,
+    // and must not break. Cheap people with good reads, rehiring the ones it has
+    // learned are good.
+    name: 'Scout',
+    description: 'One modest film at a time, the cheapest people with the best reads, rehiring discoveries.',
+    filmBudgetShare: 0.3,
+    maxConcurrent: 1,
+    talentShare: 0.3,
+    marketingRatio: 0.5,
+    scriptBy: 'quality',
+    castBy: 'scout',
     release: 'auto',
     wideAbove: 15_000_000,
     upgradeShare: 0.1,
@@ -430,8 +447,15 @@ export function expectedAbility(knowledge: TalentKnowledge, weights?: Record<str
   return den > 0 ? num / den : 50;
 }
 
-function candidateScore(person: Person, role: ProductionRole, script: Script, slot: number, strategy: BotStrategy, knowledge: TalentKnowledge): number {
+/** A scout gives up this much expected ability for each halving of the fee. */
+const SCOUT_POINTS_PER_HALVING = 6;
+
+function candidateScore(person: Person, role: ProductionRole, script: Script, slot: number, strategy: BotStrategy, knowledge: TalentKnowledge, cheapest = 1): number {
   if (strategy.castBy === 'cheapest') return -getTypicalSalaryForRole(person, role);
+  if (strategy.castBy === 'scout') {
+    const value = candidateScore(person, role, script, slot, { ...strategy, castBy: 'fit' }, knowledge);
+    return value - SCOUT_POINTS_PER_HALVING * Math.log2(Math.max(1, getTypicalSalaryForRole(person, role)) / Math.max(1, cheapest));
+  }
   if (strategy.castBy === 'fame') return person.reputation.fame;
   if (role === 'Lead Actor' || role === 'Supporting Actor') {
     const character = characterForRoleSlot(script, role, slot);
@@ -465,7 +489,8 @@ function hireCastAndCrew(state: GameState, strategy: BotStrategy, talentBudget: 
     // Nobody at the price: take the cheapest there is rather than leave the role empty.
     const shortlist = withinBudget.length > 0 ? withinBudget : [...pool].sort((a, b) => getTypicalSalaryForRole(a, role) - getTypicalSalaryForRole(b, role)).slice(0, 1);
     const credits = buildCreditIndex(s.projects);
-    const score = new Map(shortlist.map((person) => [person.id, candidateScore(person, role, script, slot, strategy, deriveTalentKnowledge(person, role, credits))]));
+    const cheapest = Math.min(...shortlist.map((person) => getTypicalSalaryForRole(person, role)));
+    const score = new Map(shortlist.map((person) => [person.id, candidateScore(person, role, script, slot, strategy, deriveTalentKnowledge(person, role, credits), cheapest)]));
     const ranked = [...shortlist].sort((a, b) => score.get(b.id)! - score.get(a.id)!);
     // The reducer can still refuse a hire (a rule this filter does not model); try down the list.
     for (const person of ranked.slice(0, 8)) {
