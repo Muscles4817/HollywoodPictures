@@ -29,8 +29,8 @@ import { careerPhase, isOnBreak } from './careerChoices';
  * stage 8), not their age alone: people slow down at their own age, and it is
  * the semi-retired who actually go. These are the yearly chances in each phase.
  */
-const LEAVING_WHILE_SELECTIVE = 0.03;
-const LEAVING_WHILE_SEMI_RETIRED = 0.22;
+const LEAVING_WHILE_SELECTIVE = 0.04;
+const LEAVING_WHILE_SEMI_RETIRED = 0.25;
 /** From here on most go each year, and by the last age everyone has. */
 const LEAVING_OVER_80 = 0.5;
 export const LAST_WORKING_AGE = 88;

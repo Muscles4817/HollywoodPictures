@@ -31,7 +31,7 @@ import { getPriorCredits } from './person';
 // --- Tunables ----------------------------------------------------------------
 
 /** The age people start to slow down, before their own temperament and luck move it. Directors peak late (docs/domain/12 §4.7). */
-export const SLOWDOWN_AGE = { actor: 60, director: 68, crew: 63 } as const;
+export const SLOWDOWN_AGE = { actor: 59, director: 67, crew: 59 } as const;
 /** How far ambition moves it, and how far it varies person to person, in years. */
 const AMBITION_YEARS = 5;
 const PERSONAL_SPREAD_YEARS = 12;

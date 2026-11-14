@@ -587,8 +587,8 @@ that makes it safe is in place.
 
 | 8 | **People decide (4.7).** One accept-or-refuse decision for everyone and for rivals' offers; type, stretch and repetition; breaks; retirement as phases. | People turn you down for reasons you can read, the ambitious seek new kinds of part, and veterans slow down before they go. | L |
 
-Stages 1, 2, 3, 4 and 5 are built. The agreed order for the rest is 8, 6, 7:
-people deciding, then untying ability from fee, then deals.
+Stages 1 to 5 and 8 are built. The agreed order for the rest is 6, then 7:
+untying ability from fee, then deals.
 
 Stage 7's first half (personality moving the ask) is small and could ride with
 stage 2, since both touch how a price is set. Deals are the larger half.
@@ -866,6 +866,70 @@ hired still compares their true skill with the workload. A read does not yet age
 ability fixed until stage 6 there is nothing for it to drift from. "Still
 getting better" waits for growth in stage 6. Screen tests for crew, and a
 department head vouching for someone, are not built.
+
+### 7.6 Stage 8, as built
+
+`engine/careerChoices.ts` holds the decision; it is folded into the offer paths
+that already existed rather than added beside them.
+
+**What a person now weighs**, on top of money, part, studio, schedule and
+history:
+
+| | As built |
+|---|---|
+| **Type** | Read from `Person.recentWork` (the last six films in this world, each with what the part leaned on), or, with too little record, their strongest attribute; an established pre-game veteran is assumed to be two films into it. |
+| **Another one of those** | Ambitious (60+) and established (fame or heat 45+) with a run of two or more: the offer appeals less, 4 points a film, at most 16, and a refusal is named "is tired of playing this kind of part". Content (under 45): 5 points more appealing. |
+| **The stretch** | Ambitious and established, offered something other than their type: 8 points more appealing, and their salary floor drops 15%. This is the opening a small studio can use. |
+| **Beneath them** | Fame or heat 70+ and ego 60+: a small film or a supporting part appeals less, more so for both. Waived for a stretch they want. |
+| **Selective** | 8 points less appealing for any ordinary offer. |
+| **On a break / semi-retired** | A hard no ahead of everything else, unless the offer is tempting enough: a director whose industry respect is high, or a studio they are close to. |
+
+**Phases.** Each person slows down at their own age: 59 for actors, 67 for
+directors, 59 for crew, moved up to 5 years by ambition, spread 12 years by
+luck, and 5 years earlier for an actor whose type is physical. Selective from
+then, semi-retired 7 years later. Leaving for age now follows the phase (4% a
+year selective, 25% semi-retired, 50% over 80, everyone by 88), replacing
+stage 3's age curve. Tuned so departures run close to the old rule through the
+first six years.
+
+**Breaks.** Decided after each film finishes: a base 3% chance, plus 7% for
+each film past two in two years, plus 20% after a bomb pinned on them (a lead
+or director when the film failed badly), plus 5% over 60, damped by up to 60%
+for the professional and the driven. A break lasts five months to eighteen
+months (`Person.breakUntilDay`). Hashed from the person and the film, so it
+never touches the shared random stream.
+
+**Everyone, and rivals.** Actors and directors go through it in the existing
+offer, negotiation and odds paths, with named reasons. Crew on a break or
+retired cannot be hired. Rivals are turned down: nobody on a break or retired
+takes a rival film, and anyone the offer does not suit (slowing down, or a big
+name offered something small) refuses 70% of the time.
+
+**What the player sees.** A line on the card ("Has played three action parts
+running and wants something else", "Glad of the work", "Wants exactly this",
+"Works rarely now", "Taking time away from films until..."), chips in the
+casting list ("Tired of this type", "Wants this kind of part", "Taking a
+break", "Retired"), the reason when they say no, and the "hide who won't work
+with me" filter. When someone the studio has worked with starts a break or
+slows down, the Inbox says so in one notice that gathers a month's news and
+clears when read.
+
+**Measured.** Ten-year harness, Careful and Steady, indie to major: the
+player's economy reads the same within seed noise. Pool drift is back in
+stage 5's range after retuning the phases (actors' median fee x1.33-1.59,
+directors x1.15-1.32, top-decile fees x0.82-0.93); cinematographers' median
+fee is lower than before (x0.55-0.61, was x0.65-0.69) because crew now turn
+over a little faster. Whole-year gate 18 of 21, same misses. Budget-tier gate
+the same six misses; big films do slightly worse (median all-in return 0.88x,
+was 0.95x), consistent with big names now sometimes turning rivals down.
+Save version 104.
+
+**Not done.** Directors have no type yet (their genre would be it), so they
+never tire of one. "Who else is on it" - refusing a director or co-star after a
+bad experience, or second billing to someone beneath them - is not built. A
+rival's offer is judged without the part, since rivals cast before binding
+characters, so type and stretch do not apply to rivals. Growth through choice
+waits for stage 6, which is next.
 
 ## 8. Decisions
 
