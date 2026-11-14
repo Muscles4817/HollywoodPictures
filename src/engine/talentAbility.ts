@@ -36,7 +36,7 @@ import { knowledgeAttributes, knowledgeProfession } from './talentKnowledge';
  * about one in eight is genuinely good (75+), one in forty exceptional (88+),
  * and nothing marks them.
  */
-export const POTENTIAL_MEAN = 58;
+export const POTENTIAL_MEAN = 61;
 export const POTENTIAL_SPREAD = 17;
 /**
  * How far a career before the game had already sorted people by price. Not
