@@ -19,6 +19,7 @@ import { professionForProductionRole, findAssignedPerson } from '../../data/help
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { TalentStats } from '../common/TalentStats';
+import { buildCreditIndex, deriveTalentKnowledge, type TalentKnowledge } from '../../engine/talentKnowledge';
 import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
@@ -63,11 +64,13 @@ interface CandidateCardProps {
   relationship: RelationshipStanding;
   /** The candidate's most notable chemistry with someone already on the cast (engine/pairHistory.ts), or null. */
   castAffinity: CastAffinity | null;
+  /** What the studio knows of them, from the films it has seen (engine/talentKnowledge.ts). */
+  knowledge: TalentKnowledge;
   onSelect: () => void;
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, budget, signals, castingDirectorSkill, relationship, castAffinity, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, budget, signals, castingDirectorSkill, relationship, castAffinity, knowledge, onSelect, onTogglePin }: CandidateCardProps) {
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
@@ -76,7 +79,7 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
           the drawer only needs to add its own casting-flow state on top
           (Cast/Hired, or Fully cast once the role's at capacity), not repeat
           the calendar read a second time. */}
-      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" budget={budget} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} />
+      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" budget={budget} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} knowledge={knowledge} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -244,6 +247,9 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // Defined up here (ahead of the filters) because the "won't work with me"
   // filter and the director-appeal read both lean on it.
   const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
+  // What the studio knows of each candidate (talent model stage 4).
+  const creditIndex = buildCreditIndex(state.projects);
+  const knowledgeFor = (person: Person): TalentKnowledge => deriveTalentKnowledge(person, role, creditIndex);
   const castAffinityFor = (person: Person) => notableCastAffinity(person, role, draft.talent, state.talentPairings ?? []);
   // The production's attached casting director sharpens actor fit reads (TalentStats
   // gates it to actors; harmless to pass for a director/crew hire). undefined with none.
@@ -407,6 +413,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         onUnpin: () => pins.toggle(person.id),
         castingDirectorSkill,
         relationship: relationshipFor(person),
+        knowledge: knowledgeFor(person),
       }))
     : [];
 
@@ -533,6 +540,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                   signals={signals}
                   castingDirectorSkill={castingDirectorSkill}
                   relationship={relationshipFor(person)}
+                  knowledge={knowledgeFor(person)}
                   castAffinity={castAffinityFor(person)}
                   onSelect={() => selectPerson(person)}
                   onTogglePin={() => pins.toggle(person.id)}

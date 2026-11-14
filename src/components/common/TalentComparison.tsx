@@ -6,6 +6,7 @@ import {
   deriveFitReason,
   deriveFitRead,
   deriveFitReadAssist,
+  deriveFitReadFromKnowledge,
   deriveRiskRead,
   qualitativeMagnitude,
   type CompareSide,
@@ -19,6 +20,7 @@ import { getTypicalSalaryForRole, isAvailableImmediately, deriveBookedUntil } fr
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import { fitTier } from './TalentStats';
 import type { ReactNode } from 'react';
+import type { TalentKnowledge } from '../../engine/talentKnowledge';
 import type { RoleCategory } from '../../data/talentPresentation';
 import type { Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
@@ -48,6 +50,8 @@ export interface CompareSlot {
   castingDirectorTake?: CastingDirectorTake | null;
   /** The studio's standing with this person - history sharpens the read too. */
   relationship?: RelationshipStanding;
+  /** What the studio knows of them (engine/talentKnowledge.ts) - when present, the read's confidence comes from evidence, as on the card. */
+  knowledge?: TalentKnowledge;
 }
 
 interface SideData {
@@ -75,7 +79,12 @@ function deriveSide(slot: CompareSlot, totalDays: number): SideData {
   // history assist - but only where it's a judgment (actor/director, i.e. there's
   // a per-axis breakdown); crew skill stays exact.
   const assist = deriveFitReadAssist(slot.castingDirectorSkill, slot.relationship, category === 'actor');
-  const fitRead = rawFit !== null && breakdown ? deriveFitRead(rawFit, person, assist) : null;
+  const weights = breakdown && breakdown.noun === 'fit' ? Object.fromEntries(breakdown.rows.filter((r) => r.key).map((r) => [r.key!, r.demandWeight ?? 0])) : undefined;
+  const fitRead = rawFit !== null && breakdown
+    ? slot.knowledge
+      ? deriveFitReadFromKnowledge(rawFit, person, slot.knowledge, weights)
+      : deriveFitRead(rawFit, person, assist)
+    : null;
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
   const identity = person.identity.gender ?? '';
   return {

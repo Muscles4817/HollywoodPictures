@@ -129,7 +129,9 @@ function strongestAndWeakest(aptitudes: DomainAptitudes): { strongest: AptitudeD
 export function describeDirectorAptitudes(
   person: Person,
   relationship: RelationshipStanding = NO_RELATIONSHIP,
+  knowledge?: EvidenceReads,
 ): DirectorAptitudeRead {
+  if (knowledge) return describeFromEvidence(knowledge);
   const aptitudes = deriveDirectorAptitudes(person);
   const resolution = resolutionFor(relationship.collaborations);
   const { strongest, weakest } = strongestAndWeakest(aptitudes);
@@ -149,6 +151,39 @@ export function describeDirectorAptitudes(
   }
 
   return { resolution, domains, summary: composeSummary(resolution, domains, strongest, weakest) };
+}
+
+/**
+ * The minimum the evidence-based read needs: per-domain reads from what the
+ * studio has seen (engine/talentKnowledge.ts). Kept structural so this module
+ * does not import that one.
+ */
+export interface EvidenceReads {
+  reads: Array<{ key: string; centre: number; confidence: number }>;
+}
+
+/** A read stops being a guess at this confidence (talentKnowledge FAIR_CONFIDENCE). */
+const EVIDENCE_KNOWN = 0.35;
+const EVIDENCE_INTIMATE = 0.8;
+
+/**
+ * Talent model stage 4: reveal a domain when the studio has evidence for it,
+ * whatever the collaboration count - and band it by the read, not the truth.
+ */
+function describeFromEvidence(knowledge: EvidenceReads): DirectorAptitudeRead {
+  const known = knowledge.reads.filter((r) => (APTITUDE_DOMAINS as string[]).includes(r.key) && r.confidence >= EVIDENCE_KNOWN);
+  const domains: Partial<Record<AptitudeDomain, AptitudeBand>> = {};
+  for (const r of known) domains[r.key as AptitudeDomain] = bandFor(r.centre);
+  const all = known.length === APTITUDE_DOMAINS.length;
+  const resolution: AptitudeReadResolution = all && known.every((r) => r.confidence >= EVIDENCE_INTIMATE) ? 'intimate' : known.length > 0 ? 'familiar' : 'reputation';
+  if (known.length === 0) return { resolution, domains, summary: 'Nothing you have seen tells you how they work yet.' };
+  const ranked = [...known].sort((a, b) => b.centre - a.centre);
+  const strongest = ranked[0].key as AptitudeDomain;
+  const weakest = ranked[ranked.length - 1].key as AptitudeDomain;
+  if (resolution === 'intimate') return { resolution, domains, summary: composeSummary('intimate', domains, strongest, weakest) };
+  const phrase = (d: AptitudeDomain) => `${BAND_ADJECTIVE[domains[d]!]} ${DOMAIN_NOUN[d]}`;
+  const summary = strongest === weakest ? `${capitalize(phrase(strongest))}; the rest you have not seen.` : `${capitalize(phrase(strongest))}, but ${phrase(weakest)}.`;
+  return { resolution, domains, summary };
 }
 
 function composeSummary(

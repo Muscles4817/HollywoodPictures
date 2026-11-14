@@ -28,6 +28,7 @@ import { getDirectorCareer } from './person';
 import { directorHandsOn } from './actingModel';
 import { generateCreativeDemands, describeDemandAmbition, describeDemandCompetence } from './creativeDemands';
 import { NO_RELATIONSHIP, type RelationshipStanding } from './relationships';
+import type { EvidenceReads } from './creativeAptitudes';
 import { clamp } from './random';
 
 // --- Generation --------------------------------------------------------------
@@ -219,8 +220,8 @@ function describeApproach(style: DirectorProductionStyle): string {
   return `${env.charAt(0).toUpperCase()}${env.slice(1)}, leaning on ${fx}.`;
 }
 
-function describeDemandLine(director: Person, demand: CreativeDemand, relationship: RelationshipStanding): string {
-  return `${describeDemandAmbition(demand)} ${describeDemandCompetence(director, demand, relationship).text}`;
+function describeDemandLine(director: Person, demand: CreativeDemand, relationship: RelationshipStanding, knowledge?: EvidenceReads): string {
+  return `${describeDemandAmbition(demand)} ${describeDemandCompetence(director, demand, relationship, knowledge).text}`;
 }
 
 /**
@@ -229,12 +230,12 @@ function describeDemandLine(director: Person, demand: CreativeDemand, relationsh
  * reveals - a stranger's bold script demand could be inspired or a disaster),
  * and the risk framing. Qualitative only; never raw numbers.
  */
-export function describePitch(pitch: DirectorPitch, director: Person, relationship: RelationshipStanding = NO_RELATIONSHIP): PitchRead {
+export function describePitch(pitch: DirectorPitch, director: Person, relationship: RelationshipStanding = NO_RELATIONSHIP, knowledge?: EvidenceReads): PitchRead {
   const posture = pitchRiskPosture(pitch);
   const demands = [...pitch.previewedDemands]
     .sort((a, b) => b.strength - a.strength)
     .slice(0, MAX_DEMAND_LINES)
-    .map((demand) => describeDemandLine(director, demand, relationship));
+    .map((demand) => describeDemandLine(director, demand, relationship, knowledge));
   return {
     posture,
     take: describeTake(pitch.toneShift),

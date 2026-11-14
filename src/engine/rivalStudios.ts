@@ -1062,6 +1062,16 @@ function considerBiddingOnOpportunity(
  * if capacity or cash no longer supports it by the time this runs, same
  * "skip the attempt" shape as every other failure mode here.
  */
+/** Everyone a rival has put in one of its released films. */
+export function peopleUsedBy(films: Film[], studioName: string): Set<string> {
+  const used = new Set<string>();
+  for (const film of films) {
+    if (film.releasedBy !== studioName) continue;
+    for (const a of film.talent) used.add(a.person.id);
+  }
+  return used;
+}
+
 function startRivalProductionFromWonScript(
   rival: RivalStudio,
   scale: ProductionScale,
@@ -1075,6 +1085,8 @@ function startRivalProductionFromWonScript(
   // carried onto the production so the flywheel can fold the finished film back
   // in (engine/rivalFranchise.ts). Absent for an ordinary won-from-market script.
   franchiseId?: string,
+  // Everyone this rival has put in a released film: it knows them, not just of them.
+  usedBefore?: ReadonlySet<string>,
 ): { production: RivalProductionInProgress; talentPool: Record<TalentProfession, Person[]>; cost: number } | null {
   // Assigned up front (not just at the return, the way this used to build
   // its id) so it's available to tag each hire's own commitment with below.
@@ -1113,7 +1125,7 @@ function startRivalProductionFromWonScript(
     // Whoever it can afford with the best track record, by its own imperfect
     // read - not, as it used to be, a random draw among the nearest in price
     // (engine/rivalCasting.ts).
-    const picked = chooseRivalHires(available, role, targetPrice, capacity.max, rng);
+    const picked = chooseRivalHires(available, role, targetPrice, capacity.max, rng, usedBefore);
     if (picked.length < capacity.min) return null;
     for (const p of picked) bookedIds.add(p.id);
     // Bind each actor to the Character at its slot (characterForRoleSlot is
@@ -1402,6 +1414,8 @@ export function settleRivalMarket(
       talentPool,
       knownUpcoming,
       rng,
+      undefined,
+      peopleUsedBy(current.rivalFilmsReleased, rival.name),
     );
     if (!started) {
       opportunities = reopenForfeitedOpportunity(opportunities, resolved.opportunity);
@@ -1440,7 +1454,7 @@ export function settleRivalMarket(
     if (franchise && franchise.genre) {
       const knownUpcoming = [...playerScheduled, ...productionsInProgress.map(rivalAsUpcomingRelease)];
       const sequelScript = generateSequelScript(franchise, franchise.genre, rng);
-      const started = startRivalProductionFromWonScript(rival, scale, sequelScript, 0, totalDays, talentPool, knownUpcoming, rng, franchise.id);
+      const started = startRivalProductionFromWonScript(rival, scale, sequelScript, 0, totalDays, talentPool, knownUpcoming, rng, franchise.id, peopleUsedBy(current.rivalFilmsReleased, rival.name));
       if (started) {
         productionsInProgress = [...productionsInProgress, started.production];
         talentPool = started.talentPool;

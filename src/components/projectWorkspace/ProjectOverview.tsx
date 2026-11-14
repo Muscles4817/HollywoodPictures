@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
+import { buildCreditIndex, deriveTalentKnowledge } from '../../engine/talentKnowledge';
 import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownField, deriveRivalHorizon } from '../../state/selectors';
 import { deriveProjectReadiness } from '../../engine/projectReadiness';
 import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
@@ -468,7 +469,7 @@ export function ProjectOverview() {
             </p>
           )}
           {pendingDemands.map((demand) => {
-            const read = describeDemandCompetence(director, demand, relationship);
+            const read = describeDemandCompetence(director, demand, relationship, deriveTalentKnowledge(director, 'Director', buildCreditIndex(state.projects)));
             return (
               <div key={demand.id} className="card stack" style={{ gap: 6 }}>
                 <div style={{ fontWeight: 600 }}>{describeCreativeDemand(demand)}</div>
