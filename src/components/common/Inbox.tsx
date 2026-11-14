@@ -569,6 +569,30 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
             })}
 
             {industryNotices.map((notice) => {
+              if (notice.kind === 'career') {
+                return (
+                  <ActivityCard
+                    key={notice.id}
+                    activity={{
+                      id: notice.id,
+                      tone: 'neutral',
+                      category: 'update',
+                      eyebrow: 'People you have worked with',
+                      title: (notice.news ?? []).length === 1 ? 'A change of plans' : 'Changes of plans',
+                      detail: 'People take breaks, slow down and stop. Someone coming back from a break is often keen, and good value.',
+                      bullets: notice.news ?? [],
+                    }}
+                    action={{
+                      label: 'Browse the talent',
+                      onClick: () => {
+                        dispatch({ type: 'VIEW_TALENT_DATABASE' });
+                        onClose();
+                      },
+                    }}
+                    onDismiss={() => dispatch({ type: 'DISMISS_INDUSTRY_NOTICE', id: notice.id })}
+                  />
+                );
+              }
               const farewells = notice.notable.map((p) => `${p.name} (${p.role.toLowerCase()}, ${p.age}) has ${p.reason === 'retired' ? 'retired' : 'left the business'}`);
               const bullets = [
                 ...farewells,

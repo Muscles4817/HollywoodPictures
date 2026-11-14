@@ -14,6 +14,7 @@ import type { CastAffinity } from '../../engine/pairHistory';
 import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveFitConfidence, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes, knownAxisCoverage, gateAxesByKnowledge, deriveFitReadFromKnowledge } from '../../engine/talentCardPresentation';
 import type { TalentKnowledge } from '../../engine/talentKnowledge';
 import { TalentDossier, DossierCaveat, describeRecordSize } from './TalentDossier';
+import { careerPull, describeCareerStatus, partAxis } from '../../engine/careerChoices';
 import { describeRelationshipStanding, type RelationshipStanding } from '../../engine/relationships';
 import { AFFORDABILITY_LABEL, type AffordabilityTier } from '../../engine/affordability';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
@@ -263,6 +264,12 @@ export function TalentStats({ person, role, category, script, character = null, 
   const crewPhilosophyLine = isCrew ? describeCrewPhilosophy(person, role) : null;
   const crewSpecialtyLine = isCrew ? describeStandoutSpecialty(person, role) : null;
 
+  const careerStatus = describeCareerStatus(person, totalDays);
+  const pullNote = isActor && character && script
+    ? careerPull(person, { axis: partAxis(character), scale: script.scale, lead: character.prominence === 'Lead' }, totalDays).note
+    : null;
+  const careerLines = [careerStatus, pullNote && pullNote !== careerStatus ? pullNote : null].filter((l): l is string => !!l);
+
   const verb = isActor ? 'cast' : 'hire';
   const disclosureLabel = roleFit ? `${roleFit.title}, industry & working style` : 'Industry & working style';
 
@@ -293,6 +300,10 @@ export function TalentStats({ person, role, category, script, character = null, 
           director matters to this performer, so it's never hidden behind the
           gift line. Full meaning on hover. */}
       {archetypeTag && <span className="talent-archetype" title={describeActorCraft(person)}>{archetypeTag}</span>}
+
+      {/* Where they are in their career, and what this part means to them
+          (talent model stage 8) - why they might say yes gladly, cheaply, or no. */}
+      {careerLines.map((line) => <p key={line} className="talent-identity-line talent-career-line">{line}</p>)}
 
       {/* One-line identity read - who they are, not a stat. */}
       {signatureLine && <p className="talent-identity-line">{signatureLine}</p>}

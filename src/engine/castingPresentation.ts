@@ -283,6 +283,11 @@ const REJECTION_LABELS: Record<OfferRejectionReason, string> = {
   salary: 'wants more money than this offer',
   schedule: "can't clear their existing commitments in time",
   relationship: "won't work with your studio again after how things went last time",
+  typecast: 'is tired of playing this kind of part and wants something different',
+  beneath: 'thinks this is beneath them',
+  selective: 'works rarely now, and this is not the project to bring them out',
+  'on-break': 'is taking time away from films',
+  retired: 'says they have retired',
 };
 
 /** "Why did they say no" - engine/castingAppeal.ts:OfferRejectionReason turned into a sentence a producer would actually say, per section 7's "rejected offers should explain the primary reason." */
@@ -540,6 +545,11 @@ const DIRECTOR_REJECTION_LABELS: Record<DirectorOfferRejectionReason, string> = 
   salary: 'wants more money than this offer',
   schedule: "can't clear their existing commitments in time",
   relationship: "won't work with your studio again after how things went last time",
+  typecast: 'wants something different from what they have been doing',
+  beneath: 'thinks a film this size is beneath them',
+  selective: 'works rarely now, and this is not the project to bring them out',
+  'on-break': 'is taking time away from films',
+  retired: 'says they have retired',
 };
 
 /** describeOfferRejection's director-side counterpart, including the prestige-gate reason actors never have. */

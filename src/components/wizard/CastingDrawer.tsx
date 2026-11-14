@@ -321,6 +321,11 @@ function CandidateCard({
   if (audited) signals.push({ label: '✓ Auditioned', tone: 'positive' });
   if (liveAppeal) signals.push(...candidateStrengthSignals(liveAppeal, directorName));
   if (refuses) signals.push({ label: "Won't work with you", tone: 'blocked' });
+  // Where they are in their career (stage 8).
+  if (overall?.unwilling) signals.push({ label: overall.unwilling.reason === 'on-break' ? 'Taking a break' : 'Retired', tone: 'blocked' });
+  if (overall?.careerPull.stretch) signals.push({ label: 'Wants this kind of part', tone: 'positive' });
+  else if (overall?.careerPull.reason === 'typecast') signals.push({ label: 'Tired of this type', tone: 'warning' });
+  else if (overall?.careerPull.reason === 'beneath') signals.push({ label: 'Thinks it beneath them', tone: 'warning' });
   if (belowFloor && !negotiation) signals.push({ label: 'Below their floor', tone: 'blocked' });
 
   const blockedTitle = !available ? 'Booked elsewhere - wait for them (below) to push your shoot, or pick someone free now.' : undefined;
@@ -793,7 +798,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     if (onDraft) return true;
     if (availableOnly && !isAvailableImmediately(person, plannedStartDay)) return false;
     if (affordableOnly && budgetFor(person) !== 'comfortable') return false;
-    if (hideWontWork && relationshipRefuses(relationshipFor(person))) return false;
+    if (hideWontWork && (relationshipRefuses(relationshipFor(person)) || (appealById.get(person.id) ?? appealFor(person))?.unwilling)) return false;
     if (genderPick !== 'any' && person.identity.gender !== genderPick) return false;
     if (!fameInBand(person.reputation.fame, famePick)) return false;
     if (!ageInGroup(getPersonAge(person.identity.dateOfBirth, today), agePick)) return false;
