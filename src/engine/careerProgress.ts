@@ -24,6 +24,8 @@
 //
 // Pure: plain data in, plain data out. No rng - a career moves on what
 // happened, not on a roll.
+import { growFromFilm } from './talentAbility';
+import { creditTests, knowledgeAttributes } from './talentKnowledge';
 import { partAxis, recordWork, decideBreak } from './careerChoices';
 import { characterForRoleSlot } from './castRequirements';
 import type { AwardsCeremony, Film, Person, ProductionRole, RecentWork, TalentProfession } from '../types';
@@ -114,6 +116,10 @@ const FULL_HIT_RATIO = 1.25;
 /** A film this bad, with them at the top of the bill, is pinned on them (stage 8: it can send them on a break). */
 const BLAMED_BOMB = -0.6;
 const FULL_BOMB_RATIO = 0.6;
+/** For an actor, how much of the respect they earn is their own notices rather than the film's reviews. */
+const ACTOR_NOTICE_RESPECT = 0.7;
+/** How much of an actor's market value is the respect of the business (the rest is fame and heat). */
+const ACTOR_RESPECT_IN_VALUE = 0.15;
 /** How much an actor's own notices count next to how the film did. The film is the main thing. */
 const NOTICE_WEIGHT = 0.25;
 /** The most of a miss an established name can shrug off. */
@@ -208,7 +214,12 @@ export function standingDeltaFor(person: Person, role: ProductionRole, experienc
   const ceiling = fameReach(film) * FAME_SHARE_BY_ROLE[role];
   const fameGain = Math.max(0, ceiling - fame) * FAME_STEP * (0.6 + 0.4 * Math.max(0, commercial)) * (1 + 0.25 * Math.max(0, notice));
 
-  const reviews = clamp((film.results.criticScore - 55) / 40, -1, 1);
+  // Respect is how the business rates the work. For a crew head or director it
+  // follows the film's reviews; for an actor it is mostly their own notices -
+  // the business watches the performance, not just the film (stage 6: this is
+  // how careers come to sort actors by ability).
+  const filmReviews = clamp((film.results.criticScore - 55) / 40, -1, 1);
+  const reviews = role === 'Lead Actor' || role === 'Supporting Actor' ? (1 - ACTOR_NOTICE_RESPECT) * filmReviews + ACTOR_NOTICE_RESPECT * notice : filmReviews;
   const respect = RESPECT_SWING * RESPECT_BY_ROLE[role] * (reviews >= 0 ? reviews * (1 - industryRespect / 100) : reviews * 0.6);
 
   return { heat, fame: fameGain, respect };
@@ -225,7 +236,9 @@ export function standingDeltaFor(person: Person, role: ProductionRole, experienc
  */
 export function marketValue(person: Person, profession: TalentProfession): number {
   const { fame, currentHeat, industryRespect } = person.reputation;
-  if (profession === 'Actor' || profession === 'Director') return 0.6 * fame + 0.4 * currentHeat;
+  // An actor's price also carries how the business rates their work (stage 6).
+  if (profession === 'Actor') return 0.5 * fame + 0.35 * currentHeat + ACTOR_RESPECT_IN_VALUE * industryRespect;
+  if (profession === 'Director') return 0.6 * fame + 0.4 * currentHeat;
   const experience = Math.max(0, ...Object.values(person.careers).map((career) => (career as { experience?: number } | undefined)?.experience ?? 0));
   return 0.4 * industryRespect + 0.25 * currentHeat + 0.15 * fame + 0.2 * experience;
 }
@@ -325,7 +338,7 @@ export function applyFilmResultsToCareers(pool: TalentPool, finishedFilms: Film[
   const deltas = new Map<string, StandingDelta>();
   const worked = new Set<string>();
   // What each film was for them, for their record and whether they now take a break (stage 8).
-  const work = new Map<string, Array<{ filmId: string; entry: RecentWork }>>();
+  const work = new Map<string, Array<{ filmId: string; entry: RecentWork; role: ProductionRole; tests: Record<string, number>; mentor: Person | undefined }>>();
   const byId = new Map<string, Person>();
   for (const roster of Object.values(pool)) for (const person of roster) byId.set(person.id, person);
 
@@ -343,7 +356,11 @@ export function applyFilmResultsToCareers(pool: TalentPool, finishedFilms: Film[
         : characterForRoleSlot(film.script, assignment.role, film.talent.filter((a) => a.role === assignment.role).indexOf(assignment));
       const blamed = commercialScore(film) <= BLAMED_BOMB && BLAME_BY_ROLE[assignment.role] >= 0.6;
       const entry: RecentWork = { day, ...(character ? { part: partAxis(character) } : {}), ...(blamed ? { blamed } : {}) };
-      work.set(person.id, [...(work.get(person.id) ?? []), { filmId: film.id, entry }]);
+      // What the film asked of them, for growth (stage 6): they get better at what the work used.
+      const slotIndex = film.talent.filter((a) => a.role === assignment.role).indexOf(assignment);
+      const tests = creditTests({ film, role: assignment.role, slotIndex, own: film.releasedBy === undefined }, person.id, knowledgeAttributes(person, assignment.role));
+      const mentor = film.talent.find((a) => a.role === 'Director')?.person;
+      work.set(person.id, [...(work.get(person.id) ?? []), { filmId: film.id, entry, role: assignment.role, tests, mentor }]);
       const sum = deltas.get(person.id) ?? { heat: 0, fame: 0, respect: 0 };
       deltas.set(person.id, { heat: sum.heat + delta.heat, fame: sum.fame + delta.fame, respect: sum.respect + delta.respect });
     }
@@ -352,7 +369,8 @@ export function applyFilmResultsToCareers(pool: TalentPool, finishedFilms: Film[
   return mapPool(pool, (person) => {
     if (!worked.has(person.id)) return person;
     let next = withCredit(withStanding(person, deltas.get(person.id)!, QUOTE_FALL_ON_RESULT), day);
-    for (const { filmId, entry } of work.get(person.id) ?? []) {
+    for (const { filmId, entry, role, tests, mentor } of work.get(person.id) ?? []) {
+      next = growFromFilm(next, role, tests, mentor && mentor.id !== person.id ? byId.get(mentor.id) ?? mentor : undefined);
       next = recordWork(next, entry);
       const breakUntil = decideBreak(next, filmId, day);
       if (breakUntil !== undefined) next = { ...next, breakUntilDay: breakUntil };

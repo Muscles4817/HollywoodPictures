@@ -1,3 +1,4 @@
+import { ageAbilities } from '../engine/talentAbility';
 import { buildIndustryNotice, careerNews, crossedIntoNewYear, MAX_INDUSTRY_NOTICES, turnOverTalent, withCareerNews } from '../engine/careerTurnover';
 import { AWARD_CATEGORY_WEIGHT } from '../data/awards';
 import { applyAwardsToCareers, applyFilmResultsToCareers, crossedStandingFade, fadeStanding } from '../engine/careerProgress';
@@ -970,8 +971,10 @@ function withIndustryTurnover(before: GameState, after: GameState): GameState {
       for (const assignment of project.draft.talent) protectedIds.add(assignment.person.id);
     }
   }
-  const result = turnOverTalent(after.talentPool, { day: after.totalDays, seed: after.rngSeed, protectedIds });
-  if (result.departures.length === 0) return after;
+  // A year older: physical performance fades past the forties (talent model stage 6).
+  const aged = ageAbilities(after.talentPool, after.totalDays);
+  const result = turnOverTalent(aged, { day: after.totalDays, seed: after.rngSeed, protectedIds });
+  if (result.departures.length === 0) return aged === after.talentPool ? after : { ...after, talentPool: aged };
 
   const workedWith = new Set((after.collaborations ?? []).filter((c) => c.studioId === PLAYER_STUDIO_ID).map((c) => c.personId));
   const notice = buildIndustryNotice(result, after.totalDays, workedWith);

@@ -437,7 +437,10 @@ describe('real-film regression: Suicide Squad (bad reviews, still made money)', 
     // this should re-tighten to a clear profit once the deferred crossover/top-tail
     // piece restores big-film legs (SS's gross would climb back toward its ~$785M).
     const returnMultiple = results.studioRevenue! / results.totalCost;
-    expect(returnMultiple).toBeGreaterThan(0.85); // near or above breakeven, never a rout
+    // 0.84, was 0.85: since experience raises an actor's floor (talent model
+    // stage 6), the least experienced of the cast (Delevingne) delivers a little
+    // less, and the film lands at ~0.848. The shape is unchanged.
+    expect(returnMultiple).toBeGreaterThan(0.84); // near or above breakeven, never a rout
     expect(results.outcome).not.toBe('Bomb');
     // Not a craft accolade, and not the top commercial tiers either - a
     // middling-return crowd hit.

@@ -1,3 +1,4 @@
+import { untieAbility } from './talentAbility';
 import type {
   ActingStyle,
   DirectorProductionStyle,
@@ -498,7 +499,10 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
   ) as PersonCareers;
   const standing = generateStanding(name, fame, reliability, history.experience);
 
-  return {
+  // Ability is untied from fee (talent model stage 6): drawn from one talent
+  // spread with only a modest link to price, grown toward potential by
+  // experience. Hashed, so the generation stream is untouched.
+  return untieAbility({
     id: `talent-${nextSequence('person')}`,
     identity: { name, gender, dateOfBirth, nationality: nationalityFor(name), appearanceTags: [] },
     // The six formerly-flat axes now cohere into a real archetype (see
@@ -521,7 +525,7 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
     careers,
     availability: { commitments: [] },
     traits: [],
-  };
+  }, t, `${role}|${name}|${t}`);
 }
 
 /**
@@ -549,12 +553,13 @@ export function generateNewcomer(role: TalentProfession, rng: RandomFn, day: num
     ]),
   ) as PersonCareers;
   const born = base.identity.dateOfBirth!;
-  return {
+  // Re-derived for a newcomer's few years: the same potential, less of it shown.
+  return untieAbility({
     ...base,
     id,
     identity: { ...base.identity, dateOfBirth: { ...born, year: gameDateFromTotalDays(day).year - (startAge + yearsActive) } },
     careers,
-  };
+  }, t, `${role}|${base.identity.name}|${t}`);
 }
 
 /**

@@ -336,8 +336,20 @@ export interface RealizedPerformanceBreakdown {
   performance: number; // clamp(effFloor + unlock, 0, 100)
 }
 
+/** How much of their floor a first-timer can count on, rising to all of it by CONSISTENT_EXPERIENCE (stage 6). */
+export const NEWCOMER_FLOOR_SHARE = 0.9;
+const CONSISTENT_EXPERIENCE = 60;
+export function actorConsistency(experience: number | undefined): number {
+  if (experience === undefined) return 1;
+  return NEWCOMER_FLOOR_SHARE + (1 - NEWCOMER_FLOOR_SHARE) * clamp(experience / CONSISTENT_EXPERIENCE, 0, 1);
+}
+
 export function explainRealizedPerformance(actor: Person, director: Person | undefined, roleFit: number): RealizedPerformanceBreakdown {
-  const { floor, headroom } = actorCraft(actor);
+  const { floor: craftFloor, headroom } = actorCraft(actor);
+  // Experience raises the floor (talent model stage 6, §4.2): a veteran lands
+  // near what they can do almost every time; a first-timer with the same gift
+  // has further to fall.
+  const floor = craftFloor * actorConsistency(getActorCareer(actor)?.experience);
   const fit = clamp(roleFit / 100, 0, 1);
 
   const effFloor = floor * (FIT_FLOOR_GATE + (1 - FIT_FLOOR_GATE) * fit);

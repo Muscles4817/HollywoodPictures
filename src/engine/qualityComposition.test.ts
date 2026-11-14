@@ -16,7 +16,19 @@ import { withRng } from './random';
 import type { ExecutionProfile } from './productionExecution';
 import type { CraftFacet } from '../types';
 
-const draft = withRng(1, (rng) => buildReadyDraft(rng)).result;
+// The fixture's talent is generated, and since ability stopped following fee
+// (talent model stage 6) its director can land anywhere. These tests are about
+// how departments combine, not about who was hired, so the director is held
+// at an ordinary, experienced level to keep the departments comparable.
+const generated = withRng(1, (rng) => buildReadyDraft(rng)).result;
+const draft = {
+  ...generated,
+  talent: generated.talent.map((a) =>
+    a.role === 'Director' && a.person.careers.director
+      ? { ...a, person: { ...a.person, careers: { ...a.person.careers, director: { ...a.person.careers.director, skill: 60, experience: 60 } } } }
+      : a,
+  ),
+};
 
 const NO_SIGNALS: Record<CraftFacet, number> = { sets: 0, vfx: 0, practical: 0 };
 

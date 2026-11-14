@@ -54,7 +54,7 @@ describe('settleTheatricalMarket - player release resolution (roadmap Phase 7.2)
     // film's are all still null. That is correct behaviour, not a discrepancy -
     // the test only ever meant the release-day computation itself is identical.
     const atRelease = (r: typeof exact.settledFilms[0]['results']) => {
-      const { outcome, brandChange, prestigeChange, profit, studioRevenue, totalBoxOffice, ...rest } = r;
+      const { outcome, brandChange, prestigeChange, profit, studioRevenue, totalBoxOffice, expectedAfterMarket, ...rest } = r;
       return rest;
     };
     expect(atRelease(overshoot.settledFilms[0].results)).toEqual(atRelease(exact.settledFilms[0].results));

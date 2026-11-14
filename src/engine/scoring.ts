@@ -105,12 +105,26 @@ function deriveGenreFit(script: Script, genre: Genre): number {
   return clamp(100 - totalDeviation / TONES.length, 0, 100);
 }
 
-/** Director's contribution: raw skill plus how well their style suits this script. */
+/**
+ * Scale is a demand on experience (talent model stage 6, §4.2). An Intimate
+ * film asks little of it; an Epic asks a great deal, so a gifted first-timer
+ * handed a tentpole delivers well short of their ability. The most a complete
+ * newcomer loses, by scale, fading to nothing by STAGED_EXPERIENCE.
+ */
+const SCALE_INEXPERIENCE_COST: Record<Script['scale'], number> = { Intimate: 0, Medium: 0.08, Epic: 0.25 };
+const STAGED_EXPERIENCE = 50;
+export function scaleExperienceFactor(scale: Script['scale'], experience: number | undefined): number {
+  if (experience === undefined) return 1;
+  const lacking = Math.max(0, 1 - experience / STAGED_EXPERIENCE);
+  return 1 - (SCALE_INEXPERIENCE_COST[scale] ?? 0) * lacking;
+}
+
+/** Director's contribution: raw skill (discounted on a big film for someone who has not done one) plus how well their style suits this script. */
 export function computeDirectionScore(talent: TalentAssignment[], script: Script): number {
   const director = getDirector(talent);
   const career = director && getDirectorCareer(director);
   if (!career) return 35; // no director hired is a serious quality hit
-  return career.skill * 0.6 + compatibility(director, 'Director', script) * 0.4;
+  return career.skill * scaleExperienceFactor(script.scale, career.experience) * 0.6 + compatibility(director, 'Director', script) * 0.4;
 }
 
 // How much a specific Character's own trait demands weigh against overall

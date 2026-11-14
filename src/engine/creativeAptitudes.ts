@@ -26,7 +26,7 @@ export const APTITUDE_DOMAINS: AptitudeDomain[] = ['story', 'visual', 'performan
 // skill stays meaningful (a great director is generally good, a poor one
 // generally not), while domains still genuinely diverge. Truly dramatic
 // "great visual / weak story" splits are what AUTHORED marquee aptitudes are for.
-const APTITUDE_SPREAD = 50;
+export const APTITUDE_SPREAD = 50;
 
 /**
  * A director's four domain aptitudes: the authored vector if present, otherwise

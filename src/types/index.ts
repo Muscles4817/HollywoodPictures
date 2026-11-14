@@ -300,6 +300,14 @@ export interface RoleCareerCommon<TRole extends TalentProfession> {
   quoteAnchor?: { salary: Money; value: number };
   /** Finished films in this role before the game began (engine/careerHistory.ts). Added to the credits earned in play wherever a career total is shown. Absent on hand-authored people. */
   priorCredits?: number;
+  /**
+   * How good they could become, attribute by attribute (talent model stage 6,
+   * engine/talentAbility.ts). Fixed for life and never shown. Keyed like the
+   * studio's reads: an actor's acting axes, a director's domains, a designer's
+   * specialties, or `craft`. Absent for the hand-written roster, whose
+   * potential is derived the same way every time.
+   */
+  potential?: Record<string, number>;
 }
 
 // A director's own leanings on *how* a production gets made - orthogonal to

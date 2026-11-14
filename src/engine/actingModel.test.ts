@@ -6,6 +6,7 @@
 // headroom in full, and the two actor archetypes' curves cross.
 import { describe, it, expect } from 'vitest';
 import {
+  actorConsistency,
   actorCraft,
   deriveCraftFromStyle,
   deriveHandsOnFromUnit,
@@ -111,7 +112,16 @@ describe('computeRealizedPerformance - the unlock', () => {
   it('delivers ~the floor under neutral (no) direction', () => {
     const { floor } = actorCraft(actor('a', PRO_STYLE));
     const realized = computeRealizedPerformance(actor('a', PRO_STYLE), undefined, FULL_FIT);
-    expect(realized).toBeCloseTo(floor, 0);
+    // The floor as far as their experience lets them count on it (stage 6).
+    expect(realized).toBeCloseTo(floor * actorConsistency(50), 0);
+  });
+
+  it('experience raises the floor: the same actor, as a veteran, delivers more', () => {
+    const style = PRO_STYLE;
+    const young = actor('y', style);
+    const veteran = { ...young, careers: { actor: { ...young.careers.actor!, experience: 90 } } };
+    const newcomer = { ...young, careers: { actor: { ...young.careers.actor!, experience: 0 } } };
+    expect(computeRealizedPerformance(veteran, undefined, FULL_FIT)).toBeGreaterThan(computeRealizedPerformance(newcomer, undefined, FULL_FIT));
   });
 
   it('a great matched hands-on director unlocks headroom (a career-best, well above floor)', () => {

@@ -19,6 +19,7 @@ import {
   recommendEnvironmentStrategy,
 } from '../engine/recommendation';
 import { footageLowerBound } from '../engine/production';
+import { knowledgeAttributes } from '../engine/talentKnowledge';
 import { computeDailyPrepBurn, PREP_DAILY_BURN_FRACTION } from '../engine/cost';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -165,6 +166,39 @@ export interface PoolStats {
   topDecileFee: number;
   /** Total of everyone's quote - what it would cost to hire the whole profession once. */
   totalFees: number;
+  /** Mean ability for the profession's own role (talent model stage 6). */
+  meanAbility: number;
+  /** How closely fee follows ability: Pearson's r between log fee and ability (§6: 0.3 to 0.5 after fifteen years). */
+  feeAbilityCorrelation: number;
+}
+
+const PROFESSION_ROLE: Record<string, ProductionRole> = {
+  Actor: 'Lead Actor', Director: 'Director', Writer: 'Writer', Cinematographer: 'Cinematographer', Composer: 'Composer',
+  Editor: 'Editor', 'VFX Supervisor': 'VFX Supervisor', 'Casting Director': 'Casting Director', 'Production Designer': 'Production Designer',
+};
+
+function pearson(xs: number[], ys: number[]): number {
+  const n = xs.length;
+  if (n < 3) return 0;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i] - mx) * (ys[i] - my);
+    sxx += (xs[i] - mx) ** 2;
+    syy += (ys[i] - my) ** 2;
+  }
+  return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0;
+}
+
+function abilityStats(roster: Person[], role: ProductionRole | undefined): { meanAbility: number; feeAbilityCorrelation: number } {
+  if (!role) return { meanAbility: 0, feeAbilityCorrelation: 0 };
+  const ability = roster.map((person) => {
+    const attrs = knowledgeAttributes(person, role);
+    return attrs.length ? attrs.reduce((sum, a) => sum + a.value, 0) / attrs.length : 0;
+  });
+  const fees = roster.map((person) => Math.log(Math.max(1, getTypicalSalaryForRole(person, role))));
+  return { meanAbility: ability.reduce((a, b) => a + b, 0) / Math.max(1, ability.length), feeAbilityCorrelation: pearson(fees, ability) };
 }
 
 function poolStats(state: GameState): Record<string, PoolStats> {
@@ -181,6 +215,7 @@ function poolStats(state: GameState): Record<string, PoolStats> {
       medianFee: fees[Math.floor(fees.length / 2)] ?? 0,
       topDecileFee: fees[Math.floor(fees.length * 0.9)] ?? 0,
       totalFees: fees.reduce((sum, fee) => sum + fee, 0),
+      ...abilityStats(roster, PROFESSION_ROLE[profession]),
     };
   }
   return stats;

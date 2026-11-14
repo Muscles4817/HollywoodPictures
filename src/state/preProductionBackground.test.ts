@@ -30,7 +30,11 @@ describe('pre-production advances in the background (ADVANCE_DAY)', () => {
     const prep = asPlayerDraft(findProject(after.projects, state.focusedProjectId))!.preProduction!;
     // Before the fix this stayed 0 on the Dashboard tick.
     expect(prep.daysElapsed).toBeGreaterThanOrEqual(1);
-    expect(after.studio.cash).toBeLessThan(cashBefore);
+    // The day's prep cost reaches the books. It is the overhead net of any prep
+    // event's cost, and an event can be a saving bigger than the day's overhead,
+    // so check that the cash moved by exactly the prep's running cost.
+    expect(prep.runningCost).not.toBe(0);
+    expect(after.studio.cash).toBe(cashBefore - prep.runningCost);
   });
 
   it('runs prep to completion and opens photography without ever entering the prep screen', () => {
