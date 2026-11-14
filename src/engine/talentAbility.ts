@@ -93,6 +93,19 @@ function maturity(profession: keyof typeof START_MATURITY, experience: number): 
 // --- Generation --------------------------------------------------------------
 
 /**
+ * After years in the job the business knows who is good: a veteran's industry
+ * respect carries their ability, a newcomer's barely does (stage 6). Respect is
+ * what rivals and the crafts' quotes read, so this is what keeps a track record
+ * meaning something once fee no longer does.
+ */
+const RESPECT_FROM_ABILITY = 0.6;
+function withEarnedRespect(person: Person, ability: number, m: number): Person {
+  const w = RESPECT_FROM_ABILITY * clamp((m - 0.4) / 0.6, 0, 1);
+  const industryRespect = Math.round(clamp((1 - w) * person.reputation.industryRespect + w * ability, 1, 100));
+  return { ...person, reputation: { ...person.reputation, industryRespect } };
+}
+
+/**
  * A generated person's ability and potential, untied from what they are paid.
  * `t` is their position on the fee spread (0-1), `seed` anything stable about
  * them, `experience` their years in the job as 0-100. Actors keep the acting
@@ -136,7 +149,7 @@ export function untieAbility(person: Person, t: number, seed: string): Person {
     }
     const skill = Math.round(APTITUDE_DOMAINS.reduce((s, d) => s + aptitudes[d], 0) / APTITUDE_DOMAINS.length);
     careers.director = { ...careers.director, skill, aptitudes, potential };
-    return { ...person, careers };
+    return withEarnedRespect({ ...person, careers }, skill, m);
   }
 
   if (careers.writer) {
@@ -146,7 +159,7 @@ export function untieAbility(person: Person, t: number, seed: string): Person {
     const shift = skill - careers.writer.skill;
     const craft = Object.fromEntries(Object.entries(careers.writer.craft).map(([k, v]) => [k, clamp(Math.round(v + shift), 1, 100)])) as unknown as typeof careers.writer.craft;
     careers.writer = { ...careers.writer, skill, craft, potential: { craft: p } };
-    return { ...person, careers };
+    return withEarnedRespect({ ...person, careers }, skill, m);
   }
 
   // Every other craft: one skill, and for the specialty departments their
@@ -167,10 +180,10 @@ export function untieAbility(person: Person, t: number, seed: string): Person {
       specialties[s] = clamp(Math.round(ABILITY_FLOOR + (caps[s] - ABILITY_FLOOR) * m), 1, caps[s]);
     }
     (careers as Record<string, unknown>)[key] = { ...career, skill, specialties, potential };
-    return { ...person, careers };
+    return withEarnedRespect({ ...person, careers }, skill, m);
   }
   (careers as Record<string, unknown>)[key] = { ...career, skill, potential: { craft: p } };
-  return { ...person, careers };
+  return withEarnedRespect({ ...person, careers }, skill, m);
 }
 
 // --- Potential -------------------------------------------------------------------
