@@ -36,15 +36,15 @@ import { knowledgeAttributes, knowledgeProfession } from './talentKnowledge';
  * about one in eight is genuinely good (75+), one in forty exceptional (88+),
  * and nothing marks them.
  */
-export const POTENTIAL_MEAN = 57;
-export const POTENTIAL_SPREAD = 16;
+export const POTENTIAL_MEAN = 58;
+export const POTENTIAL_SPREAD = 20;
 /**
  * How far a career before the game had already sorted people by price. Not
  * zero - a working market rewards ability, imperfectly - but far from the old
  * one-to-one: it puts the starting correlation between fee and ability for
  * crafts and directors near 0.35, where today's generation had it near 0.8.
  */
-export const FEE_LINK = 8;
+export const FEE_LINK = 10;
 /** The floor ability is grown up from: what anyone in the job can already do. */
 const ABILITY_FLOOR = 30;
 /**
@@ -98,7 +98,7 @@ function maturity(profession: keyof typeof START_MATURITY, experience: number): 
  * what rivals and the crafts' quotes read, so this is what keeps a track record
  * meaning something once fee no longer does.
  */
-const RESPECT_FROM_ABILITY = 0.6;
+const RESPECT_FROM_ABILITY = 0.7;
 function withEarnedRespect(person: Person, ability: number, m: number): Person {
   const w = RESPECT_FROM_ABILITY * clamp((m - 0.4) / 0.6, 0, 1);
   const industryRespect = Math.round(clamp((1 - w) * person.reputation.industryRespect + w * ability, 1, 100));
