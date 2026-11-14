@@ -556,9 +556,11 @@ The player-economy harness and the box-office gates are the judges. The bot
 needs one new strategy, "Scout", that deliberately hires the cheapest people
 with the best reads.
 
-- **Fee and talent correlate at 0.3 to 0.5** in a pool that has run for fifteen
-  years, having started wherever generation puts it. The link should emerge
-  from careers, not be written in.
+- **Fee and talent correlate at 0.3 to 0.5 for actors, and about 0.6 for
+  directors and crafts,** in a pool that has run for fifteen years. (Revised
+  with the owner after stage 6 part one: the economy needs paying more to buy
+  better on average, and a crafts correlation under 0.5 needed enough scatter
+  to put very good people within a small studio's reach.)
 - **A discovery's price at least doubles** after their first hit, and a rival
   makes them an offer within a year.
 - **Indie with Scout does better than Indie with Careful**, but does not reach
@@ -980,7 +982,7 @@ about 45 and the dearest about 72. It is knife-edge: widening the scatter
 | Test | Result |
 |---|---|
 | Rival film quality holds | **Met.** Whole-year gate 18 of 21 with the same three misses as stage 8. Variance and buzz gates pass. Budget-tier gate seven misses (stage 8: six); big films' median return 0.95x (0.88x at stage 8). |
-| Boutique does not snowball | **Met for Careful, Steady and Scout**: £20-28M cash at year 10. Brand 32-52; prestige reaches the 90s-100. |
+| Boutique does not snowball | **Not met** - see the correction below: one seed in three ran away even here. |
 | Indie with Scout beats Indie with Careful | **Not met.** Scout ends near £2M against Careful's £16M. With a real price gradient the cheapest strangers are worse on average, and their reads are too vague to pick out the good ones. Scouting pays only once the studio has used someone, and the bot does not yet build on that. |
 | Fee and talent correlate 0.3-0.5 after fifteen years | **Not met.** Directors 0.55 at the start to 0.69, writers 0.58 to 0.61, cinematographers about 0.5. Actors start at 0 and stay at 0: an actor's standing follows how films do, and the notices that now feed their respect depend more on fit and the director than on the actor's own craft. |
 | A discovery's price doubles after a first hit | Not yet measured with the new spread. |
@@ -999,6 +1001,45 @@ cheapness. Options include making reads of strangers sharper at the cheap end
 Scout that rehires what it has learned, and accepting a correlation nearer
 0.6 for the crafts. For actors, sorting would need their own craft to show in
 their notices, or a market that starts with some sorting already.
+
+**Part two, the owner's three calls (§7.7 open questions):**
+
+- **About 0.6 accepted for directors and crafts** (§6 revised).
+- **Actors start lightly sorted by fee** (12 points across the range on each
+  axis), as the crafts do. Their correlation is 0.49 at the start and 0.43
+  after fifteen years: inside the band, and careers now hold it rather than
+  dissolve it.
+- **Scouting runs on information.** Anyone already on the film who has made a
+  film with a candidate vouches for them (a read of 0.40 confidence for one
+  shared film, 0.55 for two or more, named on the card and in the caveat) -
+  how a director brings the camera and cutting-room people they trust. A crew
+  candidate's reel can be reviewed for 2% of their quote (£2,000 at least),
+  the same day: a look at the work, not a test shoot, so nothing lands later
+  and nothing is owed to the Inbox. The Scout bot reviews the reels of the
+  three cheap crew it likes best per role, and forgives the price of people
+  it has learned on its own films are good, so it rehires its discoveries. It
+  now has the same talent budget as Careful (it had less, which rigged the
+  comparison).
+
+**Measured after part two.** Whole-year gate 17 of 21 (stage 8: 18): the same
+three misses plus big hits at 14.6% against a 14% ceiling. Variance and buzz
+pass; budget-tier seven misses. Scout and Careful are now close at Indie
+(£4-12M against £2-17M at year 10, Scout ahead on one seed of three) but Scout
+is not ahead.
+
+**Correction to part one, and the open problem.** Part one reported Boutique
+as not snowballing from the median of three seeds. Per seed, one already ran
+away (£484M), and after part two Boutique Careful ends at £15M, £126M and
+£255M. The talent model is what changed - small studios now make better films
+(Boutique median quality 62, was 55 at stage 8) because cheap people are no
+longer the worst in the pool - but the runaway itself is the box office: once
+a small studio's prestige and Brand reach the top, its *limited* releases gross
+$70-185M. Nothing in the market checks a small studio that keeps making good
+small films. That is the economy work the audit listed (the cost of being big,
+rivals competing on quality, limited-release ceilings), not more tuning of
+talent: every talent setting that removed the runaway did it by making cheap
+people bad again.
+
 
 Not built yet: consistency for directors and crew (how far a bad shoot drags
 someone down, by pressure handling and adaptability); reads that age as

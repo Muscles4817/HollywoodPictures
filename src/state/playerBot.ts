@@ -112,7 +112,7 @@ export const BOT_STRATEGIES: BotStrategy[] = [
     description: 'One modest film at a time, the cheapest people with the best reads, rehiring discoveries.',
     filmBudgetShare: 0.3,
     maxConcurrent: 1,
-    talentShare: 0.3,
+    talentShare: 0.4,
     marketingRatio: 0.5,
     scriptBy: 'quality',
     castBy: 'scout',
