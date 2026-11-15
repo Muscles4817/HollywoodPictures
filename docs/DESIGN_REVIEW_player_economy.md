@@ -575,6 +575,77 @@ look at are why the player's big films beat the market's - script choice,
 Brand, owning distribution - and whether rivals should compete for the same
 scripts, talent and dates on quality rather than price.
 
+## 13. Why big studios cannot lose (investigation)
+
+Harness: `src/state/bigStudioAnatomy.diagnostic.test.ts` sets one bot career's
+films against rivals' films of the same negative cost from the same years.
+Runs: Mid-Major Careful seed 101, Mid-Major Steady seed 102, Major Careful
+seed 101; then two ablations.
+
+**1. The player makes much better films than the market, every time.**
+
+| Negative cost | Player quality | Rival quality | Player audience / critic | Rival audience / critic |
+|---|---|---|---|---|
+| £10-40M | 67-69 | 49-50 | 91-93 / 70-74 | 63-65 / 47-49 |
+| £40-100M | 73-74 | 50-51 | 95 / 75 | 65-66 / 48-50 |
+
+The gap is about 20 points at every size, and direction is where it is widest
+(player 77-94, rivals 64-76). Rivals' median quality is 50 whatever they
+spend: they hire on track record near a price and win scripts at auction, and
+nothing in either choice aims at quality. A careful player takes the best
+script it can afford and the best people it can read, and nobody competes with
+it for them.
+
+**2. Good films pay through every channel at once.** Per pound of cinema
+rentals, the player's after-market earns 0.85 against the market's 0.38. The
+licensing multiplier sits at 2.5 (the clamp is 2.8) against 0.97, because it
+multiplies audience score, critic score, awards and studio prestige - four
+readings of the same thing, "a good film from a good studio" - and catalogue
+longevity is 0.59 against 0.17 for the same reason. Box office, licensing,
+catalogue, awards and Prestige all move together.
+
+**3. Quality is the whole story.** At Mid-Major over ten years:
+
+| Strategy | Median film quality | Cash at year 10 |
+|---|---|---|
+| Careless | 36 | £0-1M - broke |
+| Swing Big | 59 | £17-211M |
+| Careful / Steady | 65-75 | £330-960M |
+
+Capping the after-market multipliers at 1.6 (from 2.8) trims the big studios
+by 10-30% and leaves them growing four to eight times: it compounds the edge,
+it is not the edge.
+
+**4. The rival field polarises.** Over ten years rival Brands go to 0 or to
+about 90 and their cash to boom or bust (Columbia £2.2B to £4.3B, 20th Century
+£2.2B to £62M, New Line £1.0B to £7M). Brand sets marketing efficiency, which
+sets the next film's take, which sets Brand: a loop with nothing pulling it
+back toward the middle. A collapsing rival is one less competitor for the
+player. Rivals also spend 1.6-2.7 times a small film's negative on marketing
+(the player: 0.2-1.0), which is why most of their small films lose money
+(the budget-tier gate has flagged this for some time).
+
+**What would make a big studio able to lose, in order of how much each
+addresses the cause:**
+
+1. **Rivals compete on quality.** Rivals rate scripts and people as a player
+   does (they know the people they have used), bid up the best scripts and
+   book the best people, so the player meets competition for its inputs and
+   at the box office. This raises rival quality, so the box-office gates need
+   re-running and probably recalibrating; it is the biggest change and the
+   one that addresses the cause.
+2. **One bounded "regard" term in the after-market**, instead of four
+   stacked readings of quality: a well-regarded film still earns more
+   downstream, but by a factor nearer 1.5 than 2.5.
+3. **Brand drifts back toward a studio's level of output** (and the rival
+   field with it), so neither the player nor a rival holds the most efficient
+   marketing in the market for good, and rivals stop collapsing.
+4. **Rivals' small-film marketing** brought back to the reference range.
+5. **Variance at the top.** Check that a very good film still flops often
+   enough (timing, taste, competition); the variance gate passes, but the
+   player's 40-100M films are profitable 38-86% of the time with the
+   after-market, which is high.
+
 ## 11. Reproducing this
 
 ```bash

@@ -120,6 +120,14 @@ Runs are reproducible because the bot mints ids from counters
 and person ids come from the clock and process-wide counters, and several
 gameplay rolls are keyed on them, so a seed alone does not replay a game.
 
+Big-studio anatomy (docs/DESIGN_REVIEW_player_economy.md §13 - the player's films
+against rivals' films of the same size, and where the money comes from):
+
+```bash
+PLAYER_ECONOMY_DIAGNOSTIC=1 TIER=midmajor SEED=101 STRAT=Careful \
+  npx vitest run src/state/bigStudioAnatomy.diagnostic.test.ts --disable-console-intercept
+```
+
 Populated save dump (for looking at screens with real content in them, rather
 than at the empty states an unpopulated fixture renders):
 
