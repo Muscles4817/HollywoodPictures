@@ -141,7 +141,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // which point at drawers that aren't on screen. The exact same derivation
   // Header.tsx's badge count reads (engine/project.ts:inboxBadgeCount), so the
   // two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished, brandNotice } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays, state.studio.brandNotice);
+  const { awaitingChoice, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished, brandNotice } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays, state.studio?.brandNotice);
   // Recently-resolved award ceremonies the player hasn't clicked through yet
   // (state/selectors.ts) - awards settle silently in the background tick, so
   // this is the Inbox's "Awards night" catch-up beat.

@@ -439,8 +439,19 @@ describe('real-film regression: Suicide Squad (bad reviews, still made money)', 
     const returnMultiple = results.studioRevenue! / results.totalCost;
     // 0.84, was 0.85: since experience raises an actor's floor (talent model
     // stage 6), the least experienced of the cast (Delevingne) delivers a little
-    // less, and the film lands at ~0.848. The shape is unchanged.
-    expect(returnMultiple).toBeGreaterThan(0.84); // near or above breakeven, never a rout
+    // less, and the film landed at ~0.848.
+    // Now 0.65, with an all-in floor beside it: when rivals moved to the
+    // player's scoring model (docs/IMPLEMENTATION_PLAN_market_realism.md Phase
+    // 2), procedure R re-centred quality on a better market (QUALITY_REFERENCE
+    // 51 -> 54) and took the market's level down one step
+    // (BASE_ADDRESSABLE_POPULATION 190M -> 188M). The same film reads two to
+    // three points less above the market and returns ~0.68 in cinemas, ~0.81
+    // all-in - a "Weak" result, still not a Flop or a Bomb. The after-market,
+    // which this comment once said the sim did not model, now is; so the
+    // all-in return is the honest "near breakeven" check.
+    expect(returnMultiple).toBeGreaterThan(0.65); // never a rout in cinemas
+    const allInReturn = (results.studioRevenue! + (results.expectedAfterMarket ?? 0)) / results.totalCost;
+    expect(allInReturn).toBeGreaterThan(0.78); // near breakeven once the after-market is in
     expect(results.outcome).not.toBe('Bomb');
     // Not a craft accolade, and not the top commercial tiers either - a
     // middling-return crowd hit.
