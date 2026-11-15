@@ -521,6 +521,60 @@ its engines, not the snowball.
 What the remaining decline at the bottom is waiting on: who a small studio can
 hire (section 9) and a way to sell a film (item 7).
 
+## 12. After the talent model: the cost of being big (applied)
+
+Untying ability from fee (talent model stage 6) made small studios' films
+better - cheap people are no longer the worst in the pool - and on one Boutique
+seed in three that tipped into a runaway: £255-484M by year ten. The films
+were good small films; the money came from the box office. Three changes,
+each one a thing that is true of the real business and was missing here.
+
+**Going wider costs money** (`engine/boxOfficeRun.ts`,
+`PLATFORM_EXPANSION_COST_AT_FULL` = £20M from no screens to every screen).
+Every week a film reaches more screens than it has had before, it pays for the
+new ones - prints, local advertising, the push behind a platform release
+breaking out. Before this, a Limited release with £1.3-2.5M of marketing could
+expand to a nationwide run and gross $70-185M with no further spend. Kept in
+`FilmResults.expansionCost`, inside marketing and total cost.
+
+**Facilities cost money to run** (`engine/runningCosts.ts`). Each tier carries a
+yearly cost, charged quarterly through the ledger and shown on each facility's
+card before the player buys: distribution arm £1.5M / £5M / £12M,
+international £2M / £5M / £10M, production office £0.5M / £1.5M / £3M, market
+research £0.3M / £0.8M / £1.5M. A fully built studio pays about £26M a year.
+Upgrades were one-off purchases before - a complete worldwide distribution
+operation cost £20M once and nothing after. The harness bot now keeps its
+yearly bills under half its upgrade share of cash (Careful: 5%); a player sees
+the bill on the card.
+
+**Brand and Prestige gains come harder near the top**
+(`engine/reputation.ts:applyStatChange`). In full up to 50, half at 75, a
+fifth at 90; losses in full. Studio Brand sets how far a marketing pound goes
+(0.3 to 1.0), and a studio making steady profits used to pin it at 100 and keep
+the most efficient marketing in the market for good.
+
+**Measured** (ten years, three seeds, Careful / Scout / Steady):
+
+| Tier | Before (talent stage 6) | After |
+|---|---|---|
+| Indie | £2-17M | £0-8M - difficult, as intended |
+| Boutique | £15M, £126M, £255M (Careful) | £8-30M on every strategy and seed |
+| Mid-Major | £437-871M | £334-785M (Careful, Steady); Scout £25-88M |
+| Major | £516-1,345M | £503-963M |
+
+The box-office gates are unchanged: whole-year 18 of 21 with the same three
+misses, budget-tier six, variance and buzz pass.
+
+**Still open: Mid-Major and Major cannot lose.** That predates this work (stage
+8 measured £561-973M at Mid-Major) and these three changes only trim it. What
+the harness points at: a big studio's films are profitable far more often than
+rivals' films of the same size (the budget-tier gate has big films losing money
+55% of the time across the market), after-market income is about as large as
+the theatrical take, and Brand still settles in the 90s. The next things to
+look at are why the player's big films beat the market's - script choice,
+Brand, owning distribution - and whether rivals should compete for the same
+scripts, talent and dates on quality rather than price.
+
 ## 11. Reproducing this
 
 ```bash
