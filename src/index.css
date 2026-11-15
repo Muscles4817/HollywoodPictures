@@ -2031,6 +2031,8 @@ textarea, input, select {
    and grey for a second-hand guess, dashed for never tested. */
 .talent-career-line { font-style: italic; }
 
+.office-running-cost { margin: 4px 0 8px; font-size: 0.8em; color: var(--text-muted); }
+
 .dossier-caveat {
   margin-top: 12px;
   padding: 10px 12px;

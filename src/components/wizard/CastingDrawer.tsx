@@ -664,7 +664,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const knowledgeFor = (person: Person): TalentKnowledge => {
     const audition = auditionFor(person);
     const audited = !!audition && state.totalDays >= audition.readyOnDay;
-    return deriveTalentKnowledge(person, role, creditIndex, { castingDirectorSkill, character, audited });
+    return deriveTalentKnowledge(person, role, creditIndex, { castingDirectorSkill, character, audited, colleagues: draft.talent });
   };
 
   /** Make (or raise) an offer at the current target salary - the reducer rolls/reuses the actor's asking price and resolves accept/counter/reject (engine/castingNegotiation.ts). */

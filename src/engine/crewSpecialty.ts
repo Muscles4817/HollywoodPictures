@@ -58,7 +58,7 @@ export const SPECIALTY_LABEL: Record<CrewSpecialty, string> = {
 
 // How far a head's best/worst specialty can sit from their overall skill. Wide
 // enough to make specialty match matter, not so wide it swamps overall level.
-const SPECIALTY_SPREAD = 22;
+export const SPECIALTY_SPREAD = 22;
 
 export const isSpecialtyDepartment = (d: string): d is SpecialtyDepartment => d === 'productionDesign' || d === 'vfx';
 

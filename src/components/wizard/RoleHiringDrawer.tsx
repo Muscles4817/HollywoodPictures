@@ -20,7 +20,8 @@ import { professionForProductionRole, findAssignedPerson } from '../../data/help
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { TalentStats } from '../common/TalentStats';
-import { buildCreditIndex, deriveTalentKnowledge, type TalentKnowledge } from '../../engine/talentKnowledge';
+import { formatMoney } from '../common/Money';
+import { buildCreditIndex, deriveTalentKnowledge, reelReviewCost, type TalentKnowledge } from '../../engine/talentKnowledge';
 import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
@@ -67,11 +68,13 @@ interface CandidateCardProps {
   castAffinity: CastAffinity | null;
   /** What the studio knows of them, from the films it has seen (engine/talentKnowledge.ts). */
   knowledge: TalentKnowledge;
+  /** Crew only: review their reel for this film (talent model stage 6). Absent when it does not apply or is already done. */
+  reel?: { cost: number; seen: boolean; affordable: boolean; onReview: () => void } | null;
   onSelect: () => void;
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, budget, signals, castingDirectorSkill, relationship, castAffinity, knowledge, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, budget, signals, castingDirectorSkill, relationship, castAffinity, knowledge, reel = null, onSelect, onTogglePin }: CandidateCardProps) {
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
@@ -101,6 +104,23 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
       >
         {pinned ? 'Pinned' : 'Pin to Compare'}
       </Button>
+      {reel && !reel.seen && (
+        <Button
+          className="btn-sm"
+          variant="secondary"
+          style={{ marginTop: 8, marginLeft: 8 }}
+          disabled={!reel.affordable}
+          title="A proper look at their work, for this film - it sharpens what you know of them."
+          onClick={(e) => {
+            e.stopPropagation();
+            reel.onReview();
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          Review their reel · {formatMoney(reel.cost)}
+        </Button>
+      )}
+      {reel?.seen && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Reel reviewed</p>}
       {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>{isActor ? 'Cast' : 'Hired'}</p>}
       {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>{isActor ? 'Fully cast' : 'Cast full'}</p>}
     </Card>
@@ -250,7 +270,21 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
   // What the studio knows of each candidate (talent model stage 4).
   const creditIndex = buildCreditIndex(state.projects);
-  const knowledgeFor = (person: Person): TalentKnowledge => deriveTalentKnowledge(person, role, creditIndex);
+  // Who is already on the film can vouch for someone they have worked with,
+  // and a reviewed reel shows a crew member's work properly (stage 6).
+  const reelSeenFor = (person: Person) => (draft.reelsSeen ?? []).some((r) => r.personId === person.id && r.role === role);
+  const knowledgeFor = (person: Person): TalentKnowledge =>
+    deriveTalentKnowledge(person, role, creditIndex, { colleagues: draft.talent, reelSeen: reelSeenFor(person) });
+  const reelFor = (person: Person) => {
+    if (profile.category !== 'crew') return null;
+    const cost = reelReviewCost(getTypicalSalaryForRole(person, role));
+    return {
+      cost,
+      seen: reelSeenFor(person),
+      affordable: cost <= state.studio.cash,
+      onReview: () => dispatch({ type: 'REVIEW_REEL', role, personId: person.id, personName: person.identity.name }),
+    };
+  };
   const castAffinityFor = (person: Person) => notableCastAffinity(person, role, draft.talent, state.talentPairings ?? []);
   // The production's attached casting director sharpens actor fit reads (TalentStats
   // gates it to actors; harmless to pass for a director/crew hire). undefined with none.
@@ -553,6 +587,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                   castingDirectorSkill={castingDirectorSkill}
                   relationship={relationshipFor(person)}
                   knowledge={knowledgeFor(person)}
+                  reel={reelFor(person)}
                   castAffinity={castAffinityFor(person)}
                   onSelect={() => selectPerson(person)}
                   onTogglePin={() => pins.toggle(person.id)}

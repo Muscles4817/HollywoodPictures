@@ -244,7 +244,7 @@ export function creditTests(credit: Credit, personId: PersonId, attributes: Know
 
 export type ReadTier = 'certain' | 'fair' | 'slight' | 'untested';
 
-export type EvidenceSource = 'own' | 'elsewhere' | 'career' | 'casting-director' | 'audition' | 'none';
+export type EvidenceSource = 'own' | 'elsewhere' | 'career' | 'casting-director' | 'audition' | 'vouched' | 'reel' | 'none';
 
 export interface AttributeRead {
   key: string;
@@ -293,6 +293,8 @@ export interface TalentKnowledge {
   trackRecord: TrackRecordRow[];
   /** The single most useful thing to know before offering, or null. */
   caveat: string | null;
+  /** Someone on the film who has worked with them and can vouch for them (stage 6). */
+  vouchedBy: Voucher | null;
 }
 
 export interface KnowledgeOptions {
@@ -302,6 +304,45 @@ export interface KnowledgeOptions {
   character?: ScriptCharacter | null;
   /** A screen test for `character` has been completed. */
   audited?: boolean;
+  /**
+   * Who is already on the film (stage 6). Anyone among them who has made a
+   * film with this person can vouch for them - the way a director brings the
+   * camera and cutting-room people they trust. A first-hand read, but someone
+   * else's, so it stops well short of your own.
+   */
+  colleagues?: Array<{ role: ProductionRole; person: Person }>;
+  /** A crew member's reel has been reviewed: their work, seen properly, for this film. */
+  reelSeen?: boolean;
+}
+
+/** One colleague who worked with them on one film, and on two or more. */
+export const VOUCH_CONFIDENCE_ONE = 0.4;
+export const VOUCH_CONFIDENCE_MORE = 0.55;
+/** A crew member's reel, reviewed. */
+export const REEL_CONFIDENCE = 0.6;
+/** What reviewing a reel costs: a sliver of their quote, with a floor. */
+const REEL_COST_SHARE = 0.02;
+const REEL_COST_FLOOR = 2_000;
+export function reelReviewCost(quote: number): number {
+  return Math.max(REEL_COST_FLOOR, Math.round((quote * REEL_COST_SHARE) / 1_000) * 1_000);
+}
+
+export interface Voucher {
+  name: string;
+  role: ProductionRole;
+  sharedFilms: number;
+}
+
+/** The colleague on this film who knows them best, if any has worked with them. */
+export function findVoucher(index: CreditIndex, personId: PersonId, colleagues: Array<{ role: ProductionRole; person: Person }>): Voucher | null {
+  let best: Voucher | null = null;
+  const films = (index.get(personId) ?? []).map((c) => c.film);
+  for (const { role, person } of colleagues) {
+    if (person.id === personId) continue;
+    const shared = new Set(films.filter((f) => f.talent.some((a) => a.person.id === person.id)).map((f) => f.id)).size;
+    if (shared > 0 && (!best || shared > best.sharedFilms)) best = { name: person.identity.name, role, sharedFilms: shared };
+  }
+  return best;
 }
 
 function ownConfidence(evidence: number): number {
@@ -353,6 +394,10 @@ function basisFor(source: EvidenceSource | 'career-faint', ownFilms: number, els
     case 'own':
       if (ownFilms === 0) return 'Glimpsed in a small part for you';
       return ownFilms === 1 ? 'You saw it on one of your films' : `You saw it on ${countWord(ownFilms)} of your films`;
+    case 'reel':
+      return 'Their reel, reviewed for this film';
+    case 'vouched':
+      return 'Vouched for by someone on the film';
     case 'audition':
       return 'Their screen test for this part';
     case 'casting-director':
@@ -418,6 +463,8 @@ export function deriveTalentKnowledge(
   const seen = 0.5 + person.reputation.fame / 100;
   const castingSkill = profession === 'actor' ? clamp((options.castingDirectorSkill ?? 0) / 100, 0, 1) : 0;
   const character = profession === 'actor' ? (options.character ?? null) : null;
+  const voucher = options.colleagues ? findVoucher(index, person.id, options.colleagues) : null;
+  const reel = !!options.reelSeen && profession === 'crew';
 
   const reads: AttributeRead[] = attributes.map((a) => {
     const careerEvidence = prior * PRIOR_CREDIT_WEIGHT * seen * (a.value / 100) ** 2;
@@ -428,9 +475,11 @@ export function deriveTalentKnowledge(
     const fromCasting = castingSkill * CASTING_DIRECTOR_CONFIDENCE;
     const trait = ACTING_STYLE_TO_CHARACTER_TRAIT[a.key as keyof ActingStyle];
     const fromAudition = options.audited && character && trait ? AUDITION_CONFIDENCE * Math.min(1, character.traits[trait] / 60) : 0;
-    const confidence = combine(combine(fromOwn, fromElsewhere), combine(fromCasting, fromAudition));
+    const fromVouch = voucher ? (voucher.sharedFilms >= 2 ? VOUCH_CONFIDENCE_MORE : VOUCH_CONFIDENCE_ONE) : 0;
+    const fromReel = reel ? REEL_CONFIDENCE : 0;
+    const confidence = combine(combine(combine(fromOwn, fromElsewhere), combine(fromCasting, fromAudition)), combine(fromVouch, fromReel));
 
-    const strongest = Math.max(fromOwn, fromElsewhere, fromCasting, fromAudition);
+    const strongest = Math.max(fromOwn, fromElsewhere, fromCasting, fromAudition, fromVouch, fromReel);
     const source: EvidenceSource =
       strongest <= 0.01
         ? 'none'
@@ -438,6 +487,10 @@ export function deriveTalentKnowledge(
           ? 'own'
           : strongest === fromAudition
             ? 'audition'
+            : strongest === fromReel
+              ? 'reel'
+              : strongest === fromVouch
+                ? 'vouched'
             : strongest === fromCasting
               ? 'casting-director'
               : (elsewhere[a.key] ?? 0) >= careerEvidence
@@ -466,7 +519,9 @@ export function deriveTalentKnowledge(
       confidence: tested ? confidence : 0,
       tier,
       verdict: verdictFor(tier, centre, low, high),
-      basis: basisFor(source === 'career' && confidence < FAINT_CAREER ? 'career-faint' : source, ownFilms, elsewhereFilms),
+      basis: source === 'vouched' && voucher
+        ? `Your ${voucher.role.toLowerCase()}, ${voucher.name}, has worked with them`
+        : basisFor(source === 'career' && confidence < FAINT_CAREER ? 'career-faint' : source, ownFilms, elsewhereFilms),
       source,
       ownFilms,
       elsewhereFilms,
@@ -481,7 +536,10 @@ export function deriveTalentKnowledge(
     totalFilms: getPriorCredits(person) + credits.length,
     ownFilms,
     trackRecord: credits.map((c) => trackRecordRow(c, person.id)),
-    caveat: deriveCaveat(person, profession, reads, credits, character),
+    caveat: voucher && credits.every((c) => !c.own)
+      ? `${voucher.name}, your ${voucher.role.toLowerCase()}, has made ${voucher.sharedFilms === 1 ? 'a film' : `${COUNT_WORD[voucher.sharedFilms] ?? voucher.sharedFilms} films`} with them and vouches for them. A better guide than their record.`
+      : deriveCaveat(person, profession, reads, credits, character),
+    vouchedBy: voucher,
   };
 }
 

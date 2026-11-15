@@ -300,6 +300,14 @@ export interface RoleCareerCommon<TRole extends TalentProfession> {
   quoteAnchor?: { salary: Money; value: number };
   /** Finished films in this role before the game began (engine/careerHistory.ts). Added to the credits earned in play wherever a career total is shown. Absent on hand-authored people. */
   priorCredits?: number;
+  /**
+   * How good they could become, attribute by attribute (talent model stage 6,
+   * engine/talentAbility.ts). Fixed for life and never shown. Keyed like the
+   * studio's reads: an actor's acting axes, a director's domains, a designer's
+   * specialties, or `craft`. Absent for the hand-written roster, whose
+   * potential is derived the same way every time.
+   */
+  potential?: Record<string, number>;
 }
 
 // A director's own leanings on *how* a production gets made - orthogonal to
@@ -1577,6 +1585,8 @@ export interface FilmResults {
   productionCost: number;
   marketingCost: number;
   totalCost: number;
+  /** What going wider has cost so far: the prints and advertising behind each week the film reached more screens than before (engine/boxOfficeRun.ts). Already inside marketingCost and totalCost. Absent when it never expanded. */
+  expansionCost?: number;
   openingWeekend: number;
   // These six are only knowable once the film's BoxOfficeRun finishes
   // (see BoxOfficeRun below and docs/DESIGN.md 5.19) - total gross isn't a
@@ -2827,6 +2837,8 @@ export interface FilmDraft {
   shortlist?: ShortlistEntry[];
   /** Casting Redesign, Phase 4 - screen tests the studio has arranged for candidates on this draft's characters, at most one per (character, actor). Each takes calendar time to complete (AuditionRecord.readyOnDay) and then reads as a confident fit. Read as `[]` when absent (older drafts). */
   auditions?: AuditionRecord[];
+  /** Crew whose reels the studio has reviewed for this film (talent model stage 6): a proper look at their work, which sharpens the read. */
+  reelsSeen?: Array<{ personId: PersonId; role: ProductionRole }>;
   /** Director bake-off (Phase B2) - an open pitch round for the Director role: directors preparing pitches and the pitches received, awaiting the player's pick. Absent when no round is open (the default; a director can still be hired directly via the offer path). Cleared on select/pass. */
   directorPitches?: DirectorPitchProcess;
   /** Director bake-off (Phase B2) - the pitch the player selected when hiring this draft's director, frozen for the downstream production bets it promises (tonal take, production approach) to read in Phase B3. Absent when the director was hired via the direct offer path rather than a pitch. */

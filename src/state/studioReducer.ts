@@ -1,3 +1,4 @@
+import { ageAbilities } from '../engine/talentAbility';
 import { buildIndustryNotice, careerNews, crossedIntoNewYear, MAX_INDUSTRY_NOTICES, turnOverTalent, withCareerNews } from '../engine/careerTurnover';
 import { AWARD_CATEGORY_WEIGHT } from '../data/awards';
 import { applyAwardsToCareers, applyFilmResultsToCareers, crossedStandingFade, fadeStanding } from '../engine/careerProgress';
@@ -40,6 +41,8 @@ import {
 import type { PressTourResponseId } from '../data/pressTourMoments';
 import { backendDealFromOffer } from '../engine/backend';
 import { recordCashChange } from '../engine/cashLedger';
+import { crossedRunningCostDay, quarterlyRunningCost, runningCostLines } from '../engine/runningCosts';
+import { reelReviewCost } from '../engine/talentKnowledge';
 import {
   accrueAncillaryAwardsPremium,
   accrueRivalAncillary,
@@ -970,8 +973,10 @@ function withIndustryTurnover(before: GameState, after: GameState): GameState {
       for (const assignment of project.draft.talent) protectedIds.add(assignment.person.id);
     }
   }
-  const result = turnOverTalent(after.talentPool, { day: after.totalDays, seed: after.rngSeed, protectedIds });
-  if (result.departures.length === 0) return after;
+  // A year older: physical performance fades past the forties (talent model stage 6).
+  const aged = ageAbilities(after.talentPool, after.totalDays);
+  const result = turnOverTalent(aged, { day: after.totalDays, seed: after.rngSeed, protectedIds });
+  if (result.departures.length === 0) return aged === after.talentPool ? after : { ...after, talentPool: aged };
 
   const workedWith = new Set((after.collaborations ?? []).filter((c) => c.studioId === PLAYER_STUDIO_ID).map((c) => c.personId));
   const notice = buildIndustryNotice(result, after.totalDays, workedWith);
@@ -997,8 +1002,22 @@ function withCareerNewsFor(before: GameState, after: GameState): GameState {
   return { ...after, industryNotices: withCareerNews(after.industryNotices, news, after.totalDays) };
 }
 
+/**
+ * The facilities' running costs (the cost of being big): a quarter's bill each
+ * time the calendar crosses a quarter, whatever action moved it. Recorded in
+ * the cash ledger under 'facility', one line per bill.
+ */
+function withRunningCosts(before: GameState, after: GameState): GameState {
+  if (before.talentDatabaseId !== after.talentDatabaseId || after.totalDays <= before.totalDays) return after;
+  if (!crossedRunningCostDay(before.totalDays, after.totalDays)) return after;
+  const bill = quarterlyRunningCost(after.studio);
+  if (bill <= 0) return after;
+  const what = runningCostLines(after.studio).map((line) => line.label.toLowerCase()).join(', ');
+  return { ...after, studio: recordCashChange(after.studio, after.totalDays, -bill, 'facility', `Running costs for the quarter: ${what}`) };
+}
+
 export function studioReducer(state: GameState, action: GameAction): GameState {
-  return withCareerNewsFor(state, withIndustryTurnover(state, withDraftsAtAssetHead(applyGameAction(state, action))));
+  return withRunningCosts(state, withCareerNewsFor(state, withIndustryTurnover(state, withDraftsAtAssetHead(applyGameAction(state, action)))));
 }
 
 function applyGameAction(state: GameState, action: GameAction): GameState {
@@ -1987,6 +2006,23 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
     // Casting Director's skill); completeness is then DERIVED from the clock, so
     // no tick is needed to "finish" it. No-op if one's already been arranged for
     // this pair - you don't audition someone twice.
+    // Talent model stage 6: a crew candidate's reel, reviewed for this film. A
+    // look at the work rather than a test shoot, so it lands the same day - it
+    // costs a small fee and sharpens every read of them (engine/talentKnowledge.ts).
+    case 'REVIEW_REEL': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const seen = focusedDraft.reelsSeen ?? [];
+      if (seen.some((r) => r.personId === action.personId && r.role === action.role)) return state;
+      const person = Object.values(state.talentPool).flat().find((p) => p.id === action.personId);
+      if (!person) return state;
+      const cost = reelReviewCost(getTypicalSalaryForRole(person, action.role));
+      if (cost > state.studio.cash) return state;
+      const studio = recordCashChange(state.studio, state.totalDays, -cost, 'production', `Reviewed ${action.personName}'s reel`);
+      const next = { ...focusedDraft, reelsSeen: [...seen, { personId: action.personId, role: action.role }] };
+      return { ...state, studio, projects: replaceDraft(state.projects, next) };
+    }
+
     case 'REQUEST_AUDITION': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;

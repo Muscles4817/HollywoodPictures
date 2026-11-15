@@ -448,7 +448,12 @@ import { deleteSave, readSave, writeSave } from './saveDatabase';
 //   the talent pool now turns over each year.
 // v103 -> v104 (talent model stage 8): Person gained recentWork and
 //   breakUntilDay - people now choose their work, take breaks, and slow down.
-export const SAVE_VERSION = 104;
+// v104 -> v105 (talent model stage 6): careers gained potential, directors and
+//   specialty crew store their attributes, and ability is no longer derived
+//   from fee - a v104 pool's skills mean something else.
+// v105 -> v106 (economy): a running film's marketing and total cost now grow
+//   as it expands to more screens (FilmResults.expansionCost).
+export const SAVE_VERSION = 106;
 
 /** Every pre-v99 save lived in localStorage under a key with this prefix. */
 const LEGACY_SAVE_KEY_PREFIX = 'hollywood-pictures-save-v';

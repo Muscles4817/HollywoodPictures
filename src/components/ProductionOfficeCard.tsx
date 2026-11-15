@@ -2,6 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
+import { RunningCostNote } from './common/RunningCostNote';
+import { MARKET_RESEARCH_RUNNING_BY_TIER, PRODUCTION_OFFICE_RUNNING_BY_TIER } from '../engine/runningCosts';
 import { playerReleasedFilms } from '../engine/project';
 import {
   benchCapacity,
@@ -90,6 +92,7 @@ export function ProductionOfficeCard() {
       <p className="office-bench-count">
         <strong>{benchIds.length} / {cap}</strong> producers on the bench
       </p>
+      <RunningCostNote table={PRODUCTION_OFFICE_RUNNING_BY_TIER} tier={tier} hasNext={next != null} />
 
       {bench.length === 0 ? (
         <p className="dashboard-sidebar-empty">No producers hired yet.</p>
@@ -162,6 +165,7 @@ function MarketResearchSection() {
           ? `Opening projections come in as a wide ±${currentBand}% gut-feel range. Buy in to tighten them.`
           : `Opening projections tracked to within ±${currentBand}% of the real figure.`}
       </p>
+      <RunningCostNote table={MARKET_RESEARCH_RUNNING_BY_TIER} tier={tier} hasNext={next != null} />
       {next != null && upgradeCost != null ? (
         <Button
           className="btn-sm"

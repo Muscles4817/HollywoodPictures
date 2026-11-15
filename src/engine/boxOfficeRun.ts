@@ -35,6 +35,14 @@ export const STUDIO_BOX_OFFICE_SHARE = 0.42;
  * Per-market grosses are rounded and the headline is their exact sum, so a
  * stored week always satisfies domesticGross + internationalGross === gross.
  */
+/**
+ * What it costs to take a film from no screens to every screen there is: the
+ * prints and local advertising behind a nationwide push. Charged in step with
+ * a film's expansion, so a platform release that breaks out pays most of a
+ * wide campaign as it goes wide (docs/DESIGN_REVIEW_player_economy.md §11).
+ */
+export const PLATFORM_EXPANSION_COST_AT_FULL = 20_000_000;
+
 function settleWeekMoney(film: Film, simulatedWorldwideGross: number): {
   gross: number;
   domesticGross: number;
@@ -371,11 +379,29 @@ export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, F
   // own doc comment on why this is historical fact, not re-derivable).
   const weeks = [...run.weeks, { week: nextSimWeek.week, gross: money.gross, domesticGross: money.domesticGross, internationalGross: money.internationalGross, competitivePressure }];
   const cumulativeGross = run.cumulativeGross + money.gross;
-  const cashCredit = weekCashCredit;
+  // Going wider costs money: every week a film reaches more screens than it
+  // has had before, its distributor pays for the new ones - prints, local
+  // advertising, the push behind a platform release breaking out. A limited
+  // release that expands nationwide spends most of a wide campaign doing it.
+  // Read from stored weeks only, so a calendar jump settles identically.
+  const peakBefore = Math.max(run.fixed.initialAvailabilityFraction, ...run.simWeeks.map((w) => w.availabilityFraction));
+  const expansionCost = Math.round(Math.max(0, nextSimWeek.availabilityFraction - peakBefore) * PLATFORM_EXPANSION_COST_AT_FULL);
+  const cashCredit = weekCashCredit - expansionCost;
 
   const finished = hasSimulationEnded(simWeeks);
   const updatedRun = { ...run, simWeeks, weeks, cumulativeGross, status: finished ? ('finished' as const) : ('running' as const) };
-  let updatedFilm: Film = { ...film, boxOfficeRun: updatedRun };
+  let updatedFilm: Film = expansionCost > 0
+    ? {
+        ...film,
+        boxOfficeRun: updatedRun,
+        results: {
+          ...film.results,
+          expansionCost: (film.results.expansionCost ?? 0) + expansionCost,
+          marketingCost: film.results.marketingCost + expansionCost,
+          totalCost: film.results.totalCost + expansionCost,
+        },
+      }
+    : { ...film, boxOfficeRun: updatedRun };
   let brandDelta = 0;
   let prestigeDelta = 0;
   let genreIdentityDelta = 0;

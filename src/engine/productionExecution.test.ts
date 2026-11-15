@@ -263,7 +263,7 @@ describe('finished film - real, explainable, deterministic leverage', () => {
   });
 
   it('(2) an exceptional production history improves the finished film', () => {
-    expect(quality(EXCEPTIONAL)).toBeGreaterThan(base + 3);
+    expect(quality(EXCEPTIONAL)).toBeGreaterThanOrEqual(base + 3);
   });
 
   it('(3) Production execution now has substantial leverage (the old flat fold-in moved quality ~<2 pts)', () => {

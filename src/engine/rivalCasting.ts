@@ -45,6 +45,9 @@ const PUBLIC_ROLES = new Set<ProductionRole>(['Lead Actor', 'Supporting Actor', 
 /** A person's track record as an outsider reads it, 0-100. */
 export function trackRecordScore(person: Person, role: ProductionRole): number {
   const { fame, currentHeat, industryRespect } = person.reputation;
+  // A director is chosen on the work as much as the name (stage 6: once fee
+  // stopped meaning ability, the respect of the business is what carries it).
+  if (role === 'Director') return 0.35 * currentHeat + 0.25 * fame + 0.4 * industryRespect;
   if (PUBLIC_ROLES.has(role)) return 0.5 * currentHeat + 0.35 * fame + 0.15 * industryRespect;
   const experience = (getCareerForRole(person, role) as { experience?: number } | null)?.experience ?? 0;
   return 0.45 * industryRespect + 0.3 * experience + 0.25 * currentHeat;

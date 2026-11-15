@@ -79,6 +79,14 @@ function summarise(runs: BotRun[]): string[] {
         .map((p) => `${p} fame x${drift(p, (s) => s.meanFame).toFixed(2)} heat x${drift(p, (s) => s.meanHeat).toFixed(2)} median fee x${drift(p, (s) => s.medianFee).toFixed(2)} top-decile fee x${drift(p, (s) => s.topDecileFee).toFixed(2)}`)
         .join(' | '),
   );
+  // Ability against fee (talent model stage 6): mean ability, and how closely fee follows it, start -> end.
+  const poolAt = (profession: string, pick: (s: PoolStats) => number, end: boolean) => median(runs.map((r) => pick((end ? r.pool.end : r.pool.start)[profession])));
+  lines.push(
+    `    ability: ` +
+      ['Actor', 'Director', 'Cinematographer', 'Writer']
+        .map((p) => `${p} mean ${poolAt(p, (s) => s.meanAbility, false).toFixed(1)}->${poolAt(p, (s) => s.meanAbility, true).toFixed(1)} fee~ability r ${poolAt(p, (s) => s.feeAbilityCorrelation, false).toFixed(2)}->${poolAt(p, (s) => s.feeAbilityCorrelation, true).toFixed(2)}`)
+        .join(' | '),
+  );
 
   const wentNegative = runs.filter((r) => r.years.some((y) => y.cashMin < 0)).length;
   const blocked = runs.filter((r) => r.releaseFirstBlockedOnDay !== null);

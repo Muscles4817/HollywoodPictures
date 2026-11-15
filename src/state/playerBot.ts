@@ -1,4 +1,5 @@
 import type { GameState } from './gameState';
+import { yearlyRunningCost } from '../engine/runningCosts';
 import { createInitialStudio } from './gameState';
 import { studioReducer } from './studioReducer';
 import { createRng, forkSeed } from '../engine/random';
@@ -8,10 +9,10 @@ import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateStuntTeamPool } from '../engine/stuntTeams';
 import { firstDayOfYear } from '../engine/calendar';
 import { asPlayerDraft, findProject, playerReleasedFilms, projectId, scheduledPlayerReleases } from '../engine/project';
-import { availableCandidatesForRole, getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../engine/person';
+import { availableCandidatesForRole, getDirectorCareer, getTypicalSalaryForRole } from '../engine/person';
 import { personMeetsCharacterAge, personMeetsCharacterGender } from '../engine/casting';
 import { characterForRoleSlot, effectiveRoleCapacity } from '../engine/castRequirements';
-import { computeActorCharacterCompatibility, computeTalentCompatibility } from '../engine/compatibility';
+import { ACTING_STYLE_TO_CHARACTER_TRAIT, computeActorCharacterCompatibility, computeTalentCompatibility } from '../engine/compatibility';
 import {
   recommendEffectsAmbition,
   recommendEffectsStrategy,
@@ -19,6 +20,7 @@ import {
   recommendEnvironmentStrategy,
 } from '../engine/recommendation';
 import { footageLowerBound } from '../engine/production';
+import { buildCreditIndex, deriveTalentKnowledge, knowledgeAttributes, weightedConfidence, type TalentKnowledge } from '../engine/talentKnowledge';
 import { computeDailyPrepBurn, PREP_DAILY_BURN_FRACTION } from '../engine/cost';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -74,7 +76,7 @@ export interface BotStrategy {
   /** How the screenplay is chosen among the affordable ones. */
   scriptBy: 'quality' | 'cheapest';
   /** How a role is filled among the affordable candidates. */
-  castBy: 'fit' | 'fame' | 'cheapest';
+  castBy: 'fit' | 'fame' | 'cheapest' | 'scout';
   /** 'auto' goes Wide once the film's negative cost passes `wideAbove`. */
   release: ReleaseType | 'auto';
   wideAbove: number;
@@ -98,6 +100,23 @@ export const BOT_STRATEGIES: BotStrategy[] = [
     marketingRatio: 0.5,
     scriptBy: 'quality',
     castBy: 'fit',
+    release: 'auto',
+    wideAbove: 15_000_000,
+    upgradeShare: 0.1,
+    budgetsForOverhead: true,
+  },
+  {
+    // Talent model §6: the strategy untying ability from fee is meant to reward,
+    // and must not break. Cheap people with good reads, rehiring the ones it has
+    // learned are good.
+    name: 'Scout',
+    description: 'One modest film at a time, the cheapest people with the best reads, rehiring discoveries.',
+    filmBudgetShare: 0.3,
+    maxConcurrent: 1,
+    talentShare: 0.4,
+    marketingRatio: 0.5,
+    scriptBy: 'quality',
+    castBy: 'scout',
     release: 'auto',
     wideAbove: 15_000_000,
     upgradeShare: 0.1,
@@ -165,6 +184,39 @@ export interface PoolStats {
   topDecileFee: number;
   /** Total of everyone's quote - what it would cost to hire the whole profession once. */
   totalFees: number;
+  /** Mean ability for the profession's own role (talent model stage 6). */
+  meanAbility: number;
+  /** How closely fee follows ability: Pearson's r between log fee and ability (§6: 0.3 to 0.5 after fifteen years). */
+  feeAbilityCorrelation: number;
+}
+
+const PROFESSION_ROLE: Record<string, ProductionRole> = {
+  Actor: 'Lead Actor', Director: 'Director', Writer: 'Writer', Cinematographer: 'Cinematographer', Composer: 'Composer',
+  Editor: 'Editor', 'VFX Supervisor': 'VFX Supervisor', 'Casting Director': 'Casting Director', 'Production Designer': 'Production Designer',
+};
+
+function pearson(xs: number[], ys: number[]): number {
+  const n = xs.length;
+  if (n < 3) return 0;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i] - mx) * (ys[i] - my);
+    sxx += (xs[i] - mx) ** 2;
+    syy += (ys[i] - my) ** 2;
+  }
+  return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0;
+}
+
+function abilityStats(roster: Person[], role: ProductionRole | undefined): { meanAbility: number; feeAbilityCorrelation: number } {
+  if (!role) return { meanAbility: 0, feeAbilityCorrelation: 0 };
+  const ability = roster.map((person) => {
+    const attrs = knowledgeAttributes(person, role);
+    return attrs.length ? attrs.reduce((sum, a) => sum + a.value, 0) / attrs.length : 0;
+  });
+  const fees = roster.map((person) => Math.log(Math.max(1, getTypicalSalaryForRole(person, role))));
+  return { meanAbility: ability.reduce((a, b) => a + b, 0) / Math.max(1, ability.length), feeAbilityCorrelation: pearson(fees, ability) };
 }
 
 function poolStats(state: GameState): Record<string, PoolStats> {
@@ -181,6 +233,7 @@ function poolStats(state: GameState): Record<string, PoolStats> {
       medianFee: fees[Math.floor(fees.length / 2)] ?? 0,
       topDecileFee: fees[Math.floor(fees.length * 0.9)] ?? 0,
       totalFees: fees.reduce((sum, fee) => sum + fee, 0),
+      ...abilityStats(roster, PROFESSION_ROLE[profession]),
     };
   }
   return stats;
@@ -377,17 +430,50 @@ function slotBudgets(script: Script, talentBudget: number): Array<{ role: Produc
   return slots;
 }
 
-function candidateScore(person: Person, role: ProductionRole, script: Script, slot: number, strategy: BotStrategy): number {
+/**
+ * What a player can expect of someone from what the studio has seen of them
+ * (talent model stage 4): each attribute's read, pulled toward an ordinary
+ * 50 by how unsure it is. The bot hires on this, never on true ability, which
+ * no player sees - since stage 6 untied ability from fee, reading the truth
+ * would be exactly the exploit the design guards against (§5).
+ */
+export function expectedAbility(knowledge: TalentKnowledge, weights?: Record<string, number>): number {
+  let num = 0;
+  let den = 0;
+  for (const r of knowledge.reads) {
+    const w = weights ? (weights[r.key] ?? 0) : 1;
+    num += w * (r.confidence * r.centre + (1 - r.confidence) * 50);
+    den += w;
+  }
+  return den > 0 ? num / den : 50;
+}
+
+/** A scout gives up this much expected ability for each halving of the fee. */
+const SCOUT_POINTS_PER_HALVING = 6;
+/** How many crew reels a scout reviews per role before choosing. */
+const SCOUT_REELS_PER_ROLE = 3;
+
+function candidateScore(person: Person, role: ProductionRole, script: Script, slot: number, strategy: BotStrategy, knowledge: TalentKnowledge, cheapest = 1): number {
   if (strategy.castBy === 'cheapest') return -getTypicalSalaryForRole(person, role);
+  if (strategy.castBy === 'scout') {
+    const value = candidateScore(person, role, script, slot, { ...strategy, castBy: 'fit' }, knowledge);
+    // Someone it has learned is good is worth paying for again: the price
+    // counts for less the better the studio knows them (its discoveries).
+    const known = knowledge.reads.length ? knowledge.reads.reduce((sum, r) => sum + (r.source === 'own' ? r.confidence : 0), 0) / knowledge.reads.length : 0;
+    return value - SCOUT_POINTS_PER_HALVING * (1 - known) * Math.log2(Math.max(1, getTypicalSalaryForRole(person, role)) / Math.max(1, cheapest));
+  }
   if (strategy.castBy === 'fame') return person.reputation.fame;
   if (role === 'Lead Actor' || role === 'Supporting Actor') {
     const character = characterForRoleSlot(script, role, slot);
-    return (character ? computeActorCharacterCompatibility(person, character) : null) ?? 0;
+    const fit = (character ? computeActorCharacterCompatibility(person, character) : null) ?? 0;
+    // The fit as far as the studio can see it: regressed to a coin flip by doubt.
+    const weights = character ? Object.fromEntries(Object.entries(ACTING_STYLE_TO_CHARACTER_TRAIT).map(([axis, trait]) => [axis, character.traits[trait]])) : undefined;
+    const sure = weightedConfidence(knowledge, weights);
+    return sure * fit + (1 - sure) * 50;
   }
-  const career = getCareerForRole(person, role) as { skill?: number } | null;
-  const skill = career?.skill ?? 0;
-  // A director is judged on taste for this script as much as on craft; crew on craft alone.
-  return role === 'Director' ? (skill + (computeTalentCompatibility(person, role, script) ?? 0)) / 2 : skill;
+  // A director is judged on taste for this script (visible from their work) as much as on craft; crew on craft alone.
+  const ability = expectedAbility(knowledge);
+  return role === 'Director' ? (ability + (computeTalentCompatibility(person, role, script) ?? 0)) / 2 : ability;
 }
 
 /** Hire every mandatory role on the focused draft. Returns the state after the hires that took. */
@@ -408,7 +494,24 @@ function hireCastAndCrew(state: GameState, strategy: BotStrategy, talentBudget: 
     const withinBudget = pool.filter((person) => getTypicalSalaryForRole(person, role) <= budget);
     // Nobody at the price: take the cheapest there is rather than leave the role empty.
     const shortlist = withinBudget.length > 0 ? withinBudget : [...pool].sort((a, b) => getTypicalSalaryForRole(a, role) - getTypicalSalaryForRole(b, role)).slice(0, 1);
-    const ranked = [...shortlist].sort((a, b) => candidateScore(b, role, script, slot, strategy) - candidateScore(a, role, script, slot, strategy));
+    const credits = buildCreditIndex(s.projects);
+    const cheapest = Math.min(...shortlist.map((person) => getTypicalSalaryForRole(person, role)));
+    const knowledgeOf = (state: GameState, person: Person) => {
+      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId))!;
+      return deriveTalentKnowledge(person, role, credits, {
+        colleagues: d.talent,
+        reelSeen: (d.reelsSeen ?? []).some((r) => r.personId === person.id && r.role === role),
+      });
+    };
+    let score = new Map(shortlist.map((person) => [person.id, candidateScore(person, role, script, slot, strategy, knowledgeOf(s, person), cheapest)]));
+    // A scout looks properly at the cheap crew it is drawn to before choosing.
+    if (strategy.castBy === 'scout' && !['Lead Actor', 'Supporting Actor', 'Director', 'Writer'].includes(role)) {
+      for (const person of [...shortlist].sort((a, b) => score.get(b.id)! - score.get(a.id)!).slice(0, SCOUT_REELS_PER_ROLE)) {
+        s = studioReducer(s, { type: 'REVIEW_REEL', role, personId: person.id, personName: person.identity.name });
+      }
+      score = new Map(shortlist.map((person) => [person.id, candidateScore(person, role, script, slot, strategy, knowledgeOf(s, person), cheapest)]));
+    }
+    const ranked = [...shortlist].sort((a, b) => score.get(b.id)! - score.get(a.id)!);
     // The reducer can still refuse a hire (a rule this filter does not model); try down the list.
     for (const person of ranked.slice(0, 8)) {
       const next = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person, characterId: character?.id });
@@ -472,7 +575,7 @@ function startFilm(state: GameState, strategy: BotStrategy, run: BotRun): GameSt
   // the bot gives a proven director what they ask for and refuses an unproven
   // one - giving in to everyone cost its small studios about five quality
   // points a film.
-  const trustsDirector = (directorCareer?.skill ?? 0) >= 60;
+  const trustsDirector = !!directorCareer && !!director && expectedAbility(deriveTalentKnowledge(director, 'Director', buildCreditIndex(s.projects))) >= 60;
   for (const demand of focusedDraft().development?.demands ?? []) {
     if (!demand.resolution) s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: trustsDirector });
   }
@@ -602,6 +705,9 @@ const FACILITY_ACTIONS = [
   { type: 'UPGRADE_PRODUCTION_OFFICE' },
 ] as const;
 
+/** The yearly bills a strategy will carry, as a share of its upgrade share of cash (Careful 0.1 -> bills up to 5% of cash). */
+const RUNNING_COST_CASH_SHARE = 0.5;
+
 /** Buy at most one facility step a day, and only when it is a small part of the cash on hand. */
 function maybeUpgrade(state: GameState, strategy: BotStrategy, run: BotRun): GameState {
   if (strategy.upgradeShare === null) return state;
@@ -609,7 +715,10 @@ function maybeUpgrade(state: GameState, strategy: BotStrategy, run: BotRun): Gam
     const next = studioReducer(state, action);
     if (next === state) continue;
     const cost = state.studio.cash - next.studio.cash;
-    if (cost <= state.studio.cash * strategy.upgradeShare) {
+    // A facility is a yearly bill as well as a price (engine/runningCosts.ts):
+    // keep the bills to a small part of what the studio holds.
+    const bills = yearlyRunningCost(next.studio);
+    if (cost <= state.studio.cash * strategy.upgradeShare && bills <= next.studio.cash * strategy.upgradeShare * RUNNING_COST_CASH_SHARE) {
       run.facilityUpgrades += 1;
       return next;
     }
