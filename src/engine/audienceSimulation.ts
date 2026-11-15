@@ -73,6 +73,8 @@ export interface AudienceSimulationFixedState {
   baseInterestFraction: number;
   /** How efficiently marketing spend converts into Awareness - pitch clarity, not pool size. */
   marketingEfficiency: number;
+  /** 0-1: how far exhibitors trust the releasing studio (its Brand / 100) - buys a softening film a short hold on its screens (audienceSimulationStep.ts:computeHoldRelief). Absent reads as 0. */
+  exhibitorStanding?: number;
   /** The ceiling on how far Interest can expand beyond baseInterestFraction via word of mouth, as an additional fraction of totalAddressableAudience. */
   crossoverCapacityFraction: number;
   /** Baseline weekly probability that an interested-but-unconverted person attends this particular week, before any word-of-mouth urgency modulation. */

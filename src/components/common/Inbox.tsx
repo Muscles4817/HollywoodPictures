@@ -6,6 +6,7 @@ import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
 import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '../../engine/project';
 import { wasPulledFromTheatres } from '../../engine/boxOfficeRun';
+import { brandNoticeText } from '../../engine/reputation';
 import { unseenApplicants } from '../../engine/castingCalls';
 import { derivePostProductionStatus, describePostProductionWait } from '../../engine/postProductionStatus';
 import { highestBid } from '../../engine/opportunities';
@@ -140,7 +141,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // which point at drawers that aren't on screen. The exact same derivation
   // Header.tsx's badge count reads (engine/project.ts:inboxBadgeCount), so the
   // two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays);
+  const { awaitingChoice, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished, brandNotice } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays, state.studio?.brandNotice);
   // Recently-resolved award ceremonies the player hasn't clicked through yet
   // (state/selectors.ts) - awards settle silently in the background tick, so
   // this is the Inbox's "Awards night" catch-up beat.
@@ -221,7 +222,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // The year's arrivals and departures (engine/careerTurnover.ts) - stored,
   // newest first; read when the Inbox opens, gone when dismissed.
   const industryNotices = state.industryNotices ?? [];
-  const updatesCount = boxOfficeFinished.length + awardHighlights.length + updateBids.length + industryNotices.length;
+  const updatesCount = boxOfficeFinished.length + awardHighlights.length + updateBids.length + industryNotices.length + (brandNotice ? 1 : 0);
   const nothingAtAll = needsYouCount === 0 && updatesCount === 0;
 
   const groupHeading = (label: string, count: number) => (
@@ -499,6 +500,28 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
         {updatesCount > 0 && (
           <div className="stack">
             {groupHeading('While you were away', updatesCount)}
+
+            {brandNotice && (
+              // The studio's name drifting (Phase 3 Brand reversion): routes to
+              // the studio overview, which shows Brand and marks this read when
+              // it displays it (Dashboard.tsx) - never on Inbox open.
+              <ActivityCard
+                key="brand-notice"
+                activity={{
+                  id: `brand-notice-${brandNotice.day}`,
+                  tone: brandNotice.direction === 'fading' ? 'warning' : 'positive',
+                  category: 'update',
+                  eyebrow: 'Your studio',
+                  title: brandNotice.direction === 'fading' ? 'Your name is fading' : 'Your name is recovering',
+                  detail: brandNoticeText(brandNotice.direction),
+                }}
+                action={
+                  state.focusedProjectId
+                    ? { label: 'See your studio', note: BUSY_NOTE }
+                    : { label: 'See your studio', onClick: routed(() => dispatch({ type: 'RETURN_TO_DASHBOARD' })) }
+                }
+              />
+            )}
 
             {boxOfficeFinished.map((film) => {
               // Informational catch-up: the run is over, nothing is blocked.

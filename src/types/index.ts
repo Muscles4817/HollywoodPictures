@@ -1744,6 +1744,8 @@ export interface BoxOfficeWeek {
    * components/dev/OutcomeInspector.tsx reads it defensively.
    */
   competitivePressure?: number;
+  /** True when exhibitors spared some of this week's screen loss because they trust the studio (engine/audienceSimulationStep.ts:computeHoldRelief). Absent = no hold. */
+  held?: boolean;
 }
 
 /**
@@ -2253,6 +2255,8 @@ export interface RivalStudio {
   cash: number;
   /** Same Brand Recognition stat the player's Studio has (engine/reputation.ts) - grows/falls from this studio's own films' commercial performance, and feeds this studio's own future Buzz (see resolveRivalProduction), the same feedback loop the player already has. */
   brand: number;
+  /** Sub-point Brand drift not yet rounded into `brand` (engine/reputation.ts:driftBrand). Absent reads as 0. */
+  brandDriftCarry?: number;
   /** Same Prestige stat the player's Studio has - grows/falls from this studio's own films' critical reception alone. Not yet consumed by any formula here either, same documented gap as the player's own Prestige (docs/DESIGN.md 5.39). */
   prestige: number;
   /** Same per-genre identity the player's Studio has (engine/studioIdentity.ts) - a rival earns a reputation in the genres it keeps succeeding in, which then defends its home turf via the competitor-territory matchup. Absent for a fresh rival. */
@@ -2465,6 +2469,12 @@ export interface Studio {
   // low in both).
   /** How well known and commercially bankable the studio is with general audiences - drives pre-release Buzz and marketing efficiency (how far a marketing pound goes), never critic-facing mechanics. */
   brand: number; // 0-100
+  /** Sub-point Brand drift not yet rounded into `brand` (engine/reputation.ts:driftBrand, applied quarterly). Absent reads as 0. */
+  brandDriftCarry?: number;
+  /** Whole points drift alone has moved `brand` since the last brandNotice, signed. Absent reads as 0. */
+  brandDriftSinceNotice?: number;
+  /** The latest news that the studio's name is fading or recovering through drift - shown in the Inbox until the studio overview has shown it. */
+  brandNotice?: { day: number; direction: 'fading' | 'recovering'; acknowledged?: boolean };
   /** How respected the studio is within the industry and by critics - grows from critical reception alone, independent of a film's commercial outcome. Not yet consumed by any formula (no critic-facing mechanic exists yet) - tracked now so a future system (e.g. awards) has real history to read, the same "compute and track now, wire in later" precedent commercialProfile.crossoverPotential set. */
   prestige: number; // 0-100
   /**

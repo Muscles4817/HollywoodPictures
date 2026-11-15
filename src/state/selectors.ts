@@ -528,7 +528,7 @@ export function unacknowledgedAwardHighlights(state: GameState): RecentAwardHigh
  */
 export function attentionBadgeCount(state: GameState): number {
   return (
-    inboxBadgeCount(state.projects, state.focusedProjectId, state.totalDays) +
+    inboxBadgeCount(state.projects, state.focusedProjectId, state.totalDays, state.studio.brandNotice) +
     unreadBidCount(state.bidNotifications ?? []) +
     unreadIndustryNoticeCount(state.industryNotices) +
     unacknowledgedAwardHighlights(state).length

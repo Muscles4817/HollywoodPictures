@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { exportFilmHistory } from '../state/exportFilmHistory';
 import { formatGameDateWithMonth, formatGameMonthYear } from '../engine/calendar';
@@ -16,6 +16,7 @@ import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { DistributionArmCard } from './DistributionArmCard';
 import { computeTopGrossingFilms, deriveRecentAwardHighlights, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects, selectUpcomingAncillary } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
+import { BRAND_EXPLANATION, brandNoticeText } from '../engine/reputation';
 import { synthesizeStudioStanding, studioTier, STUDIO_TIER_LABEL, type StandingFilm } from '../engine/studioStanding';
 import { isRecentlyCommissioned } from '../engine/commission';
 import { campaignRolloutProgress } from '../engine/marketing';
@@ -42,9 +43,18 @@ export function commandCentreEmptyState(hasActiveWork: boolean, hasReleasedFilms
   return 'first-project';
 }
 
+/** How long after a Brand notice the studio overview keeps showing its line under Brand. */
+const BRAND_NOTICE_SHOWN_DAYS = 90;
+
 export function Dashboard() {
   const { state, dispatch } = useStudio();
   const { studio } = state;
+  // The Brand notice (Phase 3): the studio overview is where it is shown, so
+  // showing it here is what marks it read - never the Inbox opening.
+  const brandNotice = studio.brandNotice && state.totalDays - studio.brandNotice.day <= BRAND_NOTICE_SHOWN_DAYS ? studio.brandNotice : null;
+  useEffect(() => {
+    if (brandNotice && !brandNotice.acknowledged) dispatch({ type: 'ACKNOWLEDGE_BRAND_NOTICE' });
+  }, [brandNotice, dispatch]);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
   const [showReputationHistory, setShowReputationHistory] = useState(false);
   const [showCashHistory, setShowCashHistory] = useState(false);
@@ -428,11 +438,12 @@ export function Dashboard() {
           type="button"
           className="dashboard-metric dashboard-metric-brand dashboard-metric-clickable"
           onClick={() => setShowReputationHistory(true)}
-          title="See what's moved Brand and Prestige"
+          title={`${BRAND_EXPLANATION} Tap to see what's moved Brand and Prestige.`}
         >
           <span className="dashboard-metric-label">Brand recognition</span>
           <strong>{studio.brand}<small>/100</small></strong>
           <div className="dashboard-meter"><span style={{ width: `${studio.brand}%` }} /></div>
+          {brandNotice && <span className="dashboard-metric-note">{brandNoticeText(brandNotice.direction)}</span>}
         </button>
         <button
           type="button"
@@ -654,6 +665,11 @@ export function Dashboard() {
                       <StatTile label="Opening Weekend" value={<Money amount={film.results.openingWeekend} />} />
                       <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
                     </div>
+                    {latestWeek?.held && (
+                      <p className="dashboard-muted" style={{ margin: 0 }}>
+                        Exhibitors are keeping faith with this one a little longer, on the strength of your recent record.
+                      </p>
+                    )}
                     <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />
                   </>
                 )}
