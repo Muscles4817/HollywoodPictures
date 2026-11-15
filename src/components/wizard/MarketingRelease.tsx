@@ -497,7 +497,6 @@ export function MarketingRelease() {
           // exactly as settlement will, and `fixed` says whether it's armed to
           // collapse (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md).
           marketingRunwayWeeks: effectiveRushRunwayWeeks(minReleaseDay, releaseDay, onDistributorDeal),
-          personDrivenCraft: true, // player film: match settlement's person-driven craft in the projection
         },
         createRng(1),
       );

@@ -197,7 +197,6 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       pressTourMoment: { buzzDelta: tourMoments.buzzDelta, storyBeat: tourMoments.storyBeat },
       marketingRolloutMultiplier: rolloutMultiplier,
       marketingRunwayWeeks: runwayWeeks,
-      personDrivenCraft: true, // player film: DP/Composer/Editor realise craft quality (coverage unification)
       developmentQualityDelta: draft.developmentQualityDelta ?? 0, // accepted creative demands (Phase 2b)
       directorToneShift: draft.selectedDirectorPitch?.toneShift, // the director's pitched tonal take (Phase B3)
     },
