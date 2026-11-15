@@ -238,6 +238,16 @@ export function explainPrestigeChange({ criticScore, qualityScore }: PrestigeCha
  * choke point, so every read-out (dashboard tiles, rival pages, history
  * modals) shows a whole number without each having to round on its own.
  */
+/**
+ * Gains in Brand and Prestige come harder near the top (the cost of being big):
+ * in full up to TOP_EASES_FROM, then shrinking toward nothing at 100 - a fifth
+ * of a gain at 90, half at 75. Losses land in full. Without this a studio that
+ * kept making profitable films pinned both at 100 and held the most efficient
+ * marketing in the market for good (docs/DESIGN_REVIEW_player_economy.md §11).
+ */
+export const TOP_EASES_FROM = 50;
+
 export function applyStatChange(current: number, change: number): number {
-  return clamp(Math.round(current + change), 0, 100);
+  const scaled = change > 0 ? change * Math.min(1, (100 - current) / (100 - TOP_EASES_FROM)) : change;
+  return clamp(Math.round(current + scaled), 0, 100);
 }

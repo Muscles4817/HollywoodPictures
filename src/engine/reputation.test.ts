@@ -116,8 +116,15 @@ describe('explainBrandChange - the player-facing reason behind computeBrandChang
 
 describe('applyStatChange', () => {
   it('clamps to [0, 100] independently of how large the change is', () => {
-    expect(applyStatChange(95, 20)).toBe(100);
+    expect(applyStatChange(95, 200)).toBe(100);
     expect(applyStatChange(5, -20)).toBe(0);
+  });
+
+  it('gains come harder near the top; losses land in full', () => {
+    expect(applyStatChange(75, 10)).toBe(80); // half a gain at 75
+    expect(applyStatChange(90, 10)).toBe(92); // a fifth at 90
+    expect(applyStatChange(90, -10)).toBe(80);
+    expect(applyStatChange(30, 10)).toBe(40); // in full below the middle
   });
 
   it('adds a normal in-range change verbatim', () => {
