@@ -128,6 +128,21 @@ PLAYER_ECONOMY_DIAGNOSTIC=1 TIER=midmajor SEED=101 STRAT=Careful \
   npx vitest run src/state/bigStudioAnatomy.diagnostic.test.ts --disable-console-intercept
 ```
 
+The anatomy also prints, per budget band, production and post-production
+scores and the net quality points events added (prep / decisions / the rest),
+the release-weighted mean Brand of rival wide releases, and the share of the
+top tenth of directors booked on a sampled day each year.
+
+Career gate (docs/IMPLEMENTATION_PLAN_market_realism.md §1.3 - per-seed career
+tables and the bands in `src/data/careerTargets.ts`). Reports by default;
+`CAREER_GATE_ASSERT=1` asserts the bands for Careful and Steady at Mid-Major
+and Major. One tier per process (a ten-seed tier takes several minutes):
+
+```bash
+CAREER_GATE=1 TIER=midmajor npx vitest run src/state/careerGate.diagnostic.test.ts --disable-console-intercept
+# env: STRATEGIES=Careful,Scout,Steady,Careless SEEDS=101,...,110 YEARS=10 DUMP_OUT=/tmp/career.json CAREER_GATE_ASSERT=1
+```
+
 Populated save dump (for looking at screens with real content in them, rather
 than at the empty states an unpopulated fixture renders):
 

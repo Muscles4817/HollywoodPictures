@@ -762,11 +762,16 @@ function toBotFilm(film: Film): BotFilm {
  * Play one studio for `years` in-game years under one strategy. Reproducible:
  * the same arguments always give the same career (engine/identity.ts).
  */
-export function runBot(seed: number, tier: DifficultyTier, strategy: BotStrategy, years: number): BotRun {
-  return withReplayableIds(() => playCareer(seed, tier, strategy, years));
+export function runBot(seed: number, tier: DifficultyTier, strategy: BotStrategy, years: number, observe?: (state: GameState) => void): BotRun {
+  return withReplayableIds(() => playCareer(seed, tier, strategy, years, observe));
 }
 
-function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, years: number): BotRun {
+/**
+ * `observe` sees the state after every day's tick - read-only, for a harness
+ * that samples the world mid-career (the anatomy's director availability).
+ * It changes nothing the bot does.
+ */
+function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, years: number, observe?: (state: GameState) => void): BotRun {
   let s = createBotStudio(seed, tier);
   const run: BotRun = {
     strategy: strategy.name,
@@ -862,6 +867,7 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
     s = studioReducer(s, { type: 'ADVANCE_DAY' });
     cashMin = Math.min(cashMin, s.studio.cash);
     harvestLedger();
+    observe?.(s);
 
     // Close out each year the clock has now passed. A `while`, not an `if`
     // against the day before the tick: other actions move the calendar too (a
