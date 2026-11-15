@@ -906,10 +906,6 @@ function softBound(raw: number, knee: number, scale: number, ceiling: number): n
   return raw <= knee ? raw : knee + (ceiling - knee) * (1 - Math.exp(-(raw - knee) / scale));
 }
 
-/** Compresses only the top - an exit poll's ceiling. An A and an A+ are not meaningfully different, but the bottom stays open so a betrayal can still reach the floor. */
-function topCompressed(raw: number, knee: number, scale: number): number {
-  return raw <= knee ? raw : knee + (100 - knee) * (1 - Math.exp(-(raw - knee) / scale));
-}
 
 const CRITIC_ANCHOR = 58;
 // Critics are craft-anchored. Held at the effective gain the old formula had,
@@ -991,8 +987,20 @@ const AUD_SPECTACLE_TILT = 0.1;
 /** Self-selection. A narrow film is graded by the crowd that chose it, which is why CinemaScore has almost nothing below a C - and it makes target audience a real trade-off rather than a free reach lever. */
 const AUD_SELF_SELECTION = 6;
 const AUD_EDIT_GAIN = 0.1;
-const AUDIENCE_KNEE = 74;
+// A lower ceiling on audience score (docs/IMPLEMENTATION_PLAN_market_realism.md
+// Phase 4a): a careful player's quality-70 film read 91-96 with audiences, which
+// in a model where audience score follows quality one-for-one above the
+// reference made every good film a crowd-pleaser. Bounded below 100 like
+// critic score, with the knee two points lower; AUD_QUALITY_GAIN deliberately
+// left at 1 (below it the two voices decorrelate too far - a recorded finding).
+const AUDIENCE_KNEE = 72;
 const AUDIENCE_KNEE_SCALE = 13;
+const AUDIENCE_CEILING = 94;
+
+/** The audience score's top: unchanged up to AUDIENCE_KNEE, then soft-bounded toward AUDIENCE_CEILING. Exported for tests. */
+export function audienceTopBound(raw: number): number {
+  return softBound(raw, AUDIENCE_KNEE, AUDIENCE_KNEE_SCALE, AUDIENCE_CEILING);
+}
 
 export function computeAudienceScore(
   quality: QualityBreakdown,
@@ -1026,7 +1034,7 @@ export function computeAudienceScore(
     AUD_CONFUSION * (quality.structureReach ?? 0) * Math.max(0, -(quality.structureDelivery ?? 0)) +
     AUD_SPECTACLE_GAIN * (quality.spectacleReach ?? 0) * (quality.spectacleDelivery ?? 0);
 
-  return clamp(topCompressed(raw, AUDIENCE_KNEE, AUDIENCE_KNEE_SCALE), 0, 100);
+  return clamp(audienceTopBound(raw), 0, 100);
 }
 
 /**

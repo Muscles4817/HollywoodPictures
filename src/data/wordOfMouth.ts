@@ -25,9 +25,9 @@ export const EXPECTED_RECEPTION_BASE = 47;
 /** Expected reception points added per point of Buzz (Buzz 80, the market median, expects 60.4 - what the median wide release delivers - so the typical film is neutral; Buzz 25 expects 50.5, Buzz 98 expects 63.6). */
 export const EXPECTED_RECEPTION_PER_BUZZ = 0.18;
 /** Word-of-mouth multiplier change per EXPECTATION_GAP_SPAN points of over- or under-delivery. */
-export const EXPECTATION_GAP_WEIGHT = 0.1;
+export const EXPECTATION_GAP_WEIGHT = 0.15;
 /** Reception points that count as one unit of expectation gap. */
 export const EXPECTATION_GAP_SPAN = 10;
 /** Bounds on the expectation multiplier - a disappointment still gets some word of mouth, a delight can't run away. */
-export const EXPECTATION_FACTOR_MIN = 0.7;
-export const EXPECTATION_FACTOR_MAX = 1.2;
+export const EXPECTATION_FACTOR_MIN = 0.6;
+export const EXPECTATION_FACTOR_MAX = 1.25;
