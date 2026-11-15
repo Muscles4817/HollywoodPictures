@@ -1744,6 +1744,8 @@ export interface BoxOfficeWeek {
    * components/dev/OutcomeInspector.tsx reads it defensively.
    */
   competitivePressure?: number;
+  /** True when exhibitors spared some of this week's screen loss because they trust the studio (engine/audienceSimulationStep.ts:computeHoldRelief). Absent = no hold. */
+  held?: boolean;
 }
 
 /**

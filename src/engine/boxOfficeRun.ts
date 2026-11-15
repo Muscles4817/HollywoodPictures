@@ -377,7 +377,7 @@ export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, F
   // "As Released" replay needs the real per-week pressure history to
   // reconstruct this run's actual diagnostics later (see BoxOfficeWeek's
   // own doc comment on why this is historical fact, not re-derivable).
-  const weeks = [...run.weeks, { week: nextSimWeek.week, gross: money.gross, domesticGross: money.domesticGross, internationalGross: money.internationalGross, competitivePressure }];
+  const weeks = [...run.weeks, { week: nextSimWeek.week, gross: money.gross, domesticGross: money.domesticGross, internationalGross: money.internationalGross, competitivePressure, ...(diagnostics.holdRelief > 0 ? { held: true } : {}) }];
   const cumulativeGross = run.cumulativeGross + money.gross;
   // Going wider costs money: every week a film reaches more screens than it
   // has had before, its distributor pays for the new ones - prints, local

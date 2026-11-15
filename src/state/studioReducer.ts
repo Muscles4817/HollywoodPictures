@@ -3349,6 +3349,11 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'ACKNOWLEDGE_BRAND_NOTICE': {
+      const notice = state.studio.brandNotice;
+      if (!notice || notice.acknowledged) return state;
+      return { ...state, studio: { ...state.studio, brandNotice: { ...notice, acknowledged: true } } };
+    }
     case 'ACKNOWLEDGE_BOX_OFFICE_RESULTS': {
       return {
         ...state,

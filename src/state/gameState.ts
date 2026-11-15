@@ -584,6 +584,8 @@ export type GameAction =
   | { type: 'COMMIT_CAMPAIGN'; amount: number }
   | { type: 'SCHEDULE_RELEASE'; releaseDay: number }
   | { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS'; filmId: string }
+  /** The studio overview has shown the player the latest Brand notice (Studio.brandNotice) - it leaves the Inbox. */
+  | { type: 'ACKNOWLEDGE_BRAND_NOTICE' }
   | { type: 'VIEW_PREMIERE'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }

@@ -453,7 +453,11 @@ import { deleteSave, readSave, writeSave } from './saveDatabase';
 //   from fee - a v104 pool's skills mean something else.
 // v105 -> v106 (economy): a running film's marketing and total cost now grow
 //   as it expands to more screens (FilmResults.expansionCost).
-export const SAVE_VERSION = 106;
+// v106 -> v107 (market realism, Phase 3): Studio and RivalStudio gained
+//   brandDriftCarry (Brand now drifts toward recent grosses), Studio gained
+//   brandNotice and brandDriftSinceNotice, the audience fixed state gained
+//   exhibitorStanding, and a settled week can carry `held`.
+export const SAVE_VERSION = 107;
 
 /** Every pre-v99 save lived in localStorage under a key with this prefix. */
 const LEGACY_SAVE_KEY_PREFIX = 'hollywood-pictures-save-v';

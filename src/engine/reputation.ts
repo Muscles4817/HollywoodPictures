@@ -299,3 +299,14 @@ export function driftBrand(brand: number, anchor: number | null, years: number):
   const closed = 1 - Math.pow(1 - BRAND_REVERSION_PER_YEAR, years);
   return brand + (anchor - brand) * closed;
 }
+
+/** Player-facing explanation of Brand, wherever it is explained (Phase 3). Qualitative only. */
+export const BRAND_EXPLANATION =
+  'Brand - how well the trade and the public know your name. A strong name gets a film onto more screens, keeps it there a little longer when it wobbles, and makes marketing go somewhat further. It follows what you have released lately, so it fades if your films stop being seen.';
+
+/** The Brand notice's text (Studio.brandNotice): the name fading or recovering through drift. */
+export function brandNoticeText(direction: 'fading' | 'recovering'): string {
+  return direction === 'fading'
+    ? "Your studio's name is fading. It has been a while since a release of yours was widely seen."
+    : "Your studio's name is recovering as your recent releases reach more people.";
+}
