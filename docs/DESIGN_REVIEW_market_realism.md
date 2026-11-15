@@ -679,3 +679,149 @@ target. Rival wide-release mean Brand moves with the career (53-80 across the
 runs measured this phase); Phase 3 keeps the plan's B = 63 from Phase 0.
 Player after-market / rentals 0.82 (Careful 101, £15M films) and 0.63 (Steady
 102, £124M films); rivals 0.36-0.38.
+
+### 7.3 Phase 3 - Brand reverts, matters less to marketing, buys a hold (STOPPED)
+
+**Built.**
+- *Reversion* (`engine/reputation.ts`): `BRAND_ANCHOR_FILMS` 8,
+  `BRAND_REVERSION_PER_YEAR` 0.15, `BRAND_LEVEL_BY_GROSS` as the plan gives,
+  `brandLevelForGross` (log-interpolated, end segments extended, 0-100),
+  `computeBrandAnchor` (null under three films, mean clamped 5-95),
+  `driftBrand` (compounding, so four quarters close exactly the yearly share).
+  Applied quarterly in `studioReducer.ts:withRunningCosts` for the player and
+  every rival, from finished films in `projects`, with `brandDriftCarry` on
+  `Studio` and `RivalStudio`. Drift now runs even when a studio's running-cost
+  bill is zero (the old early return would have skipped it).
+- *Marketing range*: B = 63 (Phase 0) gives **0.55-0.85** (0.739 at B against
+  the old 0.741; top / bottom 1.55). Comment rewritten; the inverse stays exact.
+- *The hold*: `exhibitorStanding` (Brand / 100) on the fixed state, set from a
+  new optional release input; `computeHoldRelief` (3 weeks, 0.5 at full
+  standing). **Deviation:** the plan multiplies the negative performance term
+  inside `computeAvailabilityPerformanceAdjustment`. A Wide release's age decay
+  (0.18) alone nearly fills the weekly rate clamp (0.20), so any soft Wide week
+  is clamped and that change did nothing to the films the hold is for (measured:
+  identical screens at standing 0.1 and 0.9). Shipped: the relief is applied to
+  the performance-driven share of the week's *clamped* loss in
+  `computeNextAvailability`; age decay and the rushed-release collapse are
+  untouched. The weekly diagnostics report `holdRelief`; a settled week stores
+  `held: true`.
+- *Player-facing*: the Brand explanation (plan's text, `BRAND_EXPLANATION`) in
+  the Game Guide and on the Dashboard's Brand tile; the Dashboard's now-playing
+  card says "Exhibitors are keeping faith with this one a little longer, on the
+  strength of your recent record." in a held week. `RivalStudioPage` does not
+  explain Brand, so is unchanged.
+- *Save* 106 -> 107.
+
+**Notification contract** (`docs/DESIGN_notification_contract.md` §3):
+- [x] A category in `deriveInboxItems` (`brandNotice`, optional trailing
+  parameter, passed from `Inbox.tsx`, `selectors.ts` - the header badge - and
+  `SoundDirector.tsx`)
+- [x] `inboxBadgeCount` counts it (one card, one point)
+- [x] Clears on read via `brandNotice.acknowledged`
+- [x] Set by the surface that displays it: the Dashboard's Brand tile shows the
+  notice line for 90 days and acknowledges in an effect; never on Inbox open
+- [x] The card routes to the studio overview (`RETURN_TO_DASHBOARD`)
+- [x] No component-local target needed (the overview is a screen)
+- [x] Gated: a note instead of the button while a project is open, as other
+  routing cards do
+- [x] The Inbox closes when the player routes away
+- [x] Names what happened (fading / recovering, the plan's text); one card
+- [x] Nothing pauses the clock
+- Tests: badge parity, clears on read, re-pings only after a further 5 points
+  (`brandDrift.reducer.test.ts`); route and close (`Inbox.test.tsx`); the
+  overview acknowledges only what it shows (`DashboardBrandNotice.test.tsx`).
+
+**Existing tests changed.** `audienceSimulationScenarios.test.ts` and
+`audienceSimulationInputs.test.ts`: the shared fixture's Brand moved 50 -> 33,
+which gives the 0.65 efficiency the archetypes were calibrated at (Brand is
+incidental there); every shape check unchanged. The acclaimed-niche archetype
+is a Brand-15 studio, below the new floor's reach, so its awareness ceiling
+went 5% -> 6% (it reads 5.2%). `audienceSimulationRegressionMatrix.test.ts`
+passes unchanged. `Inbox.tsx` reads the notice defensively for the Inbox
+tests' partial mock state.
+
+**Gates.** Whole-year exactly the Phase 0 three misses (`lossPct` 30.6,
+`majorPct` 13.8, `wideUnprofitablePct` 40.5); budget-tier exactly the Phase 0
+six (post-theatrical back above its floor); variance and buzz pass. No level
+step needed.
+
+**Career gate, all four tiers** (reversion 0.15):
+
+**indie** (start £8.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 0.3 | 1.2 | 0.0 | -0.2 | 4.0 | 9.4 | 1.9 | 2.9 | 6.7 | -0.3 | 9 | 0 | 1 | 51 | 57 |
+| Scout | 0.9 | 0.1 | 0.3 | 1.7 | 1.3 | 0.7 | 0.6 | 7.6 | 7.6 | 0.0 | 10 | 0 | 0 | 45 | 53 |
+| Steady | 2.2 | 1.5 | -0.9 | -0.5 | 1.1 | 4.9 | 10.8 | 4.9 | 1.9 | -0.2 | 9 | 0 | 2 | 43 | 45 |
+| Careless | 0.2 | 0.1 | 0.2 | -0.3 | 0.2 | 0.3 | -2.7 | 0.3 | 0.0 | -0.3 | 10 | 0 | 7 | 37 | 76 |
+
+**boutique** (start £25.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 9.7 | 28.4 | 52.8 | 17.5 | 10.3 | 3.5 | 1.6 | 7.9 | 13.3 | 9.7 | 8 | 0 | 0 | 59 | 58 |
+| Scout | 15.5 | 1.6 | 8.1 | 4.9 | 2.0 | 3.2 | 8.6 | 24.2 | 5.8 | 10.7 | 10 | 0 | 0 | 54 | 63 |
+| Steady | 1.3 | 7.6 | 0.6 | -1.1 | 6.9 | 9.5 | 5.0 | 11.2 | 12.8 | 11.1 | 10 | 0 | 0 | 56 | 54 |
+| Careless | -0.2 | 0.3 | -0.7 | 0.2 | 0.1 | 0.3 | 0.3 | -0.1 | -0.6 | 0.1 | 10 | 0 | 3 | 38 | 94 |
+
+**midmajor** (start £80.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 42.0 | 326 | 23.8 | 97.4 | 19.6 | 238 | 500 | 101 | 325 | 45.7 | 4 | 3 | 0 | 66 | 40 |
+| Scout | 3.5 | 20.1 | 38.7 | 34.0 | 16.1 | 22.0 | 25.4 | 12.1 | 88.0 | 15.7 | 9 | 0 | 0 | 57 | 64 |
+| Steady | 556 | 611 | 117 | 354 | 69.9 | 514 | 638 | 448 | 572 | 103 | 1 | 7 | 0 | 65 | 32 |
+| Careless | 1.2 | 0.7 | 1.7 | 1.8 | -0.3 | 1.2 | 2.8 | 2.4 | 0.9 | 1.8 | 10 | 0 | 0 | 39 | 97 |
+
+**major** (start £200M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 588 | 458 | 362 | 571 | 721 | 396 | 285 | 648 | 682 | 499 | 0 | 0 | 0 | 71 | 29 |
+| Scout | 76.0 | 523 | 243 | 95.6 | 71.1 | 71.0 | 87.4 | 66.1 | 107 | 455 | 7 | 0 | 0 | 58 | 51 |
+| Steady | 522 | 630 | 738 | 859 | 535 | 619 | 523 | 668 | 532 | 717 | 0 | 1 | 0 | 71 | 33 |
+| Careless | 3.5 | 6.0 | 0.7 | 1.3 | 7.0 | 1.4 | 3.1 | 5.2 | 4.2 | 4.9 | 10 | 0 | 0 | 40 | 99 |
+
+**Against the success numbers.**
+- Whole-year: Phase 0 misses - met.
+- Rival field after ten years (anatomy): Mid-Major Careful 101 - 4 of 19
+  below Brand 10 (target 3 or fewer; Phase 0 9, Phase 2 10), 1 above 90;
+  Steady 102 - 4 below, 3 above. **Missed by one.** Tuned one step,
+  `BRAND_REVERSION_PER_YEAR` 0.20: Careful 101 4 / 1, Steady 102 2 / 0 - within
+  the seed noise of 0.15, not a clear fix; not shipped.
+- Player careers ending below start that end with Brand above 40 (target at
+  least half): Mid-Major Careful 101/103/105/110 ended at Brand 25/22/15/29,
+  Steady 105 at 47 - **one of five**. Major has none below start. The anchor is
+  set by the player's own recent grosses, and a shrinking career is one making
+  small films, so its anchor is low; reversion pulls it down rather than
+  holding it up. The success line assumed the opposite.
+- Indie and Boutique no worse than Phase 2 - met (Indie Careful 9 below start,
+  was 10; Boutique Careful 8, was 10).
+
+**Why this is a stop.** Stop condition: Boutique gains more than half again on
+its Phase 2 median. Careful's median year-10 cash went **£3.4M -> £10.0M**,
+Steady's **£0.9M -> £7.3M**. Literally triggered - but from a tiny base: every
+Boutique career, every strategy, still ends below its £25M start except two
+Careful ones (£28.4M, £52.8M), and none is near 4x. The intent of the rule
+("cheaper marketing for small studios must not bring the Boutique runaway
+back") is not violated; the letter is. Guard rails all hold (Careless Mid-Major
+10 of 10 below a quarter; Indie Careful stalled 1; no Boutique career above 4x).
+
+**Where the §1.3 bands stand** (the Phase 4 report, given here early):
+
+| | Phase 0 | Phase 3 |
+|---|---|---|
+| Mid-Major Careful | shrinkers 2, max 9.8x, median 4.6x, losing 25%, best fifth 71% | shrinkers **4** (band 1-3), max 6.2x, median **1.24x** (in), losing **40%** (in), best fifth 94% |
+| Mid-Major Steady | 0, 10.7x, 9.2x, 25%, 76% | **1** (in), 8.0x, 6.0x, 32%, 76% |
+| Major Careful | 0, 4.8x, 3.2x, 22%, 57% | 0, **3.6x** (in), 2.7x, 29%, 62% |
+| Major Steady | 0, 5.3x, 4.0x, 31%, 82% | 0, 4.3x, 3.1x, 33%, 85% |
+
+Mid-Major Careful is now on the hard side of one band (four shrinkers) and
+inside two; Steady at both tiers and Major Careful are still on the easy side.
+By Phase 4's rule ("any still has no career that shrinks, or one above four
+times start"), Phase 4a would apply next.
+
+**What I would do next.** Accept the Boutique trigger as the letter-not-intent
+case it is (two careers above start, none near a runaway), keep reversion at
+0.15, and continue into Phase 4 (4a: the lower audience-score ceiling).
