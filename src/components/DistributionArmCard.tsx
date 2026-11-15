@@ -2,6 +2,8 @@ import { type ReactNode } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
+import { RunningCostNote } from './common/RunningCostNote';
+import { DISTRIBUTION_ARM_RUNNING_BY_TIER, INTERNATIONAL_RUNNING_BY_TIER } from '../engine/runningCosts';
 import { playerReleasedFilms } from '../engine/project';
 import {
   canUnlockDistributionArm,
@@ -51,6 +53,7 @@ export function DistributionArmCard() {
           Stand up your own Distribution Arm to self-distribute Wide releases. Until then a Wide release means renting a
           major's distribution — they take a cut of your box office.
         </p>
+        <RunningCostNote table={DISTRIBUTION_ARM_RUNNING_BY_TIER} tier={0} hasNext />
         <p className="office-milestone">
           Unlock by releasing {DISTRIBUTION_ARM_UNLOCK_FILMS_RELEASED} films ({filmsReleased}/{DISTRIBUTION_ARM_UNLOCK_FILMS_RELEASED}) or reaching Brand {DISTRIBUTION_ARM_UNLOCK_BRAND} ({studio.brand}/{DISTRIBUTION_ARM_UNLOCK_BRAND}).
         </p>
@@ -84,6 +87,7 @@ export function DistributionArmCard() {
         Self-distribute Wide releases, commanding up to <strong>{reachPct(tier)}%</strong> of screens (the market still
         decides how many of those actually book you). You keep your full box-office share — no distributor's cut.
       </p>
+      <RunningCostNote table={DISTRIBUTION_ARM_RUNNING_BY_TIER} tier={tier} hasNext={next != null} />
 
       <div className="office-actions">
         {next != null && upgradeCost != null ? (
@@ -143,6 +147,7 @@ function InternationalDistributionSection() {
           ? `No overseas operation of your own — a sales agent sells your films abroad, reaching ${intlReachPct(0)}% of the international audience and leaving you ${keepPct}% of that gross after their commission. Buy in to reach more and keep more.`
           : `Reaching ${intlReachPct(tier)}% of the international audience, keeping ${keepPct}% of overseas gross.`}
       </p>
+      <RunningCostNote table={INTERNATIONAL_RUNNING_BY_TIER} tier={tier} hasNext={next != null} />
       {next != null && upgradeCost != null ? (
         <Button
           className="btn-sm"

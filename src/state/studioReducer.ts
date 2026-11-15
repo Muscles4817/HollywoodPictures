@@ -41,6 +41,7 @@ import {
 import type { PressTourResponseId } from '../data/pressTourMoments';
 import { backendDealFromOffer } from '../engine/backend';
 import { recordCashChange } from '../engine/cashLedger';
+import { crossedRunningCostDay, quarterlyRunningCost, runningCostLines } from '../engine/runningCosts';
 import { reelReviewCost } from '../engine/talentKnowledge';
 import {
   accrueAncillaryAwardsPremium,
@@ -1001,8 +1002,22 @@ function withCareerNewsFor(before: GameState, after: GameState): GameState {
   return { ...after, industryNotices: withCareerNews(after.industryNotices, news, after.totalDays) };
 }
 
+/**
+ * The facilities' running costs (the cost of being big): a quarter's bill each
+ * time the calendar crosses a quarter, whatever action moved it. Recorded in
+ * the cash ledger under 'facility', one line per bill.
+ */
+function withRunningCosts(before: GameState, after: GameState): GameState {
+  if (before.talentDatabaseId !== after.talentDatabaseId || after.totalDays <= before.totalDays) return after;
+  if (!crossedRunningCostDay(before.totalDays, after.totalDays)) return after;
+  const bill = quarterlyRunningCost(after.studio);
+  if (bill <= 0) return after;
+  const what = runningCostLines(after.studio).map((line) => line.label.toLowerCase()).join(', ');
+  return { ...after, studio: recordCashChange(after.studio, after.totalDays, -bill, 'facility', `Running costs for the quarter: ${what}`) };
+}
+
 export function studioReducer(state: GameState, action: GameAction): GameState {
-  return withCareerNewsFor(state, withIndustryTurnover(state, withDraftsAtAssetHead(applyGameAction(state, action))));
+  return withRunningCosts(state, withCareerNewsFor(state, withIndustryTurnover(state, withDraftsAtAssetHead(applyGameAction(state, action)))));
 }
 
 function applyGameAction(state: GameState, action: GameAction): GameState {
