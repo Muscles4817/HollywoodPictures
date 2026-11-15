@@ -1,4 +1,5 @@
 import type { GameState } from './gameState';
+import { yearlyRunningCost } from '../engine/runningCosts';
 import { createInitialStudio } from './gameState';
 import { studioReducer } from './studioReducer';
 import { createRng, forkSeed } from '../engine/random';
@@ -704,6 +705,9 @@ const FACILITY_ACTIONS = [
   { type: 'UPGRADE_PRODUCTION_OFFICE' },
 ] as const;
 
+/** The yearly bills a strategy will carry, as a share of its upgrade share of cash (Careful 0.1 -> bills up to 5% of cash). */
+const RUNNING_COST_CASH_SHARE = 0.5;
+
 /** Buy at most one facility step a day, and only when it is a small part of the cash on hand. */
 function maybeUpgrade(state: GameState, strategy: BotStrategy, run: BotRun): GameState {
   if (strategy.upgradeShare === null) return state;
@@ -711,7 +715,10 @@ function maybeUpgrade(state: GameState, strategy: BotStrategy, run: BotRun): Gam
     const next = studioReducer(state, action);
     if (next === state) continue;
     const cost = state.studio.cash - next.studio.cash;
-    if (cost <= state.studio.cash * strategy.upgradeShare) {
+    // A facility is a yearly bill as well as a price (engine/runningCosts.ts):
+    // keep the bills to a small part of what the studio holds.
+    const bills = yearlyRunningCost(next.studio);
+    if (cost <= state.studio.cash * strategy.upgradeShare && bills <= next.studio.cash * strategy.upgradeShare * RUNNING_COST_CASH_SHARE) {
       run.facilityUpgrades += 1;
       return next;
     }

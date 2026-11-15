@@ -39,6 +39,13 @@ function ancillaryLedgerTotal(state: GameState): number {
     .reduce((sum, e) => sum + e.amount, 0);
 }
 
+/** The facilities' quarterly running costs charged so far (engine/runningCosts.ts) - not box office. */
+function runningCostLedgerTotal(state: GameState): number {
+  return (state.studio.cashLedger ?? [])
+    .filter((e) => e.reason.startsWith('Running costs'))
+    .reduce((sum, e) => sum + e.amount, 0);
+}
+
 describe('RELEASE_FILM', () => {
   it('produces a coherent Film: week 1 settled immediately, and keeps the exact id the draft carried its whole life', () => {
     const state = buildStateWithReadyDraft(1);
@@ -130,7 +137,10 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
     // No further BOX-OFFICE credit once finished: the only cash that moves after
     // the run ends is the film's post-theatrical afterlife (engine/ancillary.ts),
     // so the delta is exactly the ancillary income drained in these 100 days.
-    expect(evenLater.studio.cash - cashAfterFinish).toBe(ancillaryLedgerTotal(evenLater) - ancillaryLedgerTotal(finished));
+    // (Plus any quarter's facility running costs that fell due in those days.)
+    expect(evenLater.studio.cash - cashAfterFinish).toBe(
+      ancillaryLedgerTotal(evenLater) - ancillaryLedgerTotal(finished) + runningCostLedgerTotal(evenLater) - runningCostLedgerTotal(finished),
+    );
   });
 
   it('settlement alone never reduces cash - only ever credits it', () => {
@@ -157,7 +167,11 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
     // The cash delta also picks up any post-theatrical income that came due while
     // advancing (a merch installment lands the day the run ends) - net it out so
     // this stays a pure theatrical-credit assertion.
-    expect(finished.studio.cash - cashAfterRelease - ancillaryLedgerTotal(finished)).toBe(expectedCredit);
+    // Facility running costs that fell due are not box office either, and any
+    // screens the film added after week 1 were paid for out of its takings.
+    expect(finished.studio.cash - cashAfterRelease - ancillaryLedgerTotal(finished) - runningCostLedgerTotal(finished) + runningCostLedgerTotal(released)).toBe(
+      expectedCredit - (film.results.expansionCost ?? 0) + (theFilm(released).results.expansionCost ?? 0),
+    );
   });
 
   it('a second film released mid-run settles alongside the first across further calendar jumps', () => {

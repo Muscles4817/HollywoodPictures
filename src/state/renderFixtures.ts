@@ -57,7 +57,8 @@ function freshStudioState(seed: number): GameState {
   const rngSeed = forkSeed(rng);
 
   return {
-    studio: { ...createInitialStudio(50_000_000), distributionArm: { tier: 3, internationalTier: 3 }, assets: [] },
+    // Enough to carry a fully built studio's running costs (engine/runningCosts.ts) through a year of releases.
+    studio: { ...createInitialStudio(150_000_000), distributionArm: { tier: 3, internationalTier: 3 }, assets: [] },
     screen: 'dashboard',
     projects: [],
     focusedProjectId: null,
