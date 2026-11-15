@@ -225,7 +225,7 @@ export interface ReleaseSimulationInputs {
 // purpose - RECEPTION_PIVOT was swept first and moved nothing beyond the gate's
 // own ~1-point noise, and the new mechanisms are each calibrated against the
 // domain reference, so they are not the place to take the level back out.
-const BASE_ADDRESSABLE_POPULATION = 190_000_000;
+const BASE_ADDRESSABLE_POPULATION = 188_000_000;
 
 // Franchise/IP marketability expands the *eligible* pool - the audience already
 // pre-disposed to want this - which is the calibration doc's §1.1 "franchise

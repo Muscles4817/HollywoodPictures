@@ -27,7 +27,7 @@ import {
   type FullProductionRisk,
 } from './production';
 import { computeExecutionResilience } from './productionExecution';
-import { clamp, createRng, hashUnit, pick, randFloat, type RandomFn } from './random';
+import { clamp, createRng, forkSeed, pick, randFloat, type RandomFn } from './random';
 
 // A rival's shoot has no live schedule readout, so it uses one representative
 // schedule-pressure value in place of the player's day-by-day figure. The
@@ -59,8 +59,6 @@ export interface RivalExecutionInput {
   script: Script;
   productionChoices: ProductionChoices;
   genre: Genre;
-  /** The release day, when known (a RivalProductionInProgress carries it) - with the title, it seeds the pre-production's own generator. Absent reads as 0. */
-  releaseDay?: number;
 }
 
 /** How often a rival takes the option a competent producer would (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 2). Otherwise it takes any option at random, the best included. */
@@ -115,12 +113,16 @@ function finishedPrep(events: ProductionEvent[], days: number): PreProductionSta
 }
 
 /**
- * The prep's own generator, seeded from the production itself (title and
- * release day), so synthesizing a prep never draws from - and never shifts -
- * the shared stream the shoot and the rest of the market roll from.
+ * The prep's own generator: ONE draw from the shared stream seeds it
+ * (random.ts:forkSeed), so however many rolls the prep takes, the shoot that
+ * follows is insulated from them. The plan first seeded it from the
+ * production alone (title and release day) to leave the shared stream
+ * untouched; that made the same plan's prep identical however many times it
+ * was executed, which a player's prep is not, and collapsed the variance
+ * gate's spread (docs/DESIGN_REVIEW_market_realism.md §7.2).
  */
-export function rivalPrepRng(production: RivalExecutionInput): RandomFn {
-  return createRng(Math.floor(hashUnit(`${production.script.title}|${production.releaseDay ?? 0}`) * 2 ** 31) + 1);
+export function rivalPrepRng(rng: RandomFn): RandomFn {
+  return createRng(forkSeed(rng));
 }
 
 export interface RivalExecutionResult {
@@ -140,7 +142,7 @@ export function resolveRivalExecution(production: RivalExecutionInput, rng: Rand
   const { talent, script, productionChoices, genre } = production;
   // A rival's shoot is preceded by a pre-production from the player's own prep
   // table; how it went moves the shoot's starting risk and joins the history.
-  const prep = synthesizeRivalPrep(production, rivalPrepRng(production));
+  const prep = synthesizeRivalPrep(production, rivalPrepRng(rng));
   const staticRisk = applyPrepRiskDelta(computeStaticProductionRisk(talent, script, productionChoices, genre), prep.riskDelta);
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
   const resilience = computeExecutionResilience(talent, productionChoices);

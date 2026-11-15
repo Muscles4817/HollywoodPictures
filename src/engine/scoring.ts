@@ -872,7 +872,9 @@ const SPECTACLE_SETS_WEIGHT = 0.4;
 // critic-adored/audience-rejected film exist at all.
 
 /** The qualityScore of a median film - MEASURED over a simulated slate. Every deviation below is taken from here, so retuning the blend means re-deriving this. */
-const QUALITY_REFERENCE = 51;
+// Re-derived by procedure R (docs/IMPLEMENTATION_PLAN_market_realism.md §1.4) after
+// rivals moved to the player's scoring model: 51 -> 54.
+const QUALITY_REFERENCE = 54;
 /** The originality of an ordinary film, and the span over which distinctiveness saturates. Measured. */
 const ORIGINALITY_REFERENCE = 71;
 const ORIGINALITY_SPAN = 25;

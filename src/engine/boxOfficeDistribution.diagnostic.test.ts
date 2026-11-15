@@ -182,7 +182,7 @@ function recordFinished(film: Film, seed: number, tier: StudioTier): Rec {
       const fameOf = (t: { person?: { reputation?: { fame?: number } } } | undefined) => t?.person?.reputation?.fame ?? 0;
       const talentCost = computeTalentCost(film.talent);
       return {
-        critic: r.criticScore, aud: r.audienceScore, buzz: r.buzzScore ?? 0, simAud: fx.audienceScore,
+        critic: r.criticScore, quality: r.qualityScore, aud: r.audienceScore, buzz: r.buzzScore ?? 0, simAud: fx.audienceScore,
         scale: film.script.scale, genre: film.genre,
         costM: cost / M, openingM: opening / M, ancM: ancillary / M, rentalsM: (r.studioRevenue ?? 0) / M,
         soldShare: sw.length ? uniqueViewers(sw[sw.length - 1]) / ceil : 0,
