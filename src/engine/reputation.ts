@@ -251,3 +251,51 @@ export function applyStatChange(current: number, change: number): number {
   const scaled = change > 0 ? change * Math.min(1, (100 - current) / (100 - TOP_EASES_FROM)) : change;
   return clamp(Math.round(current + scaled), 0, 100);
 }
+
+// --- Brand reversion (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3) ---
+// A studio's name follows what it has released lately. Without this, Brand fed
+// the next film's reach with nothing pulling it back, so studios ran away or
+// spiralled (docs/REVIEW_market_realism.md §2.5). Each quarter Brand drifts a
+// little toward the level its recent grosses would earn it.
+
+/** Films back that set where a studio's name rests. */
+export const BRAND_ANCHOR_FILMS = 8;
+/** Share of the gap to the anchor that closes in a year. */
+export const BRAND_REVERSION_PER_YEAR = 0.15;
+/** Worldwide gross -> the Brand a studio rests at if that is what its films usually do. Log-interpolated between anchors. */
+export const BRAND_LEVEL_BY_GROSS: Array<[gross: number, brand: number]> = [
+  [1_000_000, 10],
+  [10_000_000, 30],
+  [100_000_000, 60],
+  [1_000_000_000, 90],
+];
+/** Fewer recent releases than this and there is too little to go on: no drift. */
+const BRAND_ANCHOR_MIN_FILMS = 3;
+const BRAND_ANCHOR_RANGE: [number, number] = [5, 95];
+
+/** The Brand a film of this worldwide gross would rest a studio at: log-interpolated between BRAND_LEVEL_BY_GROSS's anchors, the end segments extended, held within 0-100. */
+export function brandLevelForGross(gross: number): number {
+  const table = BRAND_LEVEL_BY_GROSS;
+  const x = Math.log10(Math.max(1, gross));
+  let i = 0;
+  while (i < table.length - 2 && x > Math.log10(table[i + 1][0])) i += 1;
+  const [g0, b0] = table[i];
+  const [g1, b1] = table[i + 1];
+  const t = (x - Math.log10(g0)) / (Math.log10(g1) - Math.log10(g0));
+  return clamp(b0 + t * (b1 - b0), 0, 100);
+}
+
+/** Where a studio's Brand rests, from the grosses of its most recent releases (newest first, at most BRAND_ANCHOR_FILMS). null with fewer than three: too little to go on, no drift. */
+export function computeBrandAnchor(recentGrosses: number[]): number | null {
+  const recent = recentGrosses.slice(0, BRAND_ANCHOR_FILMS);
+  if (recent.length < BRAND_ANCHOR_MIN_FILMS) return null;
+  const mean = recent.reduce((sum, g) => sum + brandLevelForGross(g), 0) / recent.length;
+  return clamp(mean, BRAND_ANCHOR_RANGE[0], BRAND_ANCHOR_RANGE[1]);
+}
+
+/** Brand after `years` of drift toward the anchor. Unrounded; the caller rounds once. Compounds, so four quarters close exactly the yearly share. */
+export function driftBrand(brand: number, anchor: number | null, years: number): number {
+  if (anchor === null || years <= 0) return brand;
+  const closed = 1 - Math.pow(1 - BRAND_REVERSION_PER_YEAR, years);
+  return brand + (anchor - brand) * closed;
+}

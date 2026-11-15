@@ -651,10 +651,32 @@ function computeExpansionReceptionGate(
  * +-MAX_AVAILABILITY_RATE_MAGNITUDE regardless of how extreme utilisation
  * gets, on top of that asymptotic approach.
  */
-export function computeAvailabilityPerformanceAdjustment(fixed: AudienceSimulationFixedState, demandUtilisation: number): number {
+export function computeAvailabilityPerformanceAdjustment(fixed: AudienceSimulationFixedState, demandUtilisation: number, weekNumber = Infinity): number {
   const rawPerformanceAdjustment = (demandUtilisation - REFERENCE_UTILISATION) * AVAILABILITY_RESPONSE_SENSITIVITY;
   const expansionGate = computeExpansionReceptionGate(fixed);
-  return rawPerformanceAdjustment > 0 ? rawPerformanceAdjustment * expansionGate : rawPerformanceAdjustment;
+  if (rawPerformanceAdjustment > 0) return rawPerformanceAdjustment * expansionGate;
+  return rawPerformanceAdjustment * (1 - computeHoldRelief(fixed, weekNumber, rawPerformanceAdjustment));
+}
+
+// The hold (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3): exhibitors
+// give a studio they trust the benefit of the doubt when its film softens
+// early - they keep it on a few more screens a week or two longer. Only the
+// performance-driven loss is softened; the age-based decay and the
+// rushed-release screen collapse are untouched.
+/** Weeks of a run in which a trusted studio gets the benefit of the doubt. */
+const HOLD_WEEKS = 3;
+/** Share of a soft week's screen loss a fully trusted studio is spared. */
+const HOLD_RELIEF = 0.5;
+
+/**
+ * 0..HOLD_RELIEF - how much of this week's performance-driven screen loss is
+ * forgiven. `weekNumber` is the week being played, 1 for the opening. 0 after
+ * HOLD_WEEKS, for a film not losing screens, or with no standing.
+ */
+export function computeHoldRelief(fixed: AudienceSimulationFixedState, weekNumber: number, rawPerformanceAdjustment: number): number {
+  const standing = clamp(fixed.exhibitorStanding ?? 0, 0, 1);
+  if (standing <= 0 || rawPerformanceAdjustment >= 0 || weekNumber > HOLD_WEEKS) return 0;
+  return HOLD_RELIEF * standing;
 }
 
 const MAX_WEEKLY_EXPANSION_MULTIPLIER = 1.75;
@@ -761,9 +783,10 @@ export function computeNextAvailability(
   currentAvailability: number,
   demandUtilisation: number,
   competitivePressure = 0,
+  weekNumber = Infinity,
 ): number {
   const performanceAdjustment =
-    computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
+    computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation, weekNumber);
 
   const netRate = clamp(
     performanceAdjustment - fixed.availabilityBaseWeeklyDecay - COMPETITIVE_PRESSURE_WEIGHT * competitivePressure,
@@ -855,6 +878,8 @@ export interface WeekDiagnostics {
   competitivePressure: number;
   /** Rushed-release screen collapse - true once exhibitors are pulling this film (latched; see isScreenCollapse). */
   screensPulled: boolean;
+  /** The exhibitor hold (computeHoldRelief): share of this week's performance-driven screen loss forgiven because exhibitors trust the studio. 0 most weeks. */
+  holdRelief: number;
   /** Repeat viewing - this week's admissions by people who had already seen the film (included in weeklyAdmissions). */
   repeatAdmissions: number;
   weeklyAdmissions: number;
@@ -1018,11 +1043,16 @@ export function advanceOneWeekWithDiagnostics(
   const firstTimeTickets = unconstrainedDemand * servedShare;
   const repeatTickets = repeatDemand * servedShare;
   const demandUtilisation = computeDemandUtilisation(totalDemand, maxServiceableDemand);
-  const performanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
+  const weekNumber = weeks.length + 1;
+  const performanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation, weekNumber);
+  const rawPerformanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
   const screensPulled = isScreenCollapse(fixed, priorWeek, weeks.length, demandUtilisation);
+  // The exhibitor hold's share of this week's performance-driven loss forgiven
+  // (0 unless a trusted studio's film softened early) - for the weekly report.
+  const holdRelief = screensPulled ? 0 : computeHoldRelief(fixed, weekNumber, rawPerformanceAdjustment);
   const nextAvailabilityFraction = screensPulled
     ? collapsedAvailability(availabilityThisWeek)
-    : computeNextAvailability(fixed, availabilityThisWeek, demandUtilisation, competitivePressure);
+    : computeNextAvailability(fixed, availabilityThisWeek, demandUtilisation, competitivePressure, weekNumber);
 
   // Defensive final clamp - the step-by-step headroom bounding above should
   // already guarantee these never exceed their ceilings, but floating-point
@@ -1082,6 +1112,7 @@ export function advanceOneWeekWithDiagnostics(
     nextAvailabilityFraction,
     competitivePressure,
     screensPulled,
+    holdRelief,
     repeatAdmissions: repeatTickets,
     weeklyAdmissions: next.cumulativeTicketsSold - priorWeek.cumulativeTicketsSold,
     cumulativeTicketsSold: next.cumulativeTicketsSold,

@@ -4,7 +4,7 @@ import { AWARD_CATEGORY_WEIGHT } from '../data/awards';
 import { applyAwardsToCareers, applyFilmResultsToCareers, crossedStandingFade, fadeStanding } from '../engine/careerProgress';
 import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, CastCrewFocus, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
-import { randomSeed, withRng, type RandomFn } from '../engine/random';
+import { clamp, randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole, findAssignedPerson, filterAssignedPeople } from '../data/helpers';
@@ -96,7 +96,7 @@ import {
   resolveDistributorDeal,
 } from '../engine/distribution';
 import { distributorChannelAllocation } from '../engine/marketing';
-import { applyStatChange } from '../engine/reputation';
+import { applyStatChange, computeBrandAnchor, driftBrand } from '../engine/reputation';
 import { applyGenreIdentityDeltas, genreIdentityFor } from '../engine/studioIdentity';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import { currentScreenFor } from './selectors';
@@ -1010,10 +1010,56 @@ function withCareerNewsFor(before: GameState, after: GameState): GameState {
 function withRunningCosts(before: GameState, after: GameState): GameState {
   if (before.talentDatabaseId !== after.talentDatabaseId || after.totalDays <= before.totalDays) return after;
   if (!crossedRunningCostDay(before.totalDays, after.totalDays)) return after;
-  const bill = quarterlyRunningCost(after.studio);
-  if (bill <= 0) return after;
-  const what = runningCostLines(after.studio).map((line) => line.label.toLowerCase()).join(', ');
-  return { ...after, studio: recordCashChange(after.studio, after.totalDays, -bill, 'facility', `Running costs for the quarter: ${what}`) };
+  const drifted = withBrandDrift(after);
+  const bill = quarterlyRunningCost(drifted.studio);
+  if (bill <= 0) return drifted;
+  const what = runningCostLines(drifted.studio).map((line) => line.label.toLowerCase()).join(', ');
+  return { ...drifted, studio: recordCashChange(drifted.studio, drifted.totalDays, -bill, 'facility', `Running costs for the quarter: ${what}`) };
+}
+
+/** Drift alone moving the player's Brand this far in one direction since the last notice earns a new one. */
+export const BRAND_NOTICE_POINTS = 5;
+
+/** Worldwide grosses of a studio's finished releases, newest first. `releasedBy` undefined is the player. */
+function recentGrossesOf(projects: Project[], releasedBy: string | undefined): number[] {
+  return projects
+    .map(asFilm)
+    .filter((f): f is Film => !!f && f.releasedBy === releasedBy && f.boxOfficeRun.status === 'finished' && f.results.totalBoxOffice != null)
+    .sort((a, b) => b.releasedOnDay - a.releasedOnDay)
+    .map((f) => f.results.totalBoxOffice!);
+}
+
+/** One quarter's drift of `brand` toward the anchor, carrying the fraction that has not yet made a whole point. */
+function quarterDrift(brand: number, carry: number, anchor: number | null): { brand: number; carry: number } {
+  const exact = driftBrand(brand + carry, anchor, 0.25);
+  const rounded = clamp(Math.round(exact), 0, 100);
+  return { brand: rounded, carry: anchor === null ? carry : exact - rounded };
+}
+
+/**
+ * Brand reversion (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3): once a
+ * quarter, on the running-cost day, the player's and every rival's Brand drift
+ * toward where their recent releases would rest them (engine/reputation.ts).
+ * Derived from the finished films in `projects`, never stored. When drift alone
+ * has moved the player's Brand BRAND_NOTICE_POINTS in one direction since the
+ * last notice, a new notice replaces it (the Inbox reads it).
+ */
+function withBrandDrift(state: GameState): GameState {
+  const player = quarterDrift(state.studio.brand, state.studio.brandDriftCarry ?? 0, computeBrandAnchor(recentGrossesOf(state.projects, undefined)));
+  const tally = (state.studio.brandDriftSinceNotice ?? 0) + (player.brand - state.studio.brand);
+  const noticeDue = Math.abs(tally) >= BRAND_NOTICE_POINTS;
+  const studio: Studio = {
+    ...state.studio,
+    brand: player.brand,
+    brandDriftCarry: player.carry,
+    brandDriftSinceNotice: noticeDue ? 0 : tally,
+    ...(noticeDue ? { brandNotice: { day: state.totalDays, direction: tally < 0 ? ('fading' as const) : ('recovering' as const) } } : {}),
+  };
+  const rivalStudios = state.rivalStudios.map((rival) => {
+    const next = quarterDrift(rival.brand, rival.brandDriftCarry ?? 0, computeBrandAnchor(recentGrossesOf(state.projects, rival.name)));
+    return { ...rival, brand: next.brand, brandDriftCarry: next.carry };
+  });
+  return { ...state, studio, rivalStudios };
 }
 
 export function studioReducer(state: GameState, action: GameAction): GameState {

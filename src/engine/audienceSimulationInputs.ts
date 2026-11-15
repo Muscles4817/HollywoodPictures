@@ -98,6 +98,8 @@ export interface ReleaseSimulationInputs {
   leadFame: number;
   /** Studio.brand (Brand Recognition, engine/reputation.ts), 0-100 verbatim - sizes marketingEfficiency (how far a marketing pound actually goes). A brand-new studio's marketing dollar buys less attention than an established one's; this is what makes marketing effectiveness itself a genuine mid/late-game progression mechanic rather than a flat multiplier available from day one. Deliberately reads Brand, never Prestige - how far a marketing pound reaches is a commercial-recognition question, not a critical-esteem one. */
   studioBrand: number;
+  /** 0-1: how far exhibitors trust the releasing studio (releaseFilm.ts passes Brand / 100). Optional; absent means none, so direct-simulation callers are unchanged. */
+  exhibitorStanding?: number;
   /**
    * Studio identity in THIS film's genre (engine/studioIdentity.ts), 0-100 -
    * how known the studio is for this kind of film. On-brand releases get a
@@ -1027,6 +1029,7 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     totalAddressableAudience,
     baseInterestFraction,
     marketingEfficiency,
+    ...(inputs.exhibitorStanding !== undefined ? { exhibitorStanding: inputs.exhibitorStanding } : {}),
     crossoverCapacityFraction,
     conversionPacingBaseline,
     externalWeeklyAwarenessRate: clamp(externalWeeklyAwarenessRate * computeReviewAwarenessMultiplier(inputs, eventScale), 0, 1),

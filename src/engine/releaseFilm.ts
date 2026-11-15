@@ -368,6 +368,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     directorFame: averageFame(input.talent, 'Director'),
     leadFame: averageFame(input.talent, 'Lead Actor'),
     studioBrand: input.studioBrand,
+    exhibitorStanding: input.studioBrand / 100, // the hold: exhibitors trust a known name (Phase 3)
     studioGenreIdentity: input.studioGenreIdentity,
     scriptAccessibility: commercialProfile.accessibility,
     scriptHookStrength: commercialProfile.hookStrength,
