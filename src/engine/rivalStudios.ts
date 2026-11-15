@@ -926,7 +926,8 @@ function genreTierBias(tier: StudioTier, script: Script): number {
   return GENRE_TIER_BIAS[tier][script.genre] ?? 0;
 }
 
-function evaluateOpportunityForTier(
+/** @internal exported for tests. */
+export function evaluateOpportunityForTier(
   rival: RivalStudio,
   scale: ProductionScale,
   opportunity: Opportunity,
@@ -987,7 +988,8 @@ function evaluateOpportunityForTier(
   return score;
 }
 
-function considerBiddingOnOpportunity(
+/** @internal exported for tests. */
+export function considerBiddingOnOpportunity(
   rival: RivalStudio,
   scale: ProductionScale,
   opportunities: Opportunity[],

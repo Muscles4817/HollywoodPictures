@@ -968,9 +968,13 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
  * one step of the bot, exposed so a test can set up a backgrounded production.
  * Returns the state unchanged if no film could be started today.
  */
-export function botStartFilm(state: GameState, strategy: BotStrategy): GameState {
-  const scratch = { abandoned: 0, stuck: [], stretchedFilms: 0, contestedOffers: 0, contestedWins: 0 } as unknown as BotRun;
-  return startFilm(state, strategy, scratch);
+export function botStartFilm(state: GameState, strategy: BotStrategy, run: BotRun = botScratchRun()): GameState {
+  return startFilm(state, strategy, run);
+}
+
+/** The counters startFilm writes to, for a test stepping the bot by hand (pass the same one each step to keep an open offer). */
+export function botScratchRun(): BotRun {
+  return { abandoned: 0, stuck: [], stretchedFilms: 0, contestedOffers: 0, contestedWins: 0 } as unknown as BotRun;
 }
 
 /** Whether every project in the state has a distinct id - the bot's own sanity check on the pipeline. */
