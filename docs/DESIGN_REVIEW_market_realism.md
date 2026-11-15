@@ -428,3 +428,128 @@ value Phase 3 centres the marketing range on.
   "no more than 2 above" that, so 5.
 - The real-studio names in the rival list (Disney, A24, ...) are pre-existing
   generator data, noted only because the anatomy prints them.
+
+### 7.1 Phase 1 - after-market: one regard premium (STOPPED)
+
+**Built** as the plan specifies: `data/ancillary.ts:REGARD` and
+`engine/ancillary.ts:computeRegard`; every window reads the market's median
+film and is multiplied once by regard (0.75-1.5); longevity's awards / critical
+/ beloved terms and their floors are gone (regard's `longevityWeight` replaces
+them); the reach base no longer reads audience score. Comments in
+`ancillary.ts` and `state/ancillarySettlement.ts` updated;
+`accrueAncillaryAwardsPremium` unchanged and still pays a positive licensing
+top-up after a win (its existing test passes). No player-facing text claimed
+more than "a well-regarded film earns more after its cinema run". Tests: the
+plan's list in `ancillary.test.ts`; no existing test needed changing. Full
+suite, lint and build green.
+
+**One correction to a "measured" constant.** The plan gives
+`neutralAudience: 65, neutralCritic: 48`. The whole-year dump's medians (all
+films, the definition procedure R uses) are **64 and 54**; 48 is the £10-40M
+rivals' critic median from the anatomy, not the market's. With 48 as neutral
+the market's median film read six critic points above neutral and earned a
+small premium. Shipped: 64 / 54, with the median-film parity test re-pinned at
+those readings. This is the measurement, not a tuning step.
+
+**Career gate, all four tiers** (first run, neutrals 65 / 48, span 0.35 - the
+corrected neutrals were measured with the anatomy and gates only, below):
+
+**indie** (start £8.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 0.3 | 5.4 | 0.5 | 0.1 | -0.0 | 8.3 | 1.7 | 5.4 | 2.2 | -0.1 | 9 | 0 | 1 | 49 | 59 |
+| Scout | 0.5 | -0.3 | 6.3 | 0.3 | 1.5 | 2.3 | 0.6 | -0.2 | 0.5 | -0.2 | 10 | 0 | 1 | 45 | 63 |
+| Steady | -0.5 | 0.1 | 0.5 | -0.3 | -0.1 | -0.8 | 0.1 | 4.4 | 0.0 | 0.2 | 10 | 0 | 6 | 39 | 66 |
+| Careless | 0.2 | 0.1 | 0.1 | -0.3 | -0.1 | -0.1 | -0.2 | -2.5 | 0.3 | 0.1 | 10 | 0 | 7 | 37 | 82 |
+
+**boutique** (start £25.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 7.4 | 17.9 | 36.9 | 21.2 | 7.2 | 69.5 | 6.2 | 16.6 | 60.6 | 4.5 | 7 | 0 | 0 | 60 | 49 |
+| Scout | 12.4 | 7.5 | 18.9 | 4.3 | 12.1 | 7.1 | 3.1 | 8.6 | 14.4 | 10.8 | 10 | 0 | 0 | 54 | 61 |
+| Steady | 4.2 | 1.7 | 36.5 | 9.7 | 0.2 | 3.3 | -0.2 | 17.0 | 11.9 | -0.3 | 9 | 0 | 1 | 55 | 55 |
+| Careless | 0.1 | -0.7 | 0.5 | 0.0 | 0.4 | 1.4 | 0.2 | 0.7 | 0.2 | 0.2 | 10 | 0 | 1 | 38 | 84 |
+
+**midmajor** (start £80.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 108 | 525 | 287 | 580 | 69.5 | 214 | 153 | 272 | 337 | 39.5 | 2 | 3 | 0 | 65 | 33 |
+| Scout | 44.3 | 44.7 | 111 | 8.9 | 31.4 | 35.8 | 53.0 | 17.4 | 157 | 66.4 | 8 | 0 | 0 | 58 | 57 |
+| Steady | 592 | 759 | 344 | 592 | 484 | 495 | 476 | 637 | 599 | 435 | 0 | 10 | 0 | 68 | 30 |
+| Careless | 0.3 | 0.5 | 0.6 | 0.7 | 0.5 | 1.9 | -0.1 | 0.1 | 0.6 | 0.7 | 10 | 0 | 0 | 39 | 96 |
+
+**major** (start £200M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 567 | 403 | 528 | 572 | 506 | 440 | 533 | 383 | 424 | 421 | 0 | 0 | 0 | 69 | 29 |
+| Scout | 101 | 299 | 466 | 393 | 82.9 | 320 | 54.9 | 345 | 345 | 98.6 | 4 | 0 | 0 | 58 | 45 |
+| Steady | 522 | 647 | 809 | 705 | 349 | 757 | 993 | 600 | 751 | 641 | 0 | 2 | 0 | 70 | 32 |
+| Careless | 4.0 | 1.0 | 3.7 | 4.8 | 0.8 | 7.5 | 3.7 | 3.0 | 3.9 | -0.1 | 10 | 0 | 0 | 38 | 100 |
+
+Against Phase 0: Mid-Major Careful £40-580M (was £44-785M), two of ten below
+£80M (the plan expected one to three); Steady £344-759M (was £581-857M), still
+every career above four times start; Major Careful £383-572M (was £438-960M),
+none above 4x; Steady two above 4x (was five). Boutique has no career above 4x
+(was two). Guard rails: Careless Mid-Major 10 of 10 below a quarter; Indie
+Careful stalled 1 (Phase 0: 3); Boutique none above 4x. All hold.
+
+**After-market per pound of rentals (anatomy).** Rivals 0.37 (band 0.33-0.45,
+baseline 0.38) - met. Player, Mid-Major Careful 101: **0.88** at span 0.35
+(0.89 with the corrected neutrals) - outside 0.45-0.70. The player's ratio is
+mostly set by *film size*, not regard: the reach base is concave in gross, so a
+career of small films earns more per rental pound whatever its reviews. Four
+careers each (Mid-Major Careful 101/102/103, Steady 102):
+
+| span | ratio per career (median gross) |
+|---|---|
+| 0.35 | 0.89 (£14M), 0.80 (£24M), 0.68 (£50M), 0.57 (£159M) |
+| 0.30 | 0.71 (£51M), 0.83 (£20M), 0.58 (£128M), 0.60 (£126M) |
+
+**Box-office gates.** Variance and buzz pass; budget-tier has exactly the
+Phase 0 six misses (post-theatrical / rentals 35-36%, on its floor). Whole-year:
+
+| variant | `lossPct` [28, 45] | `majorPct` [2, 14] | other misses |
+|---|---|---|---|
+| Phase 0 | 29.3 | 13.9 | the three Phase 0 misses |
+| span 0.35, neutrals 65/48 | **27.9** | **14.4** | the three |
+| span 0.35, neutrals 64/54 (shipped) | **27.96** | **14.04** | the three |
+| span 0.30, neutrals 64/54 | **27.5** | **14.7** | the three |
+
+Two new misses, by hairs. Both were already on their edges in Phase 0, and the
+gate measures rival films whose studios' cash now runs slightly differently, so
+any change moves it: `wideOver100PerYear`, a cinema-only metric this phase
+cannot touch directly, moved 51.4 -> 52.5-53.5 on the same feedback.
+
+**Why this is a stop.** A box-office metric outside the Phase 0 misses breaks a
+§1.3 guard rail, and the plan's only Phase 1 levers make it worse: lowering
+`REGARD.span` compresses regard toward 1, which lifts weak films' after-market
+and moves both metrics further out (0.30 above); raising it would push the
+player's ratio further from its band. Procedure R (the level lever) is not
+allowed until Phase 2. Stopped after one span step (0.30, rejected).
+
+**What I would do next**, in order of preference:
+1. Accept the two hair-line misses for now and continue to Phase 2, whose
+   procedure R re-levels the market (`BASE_ADDRESSABLE_POPULATION` down one
+   2,000,000 step is the plan's own remedy for `majorPct` high / `lossPct`
+   low) - i.e. let Phase 2's procedure R run against the Phase 0 set of misses.
+2. Judge the player's after-market ratio on several careers (or on the career
+   dumps) rather than seed 101 alone: pooled over four careers it is 0.73 at
+   span 0.35 and 0.68 at 0.30, against a band of 0.45-0.70. If the owner wants
+   it inside, `REGARD.max` (1.5 -> 1.4) is the plan's second lever and does
+   not loosen weak films.
+
+**Already written, not yet merged or measured** (local branches in this
+session; say if they should be pushed): Phase 2 steps 1-2 (person-driven craft
+for rivals, synthesised rival prep with `chooseRivalOption`, parity test),
+Phase 3 (Brand drift with carry, exhibitor hold, 0.55-0.85 marketing range from
+B = 63, Inbox notice, save 107), Phase 5 (contested scripts, rival appetite and
+director fit, the bot's offers, market card, save 108) and Phase 6 (prep table).
+One Phase 3 finding for the owner: as written, the hold softens the performance
+term *inside* the weekly screen-loss clamp, but a Wide release's age decay
+(0.18) alone nearly fills that clamp (0.20), so the hold did nothing for any
+Wide film; the draft applies the relief to the performance share of the
+*clamped* loss instead.
