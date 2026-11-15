@@ -310,7 +310,7 @@ describe('ancillaryAttributesFromFilm — extraction from a live Film', () => {
 // docs/IMPLEMENTATION_PLAN_market_realism.md Phase 1: one bounded regard
 // premium in place of six stacked readings of quality.
 describe('computeRegard — one bounded premium for how well a film is regarded', () => {
-  const neutral = { audienceScore: 65, criticScore: 48, studioPrestige: 50, awards: { wins: 0, nominations: 0 } };
+  const neutral = { audienceScore: REGARD.neutralAudience, criticScore: REGARD.neutralCritic, studioPrestige: 50, awards: { wins: 0, nominations: 0 } };
 
   it('is 1 for a film at the neutral readings with no awards', () => {
     expect(computeRegard(neutral)).toBe(1);
@@ -342,20 +342,19 @@ describe('computeRegard — one bounded premium for how well a film is regarded'
 });
 
 describe('deriveAncillaryMultipliers — the median film is where it was', () => {
-  // The market's median film: audience 65, critic 48, prestige 50, no awards.
-  const median = attrs({ audienceScore: 65, criticScore: 48, studioPrestige: 50 });
+  // The market's median film: audience 64, critic 54, prestige 50, no awards.
+  const median = attrs({ audienceScore: 64, criticScore: 54, studioPrestige: 50 });
 
   it('gets the four multipliers the old formulas gave it, within 1%', () => {
     // Worked by hand from the formulas regard replaced (Action, Mass Market,
     // accessibility 65, no franchise, merchandise 40, Summer):
-    //   home      0.85 * (0.4 + 0.65) * 0.9 * 0.9                              = 0.7229
-    //   licensing 0.85 * 0.945 * (0.6 + 0.455) * (0.7 + 0.288) * 0.9 * 1 * 1.0 = 0.7535
+    //   home      0.85 * (0.4 + 0.64) * 0.9 * 0.9                              = 0.71604
+    //   licensing 0.85 * 0.945 * (0.6 + 0.448) * (0.7 + 0.324) * 0.9 * 1 * 1.0 = 0.77581
     //   merch     3.5 * (0.3 + 0.56) * 0.5 * 0.8                               = 1.204
     //   longevity 0.13 * 0.5 (genre bias only; critic and audience below their old floors) = 0.065
     const m = deriveAncillaryMultipliers(median);
-    expect(m.homeEntertainment).toBeCloseTo(0.7229, 2);
-    expect(Math.abs(m.homeEntertainment / 0.722925 - 1)).toBeLessThan(0.01);
-    expect(Math.abs(m.licensing / 0.753533 - 1)).toBeLessThan(0.01);
+    expect(Math.abs(m.homeEntertainment / 0.71604 - 1)).toBeLessThan(0.01);
+    expect(Math.abs(m.licensing / 0.775808 - 1)).toBeLessThan(0.01);
     expect(Math.abs(m.merchandising / 1.204 - 1)).toBeLessThan(0.01);
     expect(Math.abs(m.longevity / 0.065 - 1)).toBeLessThan(0.01);
   });
@@ -385,7 +384,7 @@ describe('deriveAncillaryMultipliers — the median film is where it was', () =>
 
   it('gives a median film no catalogue tail, and a top-regard drama one', () => {
     expect(deriveAncillaryMultipliers(median).longevity).toBeLessThan(CATALOGUE.minLongevity);
-    const medianDrama = attrs({ genre: 'Drama', targetAudience: 'Adults', audienceScore: 65, criticScore: 48, studioPrestige: 50 });
+    const medianDrama = attrs({ genre: 'Drama', targetAudience: 'Adults', audienceScore: 64, criticScore: 54, studioPrestige: 50 });
     expect(deriveAncillaryMultipliers(medianDrama).longevity).toBeLessThan(CATALOGUE.minLongevity);
     const topDrama = { ...medianDrama, audienceScore: 88, criticScore: 85, studioPrestige: 70 };
     expect(deriveAncillaryMultipliers(topDrama).longevity).toBeGreaterThanOrEqual(CATALOGUE.minLongevity);
