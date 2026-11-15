@@ -196,17 +196,16 @@ describe('(6) player execution path is unchanged by the shared extraction', () =
 // docs/IMPLEMENTATION_PLAN_market_realism.md Phase 2: a rival's shoot is
 // preceded by a pre-production from the player's own prep table.
 describe('synthesizeRivalPrep - the pre-production a rival film went through', () => {
-  it('is deterministic for a production', () => {
-    const a = synthesizeRivalPrep(inputFor(), rivalPrepRng(inputFor()));
-    const b = synthesizeRivalPrep(inputFor(), rivalPrepRng(inputFor()));
+  it('is deterministic for a generator seed', () => {
+    const a = synthesizeRivalPrep(inputFor(), createRng(77));
+    const b = synthesizeRivalPrep(inputFor(), createRng(77));
     expect(b).toEqual(a);
   });
 
   it('never returns an event id twice, and keeps its risk delta within the prep clamp', () => {
     let sawEvents = 0;
     for (let s = 0; s < 40; s++) {
-      const input = { ...inputFor(7000 + s), releaseDay: s };
-      const prep = synthesizeRivalPrep(input, createRng(7000 + s));
+      const prep = synthesizeRivalPrep(inputFor(7000 + s), createRng(7000 + s));
       const ids = prep.events.map((e) => e.id);
       expect(new Set(ids).size).toBe(ids.length);
       expect(ids.every((id) => id.startsWith('preprod-'))).toBe(true);
@@ -216,19 +215,28 @@ describe('synthesizeRivalPrep - the pre-production a rival film went through', (
     expect(sawEvents).toBeGreaterThan(0); // prep actually happens
   });
 
-  it('does not consume from the generator passed to resolveRivalExecution', () => {
-    // The prep runs on its own generator seeded from the production, so the
-    // same production resolved from two different shared streams has the same
-    // prep - and its prep is exactly what that seed alone produces.
-    const input = { ...inputFor(), releaseDay: 321 };
-    const own = synthesizeRivalPrep(input, rivalPrepRng(input)).events.filter((e) => e.qualityDelta !== 0);
-    for (const seed of [1, 2, 99]) {
-      const { events } = resolveRivalExecution(input, createRng(seed));
-      const prepPart = events.filter((e) => e.id.startsWith('preprod-'));
-      expect(prepPart.map((e) => [e.id, e.qualityDelta])).toEqual(own.map((e) => [e.id, e.qualityDelta]));
-      // Zeroed like a player's prep at release: its cost was never a shoot cost.
-      expect(prepPart.every((e) => e.costDelta === 0 && e.buzzDelta === 0 && e.delayDaysDelta === 0)).toBe(true);
-    }
+  it('takes exactly one draw from the generator passed to resolveRivalExecution, whatever the prep rolls', () => {
+    // The prep runs on its own generator, forked with one draw (random.ts:forkSeed),
+    // so the shoot's stream never depends on how many rolls the prep took.
+    const input = inputFor();
+    const shared = createRng(321);
+    const prep = synthesizeRivalPrep(input, rivalPrepRng(shared));
+    const own = prep.events.filter((e) => e.qualityDelta !== 0);
+    const afterFork = shared();
+    const reference = createRng(321);
+    reference(); // the fork's single draw
+    expect(reference()).toBe(afterFork);
+    // ...and resolveRivalExecution's history leads with exactly that prep, zeroed
+    // like a player's prep at release (its cost was never a shoot cost).
+    const { events } = resolveRivalExecution(input, createRng(321));
+    const prepPart = events.filter((e) => e.id.startsWith('preprod-'));
+    expect(prepPart.map((e) => [e.id, e.qualityDelta])).toEqual(own.map((e) => [e.id, e.qualityDelta]));
+    expect(prepPart.every((e) => e.costDelta === 0 && e.buzzDelta === 0 && e.delayDaysDelta === 0)).toBe(true);
+  });
+
+  it('varies from one execution of the same plan to the next', () => {
+    const preps = new Set([1, 2, 3, 4, 5, 6].map((seed) => JSON.stringify(synthesizeRivalPrep(inputFor(), rivalPrepRng(createRng(seed))).events.map((e) => e.id))));
+    expect(preps.size).toBeGreaterThan(1);
   });
 });
 

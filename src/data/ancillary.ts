@@ -131,8 +131,8 @@ export const CATALOGUE = {
 export const REGARD = {
   /** The market's median audience score, all films (measured: whole-year dump, seeds 4000+; 64 in Phase 1, re-derived to 68 by procedure R in Phase 2 - docs/DESIGN_REVIEW_market_realism.md §7.1-7.2). */
   neutralAudience: 68,
-  /** The market's median critic score, all films (measured as above; 54 in Phase 1, 56 after Phase 2's procedure R). */
-  neutralCritic: 56,
+  /** The market's median critic score, all films (measured as above; 54 in Phase 1, 55 after Phase 2's procedure R). */
+  neutralCritic: 55,
   neutralPrestige: 50,
   /** Points from neutral that count as a full swing on each reading. */
   audienceSpan: 30,
