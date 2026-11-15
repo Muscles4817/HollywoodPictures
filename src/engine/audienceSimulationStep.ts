@@ -651,18 +651,23 @@ function computeExpansionReceptionGate(
  * +-MAX_AVAILABILITY_RATE_MAGNITUDE regardless of how extreme utilisation
  * gets, on top of that asymptotic approach.
  */
-export function computeAvailabilityPerformanceAdjustment(fixed: AudienceSimulationFixedState, demandUtilisation: number, weekNumber = Infinity): number {
+export function computeAvailabilityPerformanceAdjustment(fixed: AudienceSimulationFixedState, demandUtilisation: number): number {
   const rawPerformanceAdjustment = (demandUtilisation - REFERENCE_UTILISATION) * AVAILABILITY_RESPONSE_SENSITIVITY;
   const expansionGate = computeExpansionReceptionGate(fixed);
-  if (rawPerformanceAdjustment > 0) return rawPerformanceAdjustment * expansionGate;
-  return rawPerformanceAdjustment * (1 - computeHoldRelief(fixed, weekNumber, rawPerformanceAdjustment));
+  return rawPerformanceAdjustment > 0 ? rawPerformanceAdjustment * expansionGate : rawPerformanceAdjustment;
 }
 
 // The hold (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3): exhibitors
 // give a studio they trust the benefit of the doubt when its film softens
 // early - they keep it on a few more screens a week or two longer. Only the
-// performance-driven loss is softened; the age-based decay and the
-// rushed-release screen collapse are untouched.
+// performance-driven share of a week's loss is softened; the age-based decay
+// and the rushed-release screen collapse are untouched.
+//
+// Applied to the week's loss AFTER the rate clamp (computeNextAvailability),
+// not to the performance term before it: a Wide release's age decay alone
+// (0.18) nearly fills the clamp (MAX_AVAILABILITY_RATE_MAGNITUDE, 0.2), so any
+// soft Wide week is clamped, and softening the term inside the clamp changed
+// nothing for exactly the films the hold is for.
 /** Weeks of a run in which a trusted studio gets the benefit of the doubt. */
 const HOLD_WEEKS = 3;
 /** Share of a soft week's screen loss a fully trusted studio is spared. */
@@ -786,13 +791,15 @@ export function computeNextAvailability(
   weekNumber = Infinity,
 ): number {
   const performanceAdjustment =
-    computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation, weekNumber);
+    computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
 
-  const netRate = clamp(
-    performanceAdjustment - fixed.availabilityBaseWeeklyDecay - COMPETITIVE_PRESSURE_WEIGHT * competitivePressure,
-    -MAX_AVAILABILITY_RATE_MAGNITUDE,
-    MAX_AVAILABILITY_RATE_MAGNITUDE,
-  );
+  const unclampedRate = performanceAdjustment - fixed.availabilityBaseWeeklyDecay - COMPETITIVE_PRESSURE_WEIGHT * competitivePressure;
+  const clampedRate = clamp(unclampedRate, -MAX_AVAILABILITY_RATE_MAGNITUDE, MAX_AVAILABILITY_RATE_MAGNITUDE);
+  // The exhibitor hold spares part of the performance-driven share of a
+  // contracting week (see computeHoldRelief).
+  const relief = computeHoldRelief(fixed, weekNumber, performanceAdjustment);
+  const performanceShare = relief > 0 && unclampedRate < 0 ? clamp(performanceAdjustment / unclampedRate, 0, 1) : 0;
+  const netRate = clampedRate < 0 ? clampedRate * (1 - relief * performanceShare) : clampedRate;
 
   if (netRate >= 0) {
     const normalizedPositiveRate =
@@ -1044,12 +1051,11 @@ export function advanceOneWeekWithDiagnostics(
   const repeatTickets = repeatDemand * servedShare;
   const demandUtilisation = computeDemandUtilisation(totalDemand, maxServiceableDemand);
   const weekNumber = weeks.length + 1;
-  const performanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation, weekNumber);
-  const rawPerformanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
+  const performanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
   const screensPulled = isScreenCollapse(fixed, priorWeek, weeks.length, demandUtilisation);
   // The exhibitor hold's share of this week's performance-driven loss forgiven
   // (0 unless a trusted studio's film softened early) - for the weekly report.
-  const holdRelief = screensPulled ? 0 : computeHoldRelief(fixed, weekNumber, rawPerformanceAdjustment);
+  const holdRelief = screensPulled ? 0 : computeHoldRelief(fixed, weekNumber, performanceAdjustment);
   const nextAvailabilityFraction = screensPulled
     ? collapsedAvailability(availabilityThisWeek)
     : computeNextAvailability(fixed, availabilityThisWeek, demandUtilisation, competitivePressure, weekNumber);
