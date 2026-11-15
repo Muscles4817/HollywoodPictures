@@ -16,7 +16,10 @@ function inputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSimula
     marketingSpend: 20_000_000,
     directorFame: 50,
     leadFame: 50,
-    studioBrand: 50,
+    // 33, was 50: the marketing-efficiency range narrowed to 0.55-0.85
+    // (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3). Brand 33 gives the
+    // 0.65 efficiency these archetypes were calibrated at; Brand is incidental here.
+    studioBrand: 33,
     scriptAccessibility: 50,
     scriptHookStrength: 50,
     scriptCrossoverPotential: 50,
