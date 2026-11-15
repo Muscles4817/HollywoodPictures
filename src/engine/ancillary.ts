@@ -33,7 +33,7 @@ import type {
   ScriptCharacter,
   TargetAudience,
 } from '../types';
-import { ANCILLARY_TIMING, GENRE_ANCILLARY, WINDOW_BASE_RATES, CATALOGUE, REACH_BASE } from '../data/ancillary';
+import { ANCILLARY_TIMING, GENRE_ANCILLARY, WINDOW_BASE_RATES, CATALOGUE, REACH_BASE, REGARD } from '../data/ancillary';
 import { deriveCommercialProfile } from './commercialProfile';
 import { clamp } from './random';
 
@@ -41,29 +41,19 @@ import { clamp } from './random';
 
 const AWARDS = { winWeight: 0.25, nominationWeight: 0.05 } as const;
 
-// What gives a film a library life. `criticalStanding` was missing entirely, and
-// its absence is why a prestige drama earned the SMALLEST post-theatrical share
-// on the slate when the reference says it should earn the largest: longevity was
-// dominated by `awards`, so a well-reviewed film that won nothing scored below
-// CATALOGUE.minLongevity and got no catalogue tail at all. The reference does not
-// say awards - it says "library value is why loss-making prestige films still get
-// made" (docs/domain/11-money-accounting-and-participations.md §3), and §3.3
-// prices library packages on "hours, title recognition, and genre mix". A film
-// with a critical reputation has all three whether or not it was nominated.
+// What gives a film a library life, besides regard (REGARD.longevityWeight).
+// Critical standing, a beloved audience and awards used to be three separate
+// terms here; they now reach longevity once, through computeRegard, so a
+// prestige drama still earns the library tail the reference says it should
+// (docs/domain/11-money-accounting-and-participations.md §3) without quality
+// being counted again on top of every other window.
 const LONGEVITY_WEIGHTS = {
-  awards: 0.3,
-  criticalStanding: 0.25, // how far criticScore clears the "well-regarded" line (60)
-  belovedAudience: 0.2, // share of how far audienceScore clears the "beloved" line (75)
   franchise: 0.12,
   genreBias: 0.13,
   holidayFamily: 0.1,
   cultBonus: 0.15, // additive, on top of the weighted sum
 } as const;
 
-/** The critic line above which a film starts reading as a library title rather than a disposable one. */
-const WELL_REGARDED_CRITIC_FLOOR = 60;
-
-const BELOVED_AUDIENCE_FLOOR = 75; // audienceScore above which a film reads as "beloved"
 const CULT = { originalityFloor: 70, accessibilityCeiling: 45, audienceFloor: 65 } as const;
 
 // Multiplier clamps - keep the mainstream windows in a believable band; merch is
@@ -135,7 +125,7 @@ export interface AncillaryOutlook {
 
 // --- Derivations ------------------------------------------------------------
 
-/** 0-1: how much awards success lifts licensing and catalogue longevity. A Best-Picture-and-Actor sweep is a large lift; a lone craft nod a small one. */
+/** 0-1: how much awards success lifts a film's regard (computeRegard), and through it every window after cinemas. A Best-Picture-and-Actor sweep is a large lift; a lone craft nod a small one. */
 export function awardsLift(awards: AncillaryAwards): number {
   return clamp(awards.wins * AWARDS.winWeight + awards.nominations * AWARDS.nominationWeight, 0, 1);
 }
@@ -159,51 +149,59 @@ function cultBonus(a: AncillaryAttributes): number {
 }
 
 /**
+ * 0.75..1.5 - how well regarded a film is, for everything it earns after
+ * cinemas. 1 for the market's median film (data/ancillary.ts:REGARD). Audience
+ * score, critic score and studio prestige each count as a full swing at their
+ * span from neutral, weighted and capped either way; awards add on top.
+ */
+export function computeRegard(a: Pick<AncillaryAttributes, 'audienceScore' | 'criticScore' | 'studioPrestige' | 'awards'>): number {
+  const unit = (x: number) => clamp(x, -1, 1);
+  const standing =
+    REGARD.audienceWeight * unit((a.audienceScore - REGARD.neutralAudience) / REGARD.audienceSpan) +
+    REGARD.criticWeight * unit((a.criticScore - REGARD.neutralCritic) / REGARD.criticSpan) +
+    REGARD.prestigeWeight * unit((a.studioPrestige - REGARD.neutralPrestige) / REGARD.prestigeSpan);
+  return clamp(1 + REGARD.span * standing + REGARD.awards * awardsLift(a.awards), REGARD.min, REGARD.max);
+}
+
+/**
  * Attribute-only window multipliers - the heart of "genres feel different",
  * computed without any box-office figure so the pre-release outlook can use them.
  * Each factor reads a field that already exists; see the design doc §3.3/§3.5 for
- * the reasoning behind each term.
+ * the reasoning behind each term. How well the film is regarded is read once,
+ * as `computeRegard`: every other term reads the market's median film, so
+ * quality is not multiplied in several places at once.
  */
 export function deriveAncillaryMultipliers(a: AncillaryAttributes): AncillaryMultipliers {
-  const aud = a.audienceScore / 100;
-  const crit = a.criticScore / 100;
+  const aud = REGARD.neutralAudience / 100;
+  const crit = REGARD.neutralCritic / 100;
+  const prestige = REGARD.neutralPrestige / 100;
   const fr = a.franchiseRecognition / 100;
   const access = a.accessibility / 100;
   const merch = a.leadMerchandisePotential / 100;
-  const prestige = a.studioPrestige / 100;
   const famTeen = isFamilyOrTeen(a.targetAudience) ? 1 : 0;
   const genre = GENRE_ANCILLARY[a.genre];
-  const lift = awardsLift(a.awards);
+  const regard = computeRegard(a);
 
   const homeEntertainment = clamp(
-    genre.homeEnt * (0.4 + 1.0 * aud) * (0.9 + 0.4 * famTeen) * (0.9 + 0.35 * fr),
+    genre.homeEnt * (0.4 + 1.0 * aud) * (0.9 + 0.4 * famTeen) * (0.9 + 0.35 * fr) * regard,
     MULT_CLAMP.min,
     MULT_CLAMP.max,
   );
 
-  // Now genre-weighted, which it never was. docs/domain/11 §3.4's licensing
-  // column is the second-widest genre signal in the reference after consumer
-  // products - 15-20% of lifetime revenue for a four-quadrant tentpole or an
-  // animated family franchise against 35-45% for an adult drama - and the model
-  // had no way to express it, which left the whole ordering resting on
-  // merchandising and on how big the film was.
-  //
-  // Accessibility's weight cut and criticScore's roughly doubled. Licensing is
-  // the TV, streaming and library channel, and the reference is explicit that it
-  // is not an accessibility question: an adult drama earns 35-45% of its lifetime
-  // revenue here (docs/domain/11 §3.4, the largest licensing share of any film
-  // type) precisely because television and library buyers want title recognition
-  // and critical standing, which is exactly what a narrow, well-reviewed film
-  // has. The old weighting read a low-accessibility film as a weak licensing
-  // asset and produced the opposite of the reference ordering.
+  // Genre-weighted: docs/domain/11 §3.4's licensing column is the second-widest
+  // genre signal in the reference after consumer products - 15-20% of lifetime
+  // revenue for a four-quadrant tentpole or an animated family franchise against
+  // 35-45% for an adult drama. Accessibility carries little weight: television
+  // and library buyers want title recognition and critical standing, which
+  // reach this window through regard.
   const licensing = clamp(
     genre.licensing *
       (0.75 + 0.3 * access) *
       (0.6 + 0.7 * aud) *
       (0.7 + 0.6 * crit) *
       (0.9 + 0.3 * fr) *
-      (1 + lift) *
-      (0.9 + 0.2 * prestige),
+      (0.9 + 0.2 * prestige) *
+      regard,
     MULT_CLAMP.min,
     MULT_CLAMP.max,
   );
@@ -214,10 +212,11 @@ export function deriveAncillaryMultipliers(a: AncillaryAttributes): AncillaryMul
     MERCH_CLAMP.max,
   );
 
+  // A film the market regards above the median earns a library tail in
+  // proportion to how far above it sits; a median or worse film earns none from
+  // regard, only from genre, franchise, the holiday perennial and cult appeal.
   const longevity = clamp(
-    LONGEVITY_WEIGHTS.awards * lift +
-      LONGEVITY_WEIGHTS.criticalStanding * clamp((crit - WELL_REGARDED_CRITIC_FLOOR / 100) / (1 - WELL_REGARDED_CRITIC_FLOOR / 100), 0, 1) +
-      LONGEVITY_WEIGHTS.belovedAudience * clamp((aud - BELOVED_AUDIENCE_FLOOR / 100) / (1 - BELOVED_AUDIENCE_FLOOR / 100), 0, 1) +
+    REGARD.longevityWeight * clamp((regard - 1) / (REGARD.max - 1), 0, 1) +
       LONGEVITY_WEIGHTS.franchise * fr +
       LONGEVITY_WEIGHTS.genreBias * genre.catalogueBias +
       LONGEVITY_WEIGHTS.holidayFamily * holidayFamilyScore(a.releaseWindow, a.targetAudience) +
@@ -273,15 +272,17 @@ function catalogueFromLongevity(reachBase: number, longevity: number): Ancillary
  * (docs/DESIGN_box_office_calibration_targets_v2_draft.md §5); the exponent
  * redistributes around that anchor rather than moving the level.
  */
-function computeReachBase(worldwideGross: number, audienceScore: number): number {
+export function computeReachBase(worldwideGross: number): number {
   const gross = Math.max(0, worldwideGross);
   const scaled = REACH_BASE.referenceGross * Math.pow(gross / REACH_BASE.referenceGross, REACH_BASE.grossExponent);
-  return scaled * (REACH_BASE.floor + REACH_BASE.audienceLift * (audienceScore / 100));
+  // Read at the market's median audience score: how well a film is regarded
+  // reaches the after-market once, through computeRegard, not here as well.
+  return scaled * (REACH_BASE.floor + REACH_BASE.audienceLift * (REGARD.neutralAudience / 100));
 }
 
 export function deriveAncillaryProfile(a: AncillaryAttributes, worldwideGross: number): AncillaryProfile {
   const multipliers = deriveAncillaryMultipliers(a);
-  const reachBase = computeReachBase(worldwideGross, a.audienceScore);
+  const reachBase = computeReachBase(worldwideGross);
 
   const homeEntertainment = Math.round(reachBase * WINDOW_BASE_RATES.homeEntertainment * multipliers.homeEntertainment);
   const licensing = Math.round(reachBase * WINDOW_BASE_RATES.licensing * multipliers.licensing);
