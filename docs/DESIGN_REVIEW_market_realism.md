@@ -287,3 +287,144 @@ struggling studios.
 4. **Scope of step 1.** It touches the audience simulation, reception and the
    after-market at once. Acceptable as one step, or split legs first and
    after-market second?
+
+---
+
+## 7. As built
+
+The work follows `docs/IMPLEMENTATION_PLAN_market_realism.md`. One subsection
+per phase. Every career table is per seed (year-10 cash, £M), ten-year careers
+from the career gate (`src/state/careerGate.diagnostic.test.ts`); "<start" is
+careers ending below starting cash, ">4x" careers ending above four times it,
+"lose%" the share of all finished films losing money all-in (cinema profit plus
+after-market received), pooled across the ten careers.
+
+### 7.0 Phase 0 - instruments and baseline
+
+**Built.** `src/data/careerTargets.ts` (the §1.3 bands as data),
+`src/state/careerGate.ts` (pure: `summariseCareer`, `evaluateCareerBands`,
+`formatCareerTable`, unit-tested in `careerGate.test.ts`) and the opt-in
+`careerGate.diagnostic.test.ts` (`CAREER_GATE=1`, asserts only with
+`CAREER_GATE_ASSERT=1`). The big-studio anatomy now also prints production and
+post-production scores, net event quality points per film (median, 10th
+percentile, split prep / decisions / the rest), the release-weighted mean Brand
+of rival wide releases, and the share of the top tenth of directors booked on a
+mid-year day. The bot gained a read-only daily observer for that sample; nothing
+it does changed. Both commands are in `CLAUDE.md`.
+
+Two definitions the plan left open: `films` and every film figure in a career
+row count *finished* films (profit known); the losing-all-in band is pooled by
+film count across careers, and the best-fifth share is the median across careers.
+
+**Baseline, seeds 101-110** (the unchanged game):
+
+**indie** (start £8.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 0.2 | 8.2 | 0.1 | -0.2 | 13.8 | 7.7 | -0.5 | 2.1 | 2.5 | -0.0 | 8 | 0 | 3 | 49 | 57 |
+| Scout | -0.0 | 1.7 | 5.7 | 0.3 | -0.1 | 3.7 | 0.3 | 0.3 | 3.0 | 0.2 | 10 | 0 | 1 | 46 | 60 |
+| Steady | -0.4 | 0.2 | 0.2 | 0.5 | 0.4 | 0.2 | 0.2 | -1.9 | 0.0 | -0.6 | 10 | 0 | 6 | 41 | 61 |
+| Careless | 0.3 | -0.3 | 0.3 | -0.6 | 0.2 | 0.3 | -0.0 | 0.3 | 0.0 | -0.2 | 10 | 0 | 7 | 36 | 70 |
+
+**boutique** (start £25.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 7.7 | 19.9 | 30.3 | 105 | 19.8 | 24.4 | 10.9 | 85.7 | 24.9 | 11.9 | 7 | 1 | 0 | 59 | 44 |
+| Scout | 17.4 | 9.3 | 19.7 | 7.7 | 3.2 | 3.2 | 2.9 | 11.0 | 10.1 | 11.2 | 10 | 0 | 0 | 56 | 56 |
+| Steady | 0.5 | 8.0 | 13.4 | 4.5 | 17.6 | 2.3 | -0.1 | 102 | 11.4 | -0.9 | 9 | 1 | 1 | 56 | 55 |
+| Careless | 1.0 | 0.3 | 0.2 | -0.1 | -0.3 | -1.4 | 1.0 | -1.3 | 0.3 | -1.1 | 10 | 0 | 3 | 39 | 86 |
+
+**midmajor** (start £80.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 334 | 466 | 785 | 655 | 392 | 337 | 73.7 | 164 | 471 | 43.7 | 2 | 7 | 0 | 68 | 25 |
+| Scout | 37.3 | 25.3 | 87.6 | 26.7 | 108 | 93.2 | 46.8 | 134 | 78.9 | 34.0 | 6 | 0 | 0 | 59 | 53 |
+| Steady | 743 | 581 | 732 | 857 | 856 | 711 | 746 | 694 | 725 | 778 | 0 | 10 | 0 | 68 | 25 |
+| Careless | 1.1 | 0.4 | 0.0 | 0.4 | 1.0 | 0.9 | 0.3 | 2.3 | 0.4 | 0.3 | 10 | 0 | 0 | 38 | 97 |
+
+**major** (start £200M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 894 | 670 | 627 | 953 | 594 | 537 | 833 | 527 | 960 | 438 | 0 | 4 | 0 | 70 | 22 |
+| Scout | 503 | 630 | 542 | 663 | 523 | 566 | 276 | 607 | 209 | 553 | 0 | 0 | 0 | 63 | 36 |
+| Steady | 860 | 963 | 756 | 1066 | 653 | 518 | 656 | 964 | 828 | 712 | 0 | 5 | 0 | 72 | 31 |
+| Careless | 4.4 | 5.2 | 3.8 | 5.2 | 4.0 | 4.9 | 3.8 | 1.6 | 2.3 | 2.0 | 10 | 0 | 0 | 37 | 99 |
+
+**midmajor201** (start £80.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 201 | 202 | 203 | 204 | 205 | 206 | 207 | 208 | 209 | 210 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 78.7 | 117 | 200 | 509 | 592 | 179 | 378 | 732 | 149 | 142 | 1 | 4 | 0 | 66 | 34 |
+| Steady | 1006 | 333 | 675 | 886 | 690 | 667 | 820 | 638 | 804 | 766 | 0 | 10 | 0 | 67 | 23 |
+
+**major201** (start £200M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 201 | 202 | 203 | 204 | 205 | 206 | 207 | 208 | 209 | 210 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 639 | 710 | 498 | 634 | 543 | 546 | 835 | 529 | 641 | 439 | 0 | 1 | 0 | 69 | 26 |
+| Steady | 696 | 868 | 984 | 975 | 1090 | 673 | 911 | 1422 | 698 | 1004 | 0 | 7 | 0 | 69 | 28 |
+
+The first table pair is seeds 101-110, the last two are the noise floor (seeds
+201-210, Careful and Steady). On seeds 101-106 the baseline reproduces the
+plan's figures exactly (Mid-Major Careful £334-785M, Steady £581-857M; Major
+Careful £537-953M, Steady £518-1,066M), so nothing has changed since the plan
+was written.
+
+Band results (Careful / Steady): Mid-Major 101-110 - shrinkers 2 / 0, largest
+9.8x / 10.7x, median 4.6x / 9.2x, films losing all-in 25% / 25%, best fifth
+71% / 76% of profit. Major 101-110 - shrinkers 0 / 0, largest 4.8x / 5.3x,
+median 3.2x / 4.0x, losing 22% / 31%, best fifth 57% / 82%. Everything misses
+on the easy side except Mid-Major Careful's shrinker count.
+
+**Noise floor.** Between the two seed sets the count measures move by up to
+three of ten on their own: Mid-Major Careful careers above 4x went 7 -> 4 and
+Major Careful 4 -> 1 (shrinkers 2 -> 1 and 0 -> 0; Steady's counts stayed at
+10, 10 and 5 -> 7). The plan's "two or more of ten" threshold for a real
+change is therefore inside the noise for the above-4x count; read changes of
+three or more there, and lean on the "eight of ten seeds move the same way"
+test.
+
+**Gates (baseline misses).** Whole-year 18 of 21: misses `wideOver100PerYear`
+51.4 [55, 70], `specialtyFilmsPerYear` 4.5 [5, 15], `breakevenPct` 12.3 [14,
+35] - exactly the plan's three. Two passes sit on their edge and are worth
+watching: `wideUnprofitablePct` 40.2 [40, 52] and `majorPct` 13.9 [2, 14].
+Budget-tier six misses: small P&A/negative 3.03, small unprofitable 37%, small
+gross/negative 9.48x, big all-in return 0.93x, big unprofitable 53%, big
+gross/negative 2.95x; post-theatrical / rentals 35% sits on its floor [35, 55].
+Variance passes (CV 0.424 / 0.099, correlation 0.72). Buzz passes.
+
+**Anatomy.** Mid-Major Careful 101, Mid-Major Steady 102, Major Careful 101:
+
+| | Mid-Major Careful 101 | Mid-Major Steady 102 | Major Careful 101 |
+|---|---|---|---|
+| player net event points (median / p10) | +37.0 / +19.1 | +42.6 / +23.3 | +35.4 / +6.9 |
+| rivals' net event points (median / p10) | +10.7 / -13.5 | +10.8 / -12.0 | +11.2 / -11.5 |
+| player prep / decision / rest (medians) | +20.0 / 0.0 / +15.9 | +19.5 / +3.8 / +23.8 | +13.8 / +0.6 / +15.8 |
+| rivals' prep / decision / rest | 0 / +2.7 / +7.5 | 0 / +2.6 / +8.1 | 0 / +2.9 / +7.5 |
+| post-production score, player / rivals | 73 / 60 | 73 / 60 | 75 / 60 |
+| production score, player / rivals | 70 / 63 | 76 / 63 | 75 / 63 |
+| after-market per pound of rentals, player / rivals | 1.02 / 0.38 | 0.85 / 0.38 | 0.77 / 0.39 |
+| quality at £10-40M, player / rivals | 69 / 49 | 67 / 50 | 69 / 50 |
+| release-weighted mean Brand, rival wide releases | 63.7 | 66.8 | 59.6 |
+| top-tenth directors booked mid-year | 60-78% | 58-75% | 65-80% |
+
+All as the plan expected: the player nets about +37 event points a film against
+rivals' +11 (rivals have no prep at all), rivals' post-production is a flat 60,
+and the after-market pays the player 0.8-1.0 per rental pound against the
+market's 0.38. Rival field after ten years (Mid-Major Careful 101): 9 of 19
+rivals at Brand below 10, 1 above 90. **B = 63** (mean of the three runs) is the
+value Phase 3 centres the marketing range on.
+
+**Surprises.**
+- At Boutique two careers already end above four times start on the unchanged
+  game (Careful 105 at 4.2x, Steady 102 at 4.1x). The §1.3 guard rail "no
+  Boutique career above 4x" is therefore broken before anything changes; later
+  phases are held to "no more than Phase 0's two".
+- Indie Careful already stalls for good in 3 of 10 careers; the guard rail is
+  "no more than 2 above" that, so 5.
+- The real-studio names in the rival list (Disney, A24, ...) are pre-existing
+  generator data, noted only because the anatomy prints them.
