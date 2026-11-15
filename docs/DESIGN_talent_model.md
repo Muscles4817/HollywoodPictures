@@ -1040,6 +1040,11 @@ rivals competing on quality, limited-release ceilings), not more tuning of
 talent: every talent setting that removed the runaway did it by making cheap
 people bad again.
 
+*Since resolved in the economy* (docs/DESIGN_REVIEW_player_economy.md §12):
+expansion now costs money, facilities cost money to run, and Brand and
+Prestige gains come harder near the top. Boutique now ends at £8-30M on every
+strategy and seed.
+
 
 Not built yet: consistency for directors and crew (how far a bad shoot drags
 someone down, by pressure handling and adaptability); reads that age as
