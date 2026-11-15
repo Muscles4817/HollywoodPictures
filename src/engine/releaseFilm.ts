@@ -110,16 +110,6 @@ export interface ReleaseComputationInput {
   /** The Stunt Team's per-film fee, folded into productionCost exactly like producerFees. Optional; defaults to 0. */
   stuntTeamFee?: number;
   /**
-   * Coverage-unification cutover (docs/DESIGN_production_requirements_model.md):
-   * when true, Cinematography/Score/Editing quality is realised from the hired
-   * heads (person-driven craft). Set on the PLAYER's release + forecast paths
-   * only; rivals leave it absent (→ false) so their films keep the flat model and
-   * the rival-driven box-office distribution/variance gates stay byte-identical
-   * until the funnel/scale recalibration. Sets/VFX/Practical stay person-driven
-   * for everyone regardless.
-   */
-  personDrivenCraft?: boolean;
-  /**
    * The net quality swing from creative demands the player accepted during
    * development (Phase 2b - engine/creativeDemands.ts), frozen onto the draft at
    * Greenlight. Folded, unamplified, into Quality. Optional/absent (→ 0) for
@@ -233,7 +223,6 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     producerEffects.postProductionDelta, // Creative
     executionProfile,
     input.stuntTeamSkill, // the Practical facet's skill axis (undefined → fallback)
-    input.personDrivenCraft ?? false, // player films realise DP/Composer/Editor craft; rivals keep the flat model
     input.developmentQualityDelta ?? 0, // accepted creative demands' net swing (Phase 2b)
   );
   const criticScore = computeCriticScore(quality, script, input.postProductionChoices, input.genre);

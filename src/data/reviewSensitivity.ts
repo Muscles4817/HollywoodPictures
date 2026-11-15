@@ -75,7 +75,7 @@ export const AWARENESS_REVIEW_WEIGHT = { Wide: 0, Limited: 1.5, 'Festival First'
  */
 export const REVIEW_WAITERS_LOST_SHARE = 0.5;
 
-/** The market's median wide-release critic score (measured, 6 seeds x 8 years: p10 32, p50 51, p90 69). Reviews at the median move nothing. */
-export const REVIEW_SIGNAL_PIVOT = 51;
+/** The market's median wide-release critic score (measured, 6 seeds x 8 years; was 51, re-derived to 52 by procedure R in docs/IMPLEMENTATION_PLAN_market_realism.md §1.4 once rivals were scored like the player). Reviews at the median move nothing. */
+export const REVIEW_SIGNAL_PIVOT = 52;
 /** Critic points from the pivot that count as a full (+-1) critical consensus. */
 export const REVIEW_SIGNAL_SPAN = 20;

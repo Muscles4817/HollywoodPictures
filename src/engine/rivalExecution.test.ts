@@ -4,7 +4,8 @@
 // contract: typed, deterministic, both-polarity histories fed through the exact
 // same pipeline, with a correctly-generated execution summary that persists.
 import { describe, it, expect } from 'vitest';
-import { resolveRivalExecution, type RivalExecutionInput } from './rivalExecution';
+import { chooseRivalOption, resolveRivalExecution, rivalPrepRng, synthesizeRivalPrep, RIVAL_SENSIBLE_CHOICE, type RivalExecutionInput } from './rivalExecution';
+import type { EventChoiceTemplate } from '../types';
 import { resolveRivalProduction } from './rivalStudios';
 import { computeExecutionProfile, summarizeExecution } from './productionExecution';
 import { buildReadyDraft } from '../state/testFixtures';
@@ -189,5 +190,82 @@ describe('(6) player execution path is unchanged by the shared extraction', () =
     const outcome = summarizeExecution(profile);
     expect(outcome.modifiers.performanceCapture).toBeGreaterThan(0);
     expect(outcome.stars).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// docs/IMPLEMENTATION_PLAN_market_realism.md Phase 2: a rival's shoot is
+// preceded by a pre-production from the player's own prep table.
+describe('synthesizeRivalPrep - the pre-production a rival film went through', () => {
+  it('is deterministic for a generator seed', () => {
+    const a = synthesizeRivalPrep(inputFor(), createRng(77));
+    const b = synthesizeRivalPrep(inputFor(), createRng(77));
+    expect(b).toEqual(a);
+  });
+
+  it('never returns an event id twice, and keeps its risk delta within the prep clamp', () => {
+    let sawEvents = 0;
+    for (let s = 0; s < 40; s++) {
+      const prep = synthesizeRivalPrep(inputFor(7000 + s), createRng(7000 + s));
+      const ids = prep.events.map((e) => e.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids.every((id) => id.startsWith('preprod-'))).toBe(true);
+      expect(Math.abs(prep.riskDelta)).toBeLessThanOrEqual(25);
+      sawEvents += prep.events.length;
+    }
+    expect(sawEvents).toBeGreaterThan(0); // prep actually happens
+  });
+
+  it('takes exactly one draw from the generator passed to resolveRivalExecution, whatever the prep rolls', () => {
+    // The prep runs on its own generator, forked with one draw (random.ts:forkSeed),
+    // so the shoot's stream never depends on how many rolls the prep took.
+    const input = inputFor();
+    const shared = createRng(321);
+    const prep = synthesizeRivalPrep(input, rivalPrepRng(shared));
+    const own = prep.events.filter((e) => e.qualityDelta !== 0);
+    const afterFork = shared();
+    const reference = createRng(321);
+    reference(); // the fork's single draw
+    expect(reference()).toBe(afterFork);
+    // ...and resolveRivalExecution's history leads with exactly that prep, zeroed
+    // like a player's prep at release (its cost was never a shoot cost).
+    const { events } = resolveRivalExecution(input, createRng(321));
+    const prepPart = events.filter((e) => e.id.startsWith('preprod-'));
+    expect(prepPart.map((e) => [e.id, e.qualityDelta])).toEqual(own.map((e) => [e.id, e.qualityDelta]));
+    expect(prepPart.every((e) => e.costDelta === 0 && e.buzzDelta === 0 && e.delayDaysDelta === 0)).toBe(true);
+  });
+
+  it('varies from one execution of the same plan to the next', () => {
+    const preps = new Set([1, 2, 3, 4, 5, 6].map((seed) => JSON.stringify(synthesizeRivalPrep(inputFor(), rivalPrepRng(createRng(seed))).events.map((e) => e.id))));
+    expect(preps.size).toBeGreaterThan(1);
+  });
+});
+
+describe('chooseRivalOption - how a rival answers a decision', () => {
+  const option = (id: string, quality: [number, number], cost: [number, number] = [0, 0]): EventChoiceTemplate => ({
+    id, label: id, description: id, costRange: cost, qualityRange: quality, buzzRange: [0, 0], delayDaysRange: [0, 0],
+  });
+  const choices = [option('push-on', [-4, 0]), option('fix-it', [1, 5], [10, 20])];
+
+  it('takes the best-expected option when the generator returns 0', () => {
+    expect(chooseRivalOption(choices, () => 0)).toBe('fix-it');
+    expect(chooseRivalOption([...choices].reverse(), () => 0)).toBe('fix-it');
+  });
+
+  it('breaks a quality tie toward the cheaper option', () => {
+    expect(chooseRivalOption([option('dear', [1, 3], [50, 60]), option('cheap', [0, 4], [5, 10])], () => 0)).toBe('cheap');
+  });
+
+  it('picks the best option between 70% and 85% of the time on a two-option choice', () => {
+    // Sensible 70% of the time, otherwise any option at random (the best
+    // included): 70% + 30% / 2 = 85% expected, so the band allows draw noise
+    // just above 85%.
+    const rng = createRng(4242);
+    const n = 4000;
+    let best = 0;
+    for (let i = 0; i < n; i++) if (chooseRivalOption(choices, rng) === 'fix-it') best += 1;
+    const share = best / n;
+    expect(RIVAL_SENSIBLE_CHOICE).toBe(0.7);
+    expect(share).toBeGreaterThanOrEqual(0.7);
+    expect(share).toBeLessThanOrEqual(0.87);
   });
 });

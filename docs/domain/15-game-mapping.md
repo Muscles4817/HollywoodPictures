@@ -117,7 +117,7 @@ flagged in §4.
 | Crew size (`05` §2) | **Omitted** | Crew is a shooting-budget line, not headcount |
 | Production department (`05` §3) | **Abstracted** | `engine/producers.ts` |
 | Directing department / the AD team (`05` §4) | **Omitted** | Also named as unrouted in `departmentWorkload.ts` |
-| Camera department (`05` §5) | **Modelled** at head level | `engine/cinematographyFacet.ts` — the DP now drives real film quality on player films (`personDrivenCraft`), which `AUDIT_crew_responsibilities.md` still records as inert. See §4 |
+| Camera department (`05` §5) | **Modelled** at head level | `engine/cinematographyFacet.ts` — the DP now drives real film quality on every film, player's and rivals' alike, which `AUDIT_crew_responsibilities.md` still records as inert. See §4 |
 | Grip and electrical (`05` §6, §7) | **Omitted** | |
 | Art department (`05` §8) | **Modelled** at head level | `engine/setsFacet.ts` plus `crewSpecialty.ts` — PD specialties (period craft, large-scale builds, location work, practical creatures) |
 | Costume (`05` §9), hair & makeup (`05` §10) | **Omitted** | |
@@ -375,7 +375,7 @@ in every case.
   flat model, which is deliberate.
 - **Same audit, finding 3** says editor skill drives schedule but not quality.
   `engine/editFacet.ts` now realises edit quality from the editor, within the
-  coverage ceiling — again for player films only.
+  coverage ceiling — for every film.
 - The audit's finding 4 (Production Designer has a facet but no award category)
   is **stale in the other direction**: `best-production-design` exists in
   `AwardCategory`, and `FilmResults.productionDesignScore` is read out
