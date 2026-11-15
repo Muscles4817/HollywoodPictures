@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { AwardsCeremony, Film, ScriptCharacter } from '../types';
 import {
   awardsLift,
+  computeRegard,
+  computeReachBase,
   deriveAncillaryMultipliers,
   deriveAncillaryProfile,
   ancillaryOutlook,
@@ -15,6 +17,7 @@ import {
 import { STUDIO_BOX_OFFICE_SHARE } from './boxOfficeRun';
 import { generateScriptOptions } from './scriptGenerator';
 import { createRng } from './random';
+import { CATALOGUE, REGARD } from '../data/ancillary';
 
 // A deliberately mainstream baseline; individual tests override just the axis
 // they exercise. Calibration of the exact dollar bands is Stage 6 of the design
@@ -301,5 +304,91 @@ describe('ancillaryAttributesFromFilm — extraction from a live Film', () => {
     expect(a.accessibility).toBeGreaterThan(0); // derived via deriveCommercialProfile
     // The generated cast drives a real (non-negative) mean merch potential.
     expect(a.leadMerchandisePotential).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// docs/IMPLEMENTATION_PLAN_market_realism.md Phase 1: one bounded regard
+// premium in place of six stacked readings of quality.
+describe('computeRegard — one bounded premium for how well a film is regarded', () => {
+  const neutral = { audienceScore: 65, criticScore: 48, studioPrestige: 50, awards: { wins: 0, nominations: 0 } };
+
+  it('is 1 for a film at the neutral readings with no awards', () => {
+    expect(computeRegard(neutral)).toBe(1);
+  });
+
+  it('never leaves its bounds', () => {
+    expect(computeRegard({ audienceScore: 100, criticScore: 100, studioPrestige: 100, awards: { wins: 9, nominations: 20 } })).toBe(REGARD.max);
+    expect(computeRegard({ audienceScore: 0, criticScore: 0, studioPrestige: 0, awards: { wins: 0, nominations: 0 } })).toBeGreaterThanOrEqual(REGARD.min);
+    for (let aud = 0; aud <= 100; aud += 10) {
+      for (let crit = 0; crit <= 100; crit += 10) {
+        const r = computeRegard({ ...neutral, audienceScore: aud, criticScore: crit, awards: { wins: aud % 3, nominations: crit % 4 } });
+        expect(r).toBeGreaterThanOrEqual(REGARD.min);
+        expect(r).toBeLessThanOrEqual(REGARD.max);
+      }
+    }
+  });
+
+  it('rises with each of audience score, critic score, prestige and awards separately', () => {
+    const base = computeRegard(neutral);
+    expect(computeRegard({ ...neutral, audienceScore: 80 })).toBeGreaterThan(base);
+    expect(computeRegard({ ...neutral, criticScore: 70 })).toBeGreaterThan(base);
+    expect(computeRegard({ ...neutral, studioPrestige: 80 })).toBeGreaterThan(base);
+    expect(computeRegard({ ...neutral, awards: { wins: 1, nominations: 0 } })).toBeGreaterThan(base);
+  });
+
+  it('lets awards alone lift a neutral film to 1.25', () => {
+    expect(computeRegard({ ...neutral, awards: { wins: 4, nominations: 0 } })).toBeCloseTo(1.25, 10);
+  });
+});
+
+describe('deriveAncillaryMultipliers — the median film is where it was', () => {
+  // The market's median film: audience 65, critic 48, prestige 50, no awards.
+  const median = attrs({ audienceScore: 65, criticScore: 48, studioPrestige: 50 });
+
+  it('gets the four multipliers the old formulas gave it, within 1%', () => {
+    // Worked by hand from the formulas regard replaced (Action, Mass Market,
+    // accessibility 65, no franchise, merchandise 40, Summer):
+    //   home      0.85 * (0.4 + 0.65) * 0.9 * 0.9                              = 0.7229
+    //   licensing 0.85 * 0.945 * (0.6 + 0.455) * (0.7 + 0.288) * 0.9 * 1 * 1.0 = 0.7535
+    //   merch     3.5 * (0.3 + 0.56) * 0.5 * 0.8                               = 1.204
+    //   longevity 0.13 * 0.5 (genre bias only; critic and audience below their old floors) = 0.065
+    const m = deriveAncillaryMultipliers(median);
+    expect(m.homeEntertainment).toBeCloseTo(0.7229, 2);
+    expect(Math.abs(m.homeEntertainment / 0.722925 - 1)).toBeLessThan(0.01);
+    expect(Math.abs(m.licensing / 0.753533 - 1)).toBeLessThan(0.01);
+    expect(Math.abs(m.merchandising / 1.204 - 1)).toBeLessThan(0.01);
+    expect(Math.abs(m.longevity / 0.065 - 1)).toBeLessThan(0.01);
+  });
+
+  it('caps a top-regard film at 1.5 times the median film\'s home entertainment and licensing at the same gross', () => {
+    const star = attrs({ audienceScore: 93, criticScore: 74, studioPrestige: 98, awards: { wins: 3, nominations: 3 } });
+    const top = deriveAncillaryProfile(star, 100_000_000);
+    const mid = deriveAncillaryProfile(median, 100_000_000);
+    expect(top.homeEntertainment / mid.homeEntertainment).toBeLessThanOrEqual(1.5 + 1e-6); // whole-pound rounding
+    expect(top.licensing / mid.licensing).toBeLessThanOrEqual(1.5 + 1e-6); // whole-pound rounding
+    expect(top.licensing).toBeGreaterThan(mid.licensing);
+  });
+
+  it('leaves a panned film at least 0.75 times the median film\'s', () => {
+    const panned = attrs({ audienceScore: 30, criticScore: 20, studioPrestige: 50 });
+    const low = deriveAncillaryProfile(panned, 100_000_000);
+    const mid = deriveAncillaryProfile(median, 100_000_000);
+    expect(low.homeEntertainment / mid.homeEntertainment).toBeGreaterThanOrEqual(0.75 - 1e-3);
+    expect(low.licensing / mid.licensing).toBeGreaterThanOrEqual(0.75 - 1e-3);
+    expect(low.homeEntertainment).toBeLessThan(mid.homeEntertainment);
+  });
+
+  it('no longer moves the reach base with audience score', () => {
+    expect(deriveAncillaryProfile(attrs({ audienceScore: 95 }), 80_000_000).reachBase).toBe(deriveAncillaryProfile(attrs({ audienceScore: 20 }), 80_000_000).reachBase);
+    expect(computeReachBase(80_000_000)).toBe(deriveAncillaryProfile(median, 80_000_000).reachBase);
+  });
+
+  it('gives a median film no catalogue tail, and a top-regard drama one', () => {
+    expect(deriveAncillaryMultipliers(median).longevity).toBeLessThan(CATALOGUE.minLongevity);
+    const medianDrama = attrs({ genre: 'Drama', targetAudience: 'Adults', audienceScore: 65, criticScore: 48, studioPrestige: 50 });
+    expect(deriveAncillaryMultipliers(medianDrama).longevity).toBeLessThan(CATALOGUE.minLongevity);
+    const topDrama = { ...medianDrama, audienceScore: 88, criticScore: 85, studioPrestige: 70 };
+    expect(deriveAncillaryMultipliers(topDrama).longevity).toBeGreaterThanOrEqual(CATALOGUE.minLongevity);
+    expect(deriveAncillaryProfile(topDrama, 50_000_000).catalogue.total).toBeGreaterThan(0);
   });
 });

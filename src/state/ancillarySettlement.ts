@@ -91,9 +91,10 @@ export function scheduleFinishedFilmAncillary(
 /**
  * Retroactive awards premium (Stage 4). A film's ancillary is scheduled when its
  * run ends - usually before awards season. When the film later wins or is
- * nominated, the awards-sensitive windows (licensing carries a `1 + awardsLift`
- * factor; catalogue longevity a `0.40 * awardsLift` term) are worth more than was
- * scheduled. This pays the *incremental* value as follow-on payouts and re-stamps
+ * nominated, its regard rises (engine/ancillary.ts:computeRegard adds an awards
+ * term, up to the regard cap), so licensing and catalogue longevity are worth
+ * more than was scheduled. Home entertainment rises too but has mostly been
+ * paid by then; only the licensing and catalogue difference is topped up. This pays the *incremental* value as follow-on payouts and re-stamps
  * the baked-in awards, so it applies each new accolade exactly once and never
  * double-counts. Prestige growth is deliberately held constant (both profiles use
  * the current prestige) so this isolates the awards effect alone.
