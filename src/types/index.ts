@@ -1585,6 +1585,8 @@ export interface FilmResults {
   productionCost: number;
   marketingCost: number;
   totalCost: number;
+  /** What going wider has cost so far: the prints and advertising behind each week the film reached more screens than before (engine/boxOfficeRun.ts). Already inside marketingCost and totalCost. Absent when it never expanded. */
+  expansionCost?: number;
   openingWeekend: number;
   // These six are only knowable once the film's BoxOfficeRun finishes
   // (see BoxOfficeRun below and docs/DESIGN.md 5.19) - total gross isn't a
