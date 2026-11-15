@@ -73,3 +73,21 @@ describe('a soft Wide release from a trusted studio keeps its screens a little l
     expect(strong[1].holdRelief).toBeGreaterThan(weak[1].holdRelief);
   });
 });
+
+// docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3: Brand makes marketing go
+// somewhat further, not three times further, centred on the market's mean.
+import { inferStudioBrandFromMarketingEfficiency } from './audienceSimulationInputs';
+
+describe('marketing efficiency by Brand', () => {
+  const efficiency = (studioBrand: number) => deriveAudienceSimulationFixedState({ ...SOFT_WIDE, studioBrand }).marketingEfficiency;
+  it('matches the old range at the market\'s mean Brand (63), within 0.005', () => {
+    expect(Math.abs(efficiency(63) - (0.3 + 0.7 * 0.63))).toBeLessThanOrEqual(0.005);
+  });
+  it('makes the top at most 1.6 times the bottom', () => {
+    expect(efficiency(100) / efficiency(0)).toBeLessThanOrEqual(1.6);
+    expect(efficiency(100)).toBeGreaterThan(efficiency(0));
+  });
+  it('inverts exactly', () => {
+    for (const brand of [0, 10, 37, 63, 100]) expect(inferStudioBrandFromMarketingEfficiency(efficiency(brand))).toBeCloseTo(brand, 9);
+  });
+});
