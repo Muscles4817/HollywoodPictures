@@ -825,3 +825,118 @@ times start"), Phase 4a would apply next.
 **What I would do next.** Accept the Boutique trigger as the letter-not-intent
 case it is (two careers above start, none near a runaway), keep reversion at
 0.15, and continue into Phase 4 (4a: the lower audience-score ceiling).
+
+### 7.4 Phase 4 - legs, by rule (STOPPED at a guard rail)
+
+The owner accepted Phase 3's Boutique trigger and asked to continue. The
+mandatory report is the band table at the end of §7.3. By the rule (careers
+above 4x remained and Major had no career that shrinks) 4a applied, then 4b.
+
+**4a - a lower audience ceiling** (`engine/scoring.ts`): `AUDIENCE_CEILING` 94,
+`softBound` in place of `topCompressed` (removed, no other caller),
+`AUDIENCE_KNEE` 74 -> 72; `AUD_QUALITY_GAIN` untouched. Exposed as
+`audienceTopBound` for its tests (unchanged below the knee, monotone, below 94).
+- Critic-audience correlation (all films, whole-year dump; the reception-spread
+  harness prints no such figure, so measured there): **0.494 -> 0.520** (within
+  0.05). Market median audience 64 -> 64 (within 1).
+- A careful player's quality ~66-72 films: audience **85-87** (Phase 3: 89-92;
+  target 80-86 - at its top edge). Across the market, quality 68-72 films
+  84 -> 82.
+- Knee tried at 70, 72, 74: player audience 85-88 at each, `wideOver500PerYear`
+  9.7 / 9.4 / 9.2 - the ceiling sets both and the knee's effect is inside career
+  noise. Shipped 72.
+- **Gates: one new whole-year miss, `wideOver500PerYear` 9.4 [10, 15]** (Phase
+  0 10.4, Phase 3 passing). Trimming the top of audience score trims the biggest
+  hits. Budget-tier the Phase 0 six; variance and buzz pass.
+
+Career gate with 4a (Careful and Steady at the big tiers, Careful and Careless
+at the small):
+
+**indie** (start £8.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 0.5 | 5.8 | 3.5 | 3.3 | 8.2 | 9.5 | 4.2 | 0.9 | 0.1 | 2.5 | 8 | 0 | 0 | 47 | 52 |
+| Careless | 0.2 | 0.3 | -0.0 | -0.3 | 0.3 | 0.2 | -0.1 | -0.0 | -0.4 | -0.1 | 10 | 0 | 5 | 38 | 72 |
+
+**boutique** (start £25.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 5.1 | 15.8 | 16.0 | 11.2 | 6.4 | 8.2 | 8.6 | 18.8 | 18.5 | 8.5 | 10 | 0 | 0 | 57 | 56 |
+| Careless | 0.4 | 0.3 | -0.9 | 0.3 | 0.1 | -0.3 | -0.1 | 0.0 | 0.3 | -0.5 | 10 | 0 | 2 | 37 | 89 |
+
+**midmajor** (start £80.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 28.2 | 216 | 252 | 61.1 | 27.2 | 429 | 85.9 | 107 | 115 | 10.0 | 4 | 1 | 0 | 66 | 42 |
+| Steady | 416 | 504 | 367 | 265 | 433 | 736 | 566 | 725 | 298 | 52.3 | 1 | 7 | 0 | 66 | 29 |
+
+**major** (start £200M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 348 | 365 | 386 | 483 | 623 | 531 | 398 | 513 | 607 | 379 | 0 | 0 | 0 | 69 | 33 |
+| Steady | 530 | 514 | 543 | 573 | 589 | 657 | 620 | 616 | 547 | 476 | 0 | 0 | 0 | 69 | 35 |
+
+4a brought Major inside two to three bands each (Careful largest 3.1x, median
+2.2x; Steady largest 3.3x) but Mid-Major Steady kept 7 of 10 above 4x and
+Major still had no career that shrinks, so 4b applied.
+
+**4b - a firmer expectation gap** (`data/wordOfMouth.ts`):
+`EXPECTATION_GAP_WEIGHT` 0.1 -> 0.15, `EXPECTATION_FACTOR_MIN` 0.7 -> 0.6,
+`EXPECTATION_FACTOR_MAX` 1.2 -> 1.25. Its conditions: the regression matrix
+and scenario tests pass **unchanged**; `wideOpeningMultiple` 2.9 and
+`wideRunWeeks` 6.5 in band; variance passes (0.447 / 0.083 / 0.67). Kept.
+Whole-year with 4a+4b: the Phase 0 three plus `wideOver500PerYear` **8.9**.
+
+Career gate with 4a + 4b:
+
+**indie** (start £8.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 4.3 | 1.3 | 0.6 | 1.0 | 5.5 | 13.0 | 3.5 | 10.1 | 1.0 | 0.2 | 8 | 0 | 1 | 47 | 53 |
+| Careless | 0.2 | -0.9 | -0.0 | -0.7 | 0.1 | -0.2 | 0.1 | 0.2 | 0.1 | 0.1 | 10 | 0 | 6 | 37 | 75 |
+
+**boutique** (start £25.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 10.7 | 1.2 | 7.2 | 65.7 | 8.4 | 12.9 | 10.0 | 32.3 | 44.6 | 4.4 | 7 | 0 | 0 | 61 | 55 |
+| Careless | 0.1 | 0.1 | 0.3 | -0.3 | 0.1 | 0.4 | -0.5 | 0.1 | 0.1 | 0.4 | 10 | 0 | 3 | 37 | 92 |
+
+**midmajor** (start £80.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 58.7 | 353 | 192 | 88.6 | 15.4 | 64.6 | 121 | 134 | 260 | 8.7 | 4 | 1 | 0 | 67 | 43 |
+| Steady | 169 | 664 | 95.3 | 330 | 148 | 609 | 423 | 357 | 403 | 355 | 0 | 7 | 0 | 65 | 35 |
+
+**major** (start £200M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 499 | 346 | 471 | 642 | 327 | 460 | 425 | 358 | 438 | 183 | 1 | 0 | 0 | 69 | 32 |
+| Steady | 644 | 562 | 433 | 645 | 528 | 568 | 509 | 651 | 651 | 462 | 0 | 0 | 0 | 69 | 40 |
+
+**Bands now** (Careful / Steady): Mid-Major - shrinkers 4 / 0, largest 4.4x /
+8.3x, median 1.31x / 4.45x, losing all-in 43% / 35%, best fifth 76% / 80%.
+Major - shrinkers 1 / 0, largest 3.2x / 3.3x, median 2.16x / 2.82x, losing 32% /
+40%, best fifth 75% / 90%. Major Careful passes three of five, Major Steady two,
+Mid-Major Careful two (on the hard side of shrinkers by one), Mid-Major Steady
+one. The best-fifth band (more than 100%) is missed everywhere: losing films are
+still small losses.
+
+Guard rails: Indie Careful stalled 1; no Boutique career above 4x (largest
+2.6x); Careless at Indie and Boutique still fails. Careless at Mid-Major was not
+re-run in this phase (it was 10 of 10 below a quarter in Phase 3, and both
+changes only make films earn less).
+
+**Why this is a stop.** `wideOver500PerYear` is a box-office metric outside
+the Phase 0 misses (a §1.3 guard rail), introduced by 4a's ceiling and not
+removable by its tuning knob. Phase 4 has no procedure R. What I would do:
+accept it for now - Phases 5 and 6 each end with procedure R, whose level lever
+moves the whole market's grosses - and re-check it there; if it is still
+outside after Phase 6, the remedy is a higher ceiling (95-96), not the knee.
