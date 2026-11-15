@@ -997,6 +997,11 @@ const AUDIENCE_KNEE = 72;
 const AUDIENCE_KNEE_SCALE = 13;
 const AUDIENCE_CEILING = 94;
 
+/** The audience score's top: unchanged up to AUDIENCE_KNEE, then soft-bounded toward AUDIENCE_CEILING. Exported for tests. */
+export function audienceTopBound(raw: number): number {
+  return softBound(raw, AUDIENCE_KNEE, AUDIENCE_KNEE_SCALE, AUDIENCE_CEILING);
+}
+
 export function computeAudienceScore(
   quality: QualityBreakdown,
   script: Script,
@@ -1029,7 +1034,7 @@ export function computeAudienceScore(
     AUD_CONFUSION * (quality.structureReach ?? 0) * Math.max(0, -(quality.structureDelivery ?? 0)) +
     AUD_SPECTACLE_GAIN * (quality.spectacleReach ?? 0) * (quality.spectacleDelivery ?? 0);
 
-  return clamp(softBound(raw, AUDIENCE_KNEE, AUDIENCE_KNEE_SCALE, AUDIENCE_CEILING), 0, 100);
+  return clamp(audienceTopBound(raw), 0, 100);
 }
 
 /**
