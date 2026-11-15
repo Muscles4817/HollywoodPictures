@@ -2058,6 +2058,15 @@ export interface Opportunity {
    * collaboration system is additive rather than a reshape; length 1 today.
    */
   writerIds?: PersonId[];
+  /**
+   * Sold by bidding (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 5): one of
+   * the best of its week's batch, which goes to the best offer at the next
+   * weekly tick and cannot be bought outright. `false` once a contested script
+   * drew no offer and became an ordinary listing; absent on an ordinary script.
+   */
+  contested?: boolean;
+  /** For a script that was contested and drew no offer (`contested: false`): the player has seen the market say so. */
+  lapseSeen?: boolean;
 }
 
 /** One studio's current offer on a contested Opportunity - `bidderId` is the literal `'player'` sentinel or a `RivalStudio.id`, `bidderName` is duplicated for display so the UI never has to cross-reference `state.rivalStudios` just to render a bid. */

@@ -1218,6 +1218,9 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         !opportunity ||
         opportunity.expiresOnDay <= state.totalDays ||
         opportunity.bids.length > 0 ||
+        // A contested script goes to the best offer at the weekly tick; it
+        // cannot be bought outright (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 5).
+        opportunity.contested === true ||
         state.studio.cash < opportunity.acquisitionCost
       ) {
         return state;
@@ -3349,6 +3352,11 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'ACKNOWLEDGE_LAPSED_CONTESTS': {
+      const ids = new Set(action.opportunityIds);
+      if (!state.opportunities.some((o) => ids.has(o.id) && o.contested === false && !o.lapseSeen)) return state;
+      return { ...state, opportunities: state.opportunities.map((o) => (ids.has(o.id) && o.contested === false ? { ...o, lapseSeen: true } : o)) };
+    }
     case 'ACKNOWLEDGE_BRAND_NOTICE': {
       const notice = state.studio.brandNotice;
       if (!notice || notice.acknowledged) return state;

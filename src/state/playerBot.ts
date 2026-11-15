@@ -309,6 +309,9 @@ export interface BotRun {
   pool: { start: Record<string, PoolStats>; end: Record<string, PoolStats> };
   /** Films mounted on a stretch (most of the cash on hand) because the usual share could not fund one. */
   stretchedFilms: number;
+  /** Contested scripts the bot made an offer on, and how many of those it won (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 5). */
+  contestedOffers: number;
+  contestedWins: number;
   finalState: GameState;
 }
 
@@ -394,10 +397,12 @@ function canMount(cash: number, strategy: BotStrategy, scale: Script['scale'], s
   return cash > 0 && negativeBudgetFor(cash, strategy, scale, share) >= MIN_NEGATIVE_BY_SCALE[scale];
 }
 
-function chooseScript(state: GameState, strategy: BotStrategy, share: number): Opportunity | null {
+function chooseScript(state: GameState, strategy: BotStrategy, share: number, allowContested = true): Opportunity | null {
   const affordable = state.opportunities.filter(
     (o) =>
-      o.bids.length === 0 &&
+      // A contested script is a candidate on the same test, rivals' offers or
+      // not; any other script with an offer on it is not for sale outright.
+      (o.contested ? allowContested : o.bids.length === 0) &&
       o.expiresOnDay > state.totalDays &&
       canMount(state.studio.cash, strategy, o.script.scale, share) &&
       // A screenplay is a slice of the film, not the film: never more than a fifth of what the film may cost.
@@ -529,24 +534,72 @@ function clampShootBudget(amount: number): number {
 }
 
 /** Buy a screenplay and take it from a blank project to a greenlit one, all on the same day. */
+/** What a bot offers on a contested script: a quarter over the asking price, never past its own cap on a screenplay. */
+const BOT_BID_PREMIUM = 1.25;
+
+/**
+ * The bot's one open offer on a contested script, per career. It starts
+ * nothing else while the offer is open (docs/IMPLEMENTATION_PLAN_market_realism.md
+ * Phase 5 - harness maintenance, not a strategy change).
+ */
+const openBids = new WeakMap<BotRun, { opportunityId: string; share: number; usual: boolean }>();
+
 function startFilm(state: GameState, strategy: BotStrategy, run: BotRun): GameState {
+  // An offer outstanding: wait for the weekly tick. Won -> make the film from
+  // the new asset; lost (or forfeited) -> choose again below.
+  const open = openBids.get(run);
+  if (open) {
+    const won = state.studio.assets.find((a) => a.id === open.opportunityId);
+    if (won) {
+      openBids.delete(run);
+      run.contestedWins += 1;
+      const negativeBudget = negativeBudgetFor(state.studio.cash + won.acquisitionCost, strategy, won.script.scale, open.share);
+      if (!open.usual) run.stretchedFilms += 1;
+      const s = studioReducer(state, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: won.id });
+      return mountFilm(s, strategy, run, won.script, won.acquisitionCost, negativeBudget);
+    }
+    const stillOpen = state.opportunities.some((o) => o.id === open.opportunityId && o.expiresOnDay > state.totalDays && o.bids.some((b) => b.bidderId === 'player'));
+    if (stillOpen) return state;
+    openBids.delete(run);
+  }
+
   // The usual share of cash; or, with nothing else in flight and the usual
   // share too small to mount anything, a stretch.
   const usual = canMount(state.studio.cash, strategy, 'Intimate');
   const share = usual ? strategy.filmBudgetShare : STRETCH_SHARE;
   if (!usual && (filmsInFlight(state) > 0 || !canMount(state.studio.cash, strategy, 'Intimate', share))) return state;
-  const opportunity = chooseScript(state, strategy, share);
+  let opportunity = chooseScript(state, strategy, share);
   if (!opportunity) return state;
+  if (opportunity.contested) {
+    // One offer, a quarter over the asking price, never raised.
+    const cap = negativeBudgetFor(state.studio.cash, strategy, opportunity.script.scale, share) * 0.2;
+    const amount = Math.round(Math.min(opportunity.acquisitionCost * BOT_BID_PREMIUM, cap));
+    const bid = studioReducer(state, { type: 'PLACE_BID', opportunityId: opportunity.id, amount });
+    if (bid !== state) {
+      run.contestedOffers += 1;
+      openBids.set(run, { opportunityId: opportunity.id, share, usual });
+      return bid;
+    }
+    // Already priced past what it would pay: take the best ordinary script instead.
+    opportunity = chooseScript(state, strategy, share, false);
+    if (!opportunity) return state;
+  }
   const negativeBudget = negativeBudgetFor(state.studio.cash, strategy, opportunity.script.scale, share);
   if (!usual) run.stretchedFilms += 1;
 
   let s = studioReducer(state, { type: 'ACQUIRE_OPPORTUNITY', opportunityId: opportunity.id });
   if (s === state) return state;
   s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: opportunity.id });
-  if (!s.focusedProjectId) return s;
-  s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: opportunity.script.intendedAudience });
+  return mountFilm(s, strategy, run, opportunity.script, opportunity.acquisitionCost, negativeBudget);
+}
 
-  const productionBudget = negativeBudget - opportunity.acquisitionCost;
+/** From a freshly created project (focused), cast, plan and greenlight it - the rest of starting a film. */
+function mountFilm(state: GameState, strategy: BotStrategy, run: BotRun, script: Script, acquisitionCost: number, negativeBudget: number): GameState {
+  let s = state;
+  if (!s.focusedProjectId) return s;
+  s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: script.intendedAudience });
+
+  const productionBudget = negativeBudget - acquisitionCost;
   s = hireCastAndCrew(s, strategy, productionBudget * strategy.talentShare);
 
   const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
@@ -599,7 +652,7 @@ function startFilm(state: GameState, strategy: BotStrategy, run: BotRun): GameSt
     const readiness = deriveProjectReadiness(asPlayerDraft(findProject(beforeGreenlight.projects, beforeGreenlight.focusedProjectId))!, beforeGreenlight.studio.cash);
     run.abandoned += 1;
     if (readiness.blockers.length > 0 && run.stuck.length < 40) {
-      run.stuck.push(`day ${s.totalDays}: could not greenlight "${opportunity.script.title}" - ${readiness.blockers.map((b) => b.code).join(', ')}`);
+      run.stuck.push(`day ${s.totalDays}: could not greenlight "${script.title}" - ${readiness.blockers.map((b) => b.code).join(', ')}`);
     }
     s = studioReducer(s, { type: 'ABANDON_PROJECT' });
   }
@@ -791,6 +844,8 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
     cashFlow: {},
     pool: { start: poolStats(s), end: poolStats(s) },
     stretchedFilms: 0,
+    contestedOffers: 0,
+    contestedWins: 0,
     finalState: s,
   };
 
@@ -914,7 +969,7 @@ function playCareer(seed: number, tier: DifficultyTier, strategy: BotStrategy, y
  * Returns the state unchanged if no film could be started today.
  */
 export function botStartFilm(state: GameState, strategy: BotStrategy): GameState {
-  const scratch = { abandoned: 0, stuck: [], stretchedFilms: 0 } as unknown as BotRun;
+  const scratch = { abandoned: 0, stuck: [], stretchedFilms: 0, contestedOffers: 0, contestedWins: 0 } as unknown as BotRun;
   return startFilm(state, strategy, scratch);
 }
 

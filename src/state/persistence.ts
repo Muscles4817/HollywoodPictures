@@ -457,7 +457,9 @@ import { deleteSave, readSave, writeSave } from './saveDatabase';
 //   brandDriftCarry (Brand now drifts toward recent grosses), Studio gained
 //   brandNotice and brandDriftSinceNotice, the audience fixed state gained
 //   exhibitorStanding, and a settled week can carry `held`.
-export const SAVE_VERSION = 107;
+// v107 -> v108 (market realism, Phase 5): Opportunity gained `contested` and
+//   `lapseSeen` - the best scripts of each week are sold by bidding.
+export const SAVE_VERSION = 108;
 
 /** Every pre-v99 save lived in localStorage under a key with this prefix. */
 const LEGACY_SAVE_KEY_PREFIX = 'hollywood-pictures-save-v';
