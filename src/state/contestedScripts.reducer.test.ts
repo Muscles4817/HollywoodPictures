@@ -64,6 +64,8 @@ describe('the bot bids on a contested script', () => {
     expect(botStartFilm(s, careful, run)).toBe(s);
     s = tickUntilResolved(s);
     expect(s.studio.assets.some((a) => a.id === 'hot')).toBe(true);
+    // The player hears about it (engine/bidNotifications.ts).
+    expect(s.bidNotifications?.some((n) => n.kind === 'won' && n.opportunityId === 'hot')).toBe(true);
     s = botStartFilm(s, careful, run);
     expect(run.contestedWins).toBe(1);
     expect(s.projects.map(asPlayerDraft).some((d) => d?.assetId === 'hot' && d.greenlitOnDay != null)).toBe(true);
@@ -77,6 +79,7 @@ describe('the bot bids on a contested script', () => {
     s = { ...s, opportunities: s.opportunities.map((o) => (o.id === 'hot' ? { ...o, bids: [...o.bids, { bidderId: 'rival-x', bidderName: 'Rival X', amount: 5_000_000 }] } : o)) };
     s = tickUntilResolved(s);
     expect(s.studio.assets.some((a) => a.id === 'hot')).toBe(false);
+    expect(s.bidNotifications?.some((n) => n.kind === 'lost' && n.opportunityId === 'hot')).toBe(true);
     const assetsBefore = s.studio.assets.length;
     const next = botStartFilm(s, careful, run);
     expect(run.contestedWins).toBe(0);
