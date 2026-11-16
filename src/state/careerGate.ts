@@ -34,6 +34,9 @@ export interface CareerRow {
   awards: number;
   facilities: number;
   stalled: boolean;
+  /** Contested scripts offered on, and won (Phase 5). */
+  contestedOffers: number;
+  contestedWins: number;
 }
 
 /** Nearest-rank percentile (0..1) of a list; 0 for an empty list. */
@@ -101,6 +104,8 @@ export function summariseCareer(run: Omit<BotRun, 'finalState'>, startCash: numb
     awards: flow('awards'),
     facilities: flow('facility'),
     stalled: run.stalledOnDay !== null,
+    contestedOffers: run.contestedOffers ?? 0,
+    contestedWins: run.contestedWins ?? 0,
   };
 }
 
@@ -141,7 +146,7 @@ export function formatCareerTable(rows: CareerRow[]): string[] {
   const header =
     `${'strategy'.padEnd(9)}${pad('seed', 5)}${pad('start', 7)}${pad('Y1', 7)}${pad('Y3', 7)}${pad('Y5', 7)}${pad('Y10', 7)}${pad('min', 7)}` +
     `${pad('brand', 6)}${pad('prest', 6)}${pad('films', 6)}${pad('q50', 5)}${pad('q10', 5)}${pad('q90', 5)}${pad('cin+%', 6)}${pad('lose%', 6)}` +
-    `${pad('ret50', 7)}${pad('ret10', 7)}${pad('ret90', 7)}${pad('best', 7)}${pad('top5%', 6)}${pad('made', 8)}${pad('cinema', 8)}${pad('after', 8)}${pad('award', 7)}${pad('facil', 7)} stalled`;
+    `${pad('ret50', 7)}${pad('ret10', 7)}${pad('ret90', 7)}${pad('best', 7)}${pad('top5%', 6)}${pad('made', 8)}${pad('cinema', 8)}${pad('after', 8)}${pad('award', 7)}${pad('facil', 7)} stalled bids`;
   const lines = [header];
   for (const r of rows) {
     const at = (year: number) => (r.cashAtYear[year - 1] === undefined ? '-' : m(r.cashAtYear[year - 1]));
@@ -150,7 +155,7 @@ export function formatCareerTable(rows: CareerRow[]): string[] {
         `${pad(r.brandEnd, 6)}${pad(r.prestigeEnd, 6)}${pad(r.films, 6)}${pad(Math.round(r.medianQuality), 5)}${pad(Math.round(r.qualityP10), 5)}${pad(Math.round(r.qualityP90), 5)}` +
         `${pad(Math.round(r.profitableInCinemasPct), 6)}${pad(Math.round(r.losingAllInPct), 6)}` +
         `${pad(r.allInReturnMedian.toFixed(2), 7)}${pad(r.allInReturnP10.toFixed(2), 7)}${pad(r.allInReturnP90.toFixed(2), 7)}${pad(r.bestFilmReturn.toFixed(2), 7)}${pad(Math.round(r.topFifthShareOfProfitPct), 6)}` +
-        `${pad(m(r.made), 8)}${pad(m(r.cinemaNet), 8)}${pad(m(r.afterMarket), 8)}${pad(m(r.awards), 7)}${pad(m(r.facilities), 7)} ${r.stalled ? 'yes' : '-'}`,
+        `${pad(m(r.made), 8)}${pad(m(r.cinemaNet), 8)}${pad(m(r.afterMarket), 8)}${pad(m(r.awards), 7)}${pad(m(r.facilities), 7)} ${r.stalled ? 'yes' : '-'}     ${r.contestedWins}/${r.contestedOffers}`,
     );
   }
   return lines;

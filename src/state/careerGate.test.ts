@@ -37,6 +37,8 @@ const run = (films: BotFilm[], cashFlow: Record<string, number> = {}, cashEnds =
   cashFlow,
   pool: { start: {}, end: {} },
   stretchedFilms: 0,
+  contestedOffers: 0,
+  contestedWins: 0,
 });
 
 describe('summariseCareer', () => {

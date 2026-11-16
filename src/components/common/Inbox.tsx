@@ -667,6 +667,9 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                     title: `“${n.scriptTitle || 'Untitled script'}”`,
                     detail,
                   }}
+                  // A won script is an Asset now: one click to where it lives
+                  // (market realism Phase 5 - contested scripts are won this way).
+                  action={n.kind === 'won' ? { label: 'Open Asset Library', onClick: routed(() => dispatch({ type: 'VIEW_ASSET_LIBRARY' })) } : undefined}
                   onDismiss={() => dispatch({ type: 'DISMISS_BID_NOTIFICATION', id: n.id })}
                 />
               );

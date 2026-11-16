@@ -43,7 +43,9 @@ function freshState(seed: number, startingCash = 50_000_000): GameState {
 /** One real, engine-generated Opportunity - same generator ACQUIRE_OPPORTUNITY's own pool is populated from (engine/opportunities.ts). */
 function oneOpportunity(seed: number): Opportunity {
   const { result } = withRng(seed, (rng) => settleOpportunities([], 1, 1, rng));
-  return result.opportunities[0];
+  // An ordinary listing: the best of a batch are contested and sold only by
+  // bidding (market realism Phase 5), so cannot be bought outright.
+  return result.opportunities.find((o) => !o.contested)!;
 }
 
 const ENVIRONMENT_STRATEGY: Record<EnvironmentMethodKey, number> = { studio: 0.4, location: 0.4, digital: 0.2 };

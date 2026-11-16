@@ -127,3 +127,33 @@ describe('OpportunityMarket — acquisition feedback', () => {
     expect(screen.queryByText('Acquired')).not.toBeInTheDocument();
   });
 });
+
+describe('OpportunityMarket — contested scripts (market realism Phase 5)', () => {
+  beforeEach(() => {
+    dispatch.mockClear();
+  });
+
+  it('shows a contested card with an offer button and no buy button', () => {
+    mockState = marketState([listing(31, { contested: true })]);
+    render(<OpportunityMarket />);
+    expect(screen.getByText('Contested')).toBeInTheDocument();
+    expect(screen.getByText('Several studios are circling this one. It goes to the best offer when the week closes.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Acquire' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Make an offer' }));
+    const call = dispatch.mock.calls.find(([a]) => a.type === 'PLACE_BID')![0];
+    expect(call.opportunityId).toBe('opp-31');
+    expect(call.amount).toBeGreaterThan(250_000);
+    expect(mockState.opportunities[0].bids[0].bidderId).toBe('player');
+  });
+
+  it('tells the player a lapsed contest can be bought outright, once', () => {
+    mockState = marketState([listing(32, { contested: false })]);
+    const { unmount } = render(<OpportunityMarket />);
+    expect(screen.getByText('No offers came in. It can be bought outright now.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Acquire' })).toBeInTheDocument();
+    expect(dispatch).toHaveBeenCalledWith({ type: 'ACKNOWLEDGE_LAPSED_CONTESTS', opportunityIds: ['opp-32'] });
+    unmount();
+    render(<OpportunityMarket />);
+    expect(screen.queryByText('No offers came in. It can be bought outright now.')).not.toBeInTheDocument();
+  });
+});

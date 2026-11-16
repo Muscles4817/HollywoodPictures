@@ -302,3 +302,19 @@ describe('Inbox - the studio name fading or recovering (market realism Phase 3)'
     expect(screen.queryByRole('button', { name: 'See your studio' })).not.toBeInTheDocument();
   });
 });
+
+describe('Inbox - a won auction (market realism Phase 5)', () => {
+  it('routes to the Asset Library in one click and closes the Inbox', () => {
+    dispatch.mockClear();
+    mockState = {
+      projects: [], focusedProjectId: null, totalDays: 10, talentPool: {}, opportunities: [],
+      bidNotifications: [{ id: 'bid-won-x-7', kind: 'won', opportunityId: 'x', scriptTitle: 'The Hot One', amount: 400_000, day: 7, read: false }],
+    } as unknown as GameState;
+    const onClose = vi.fn();
+    render(<Inbox open onClose={onClose} />);
+    expect(screen.getByText(/You won the rights/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Asset Library' }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'VIEW_ASSET_LIBRARY' });
+    expect(onClose).toHaveBeenCalled();
+  });
+});

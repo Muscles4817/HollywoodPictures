@@ -26,7 +26,7 @@ import { resolveRivalExecution } from './rivalExecution';
 import { computeReleaseResults } from './releaseFilm';
 import { internationalReachForRivalStudio } from './distribution';
 import { computeDailyShootBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
-import { highestBid, placeBid, reopenForfeitedOpportunity, type ResolvedBid } from './opportunities';
+import { highestBid, marketHeat, placeBid, reopenForfeitedOpportunity, type ResolvedBid } from './opportunities';
 import { logAmount } from './interpolate';
 import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
@@ -853,6 +853,10 @@ export function startableScales(tier: StudioTier, current: RivalProductionInProg
 const SCRIPT_BUDGET_FRACTION = 0.15;
 /** How much above the floor (the current highest bid, or acquisitionCost if none) a rival is willing to open at. */
 const BID_OPENING_PREMIUM_RANGE: [number, number] = [0, 0.15];
+/** The same, for a contested script (one of a week's best, sold by bidding - docs/IMPLEMENTATION_PLAN_market_realism.md Phase 5): the trade knows it is wanted, so rivals open well above the asking price. */
+export const BID_OPENING_PREMIUM_RANGE_CONTESTED: [number, number] = [0.15, 0.5];
+/** What a contested script adds to a rival's read of it: being the script everyone is circling is itself a reason to want it. */
+export const CONTESTED_APPEAL = 8;
 /** How much above the current leader a rival raises to, when outbid on its own already-active bid. */
 const BID_RAISE_INCREMENT_FRACTION = 0.05;
 
@@ -874,14 +878,6 @@ function scriptBudget(rival: RivalStudio, scale: ProductionScale, rng: RandomFn)
  * in the pool fits its target genre/scale/budget at all.
  */
 
-function scriptCraftScore(script: Script): number {
-  return (
-    script.originality +
-    script.structure +
-    script.characters +
-    script.dialogue
-  ) / 4;
-}
 
 const GENRE_TIER_BIAS: Record<
   StudioTier,
@@ -930,14 +926,18 @@ function genreTierBias(tier: StudioTier, script: Script): number {
   return GENRE_TIER_BIAS[tier][script.genre] ?? 0;
 }
 
-function evaluateOpportunityForTier(
+/** @internal exported for tests. */
+export function evaluateOpportunityForTier(
   rival: RivalStudio,
   scale: ProductionScale,
   opportunity: Opportunity,
   budget: number,
 ): number {
   const script = opportunity.script;
-  const craft = scriptCraftScore(script);
+  // How much the trade wants it (engine/opportunities.ts:marketHeat): craft,
+  // plus the hook and emotional premise a rival reads as much as a player
+  // does. Originality also stays its own term below.
+  const craft = marketHeat(script);
   const originality = script.originality;
   
   const currentPrice =
@@ -983,10 +983,13 @@ function evaluateOpportunityForTier(
     score += genreBias * 0.50;
   }
 
+  if (opportunity.contested) score += CONTESTED_APPEAL;
+
   return score;
 }
 
-function considerBiddingOnOpportunity(
+/** @internal exported for tests. */
+export function considerBiddingOnOpportunity(
   rival: RivalStudio,
   scale: ProductionScale,
   opportunities: Opportunity[],
@@ -1042,7 +1045,7 @@ function considerBiddingOnOpportunity(
 
   const chosen = pick(rng, competitiveCandidates).opportunity;
   const floor = highestBid(chosen)?.amount ?? chosen.acquisitionCost;
-  const premium = 1 + randFloat(rng, ...BID_OPENING_PREMIUM_RANGE);
+  const premium = 1 + randFloat(rng, ...(chosen.contested ? BID_OPENING_PREMIUM_RANGE_CONTESTED : BID_OPENING_PREMIUM_RANGE));
   const amount = Math.min(budget, Math.round(floor * premium));
   if (amount < floor) return null; // budget too tight even to meet the floor
   return { opportunityId: chosen.id, amount };
@@ -1142,7 +1145,7 @@ function startRivalProductionFromWonScript(
     // Whoever it can afford with the best track record, by its own imperfect
     // read - not, as it used to be, a random draw among the nearest in price
     // (engine/rivalCasting.ts).
-    const picked = chooseRivalHires(available, role, targetPrice, capacity.max, rng, usedBefore);
+    const picked = chooseRivalHires(available, role, targetPrice, capacity.max, rng, usedBefore, script);
     if (picked.length < capacity.min) return null;
     for (const p of picked) bookedIds.add(p.id);
     // Bind each actor to the Character at its slot (characterForRoleSlot is

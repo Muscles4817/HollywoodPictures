@@ -20,7 +20,7 @@
 // punishes deviation from what a film of that hype typically delivers, rather
 // than taxing every hyped film.
 
-/** Expected reception (0-100) for a film with zero Buzz. Re-derived by procedure R (docs/IMPLEMENTATION_PLAN_market_realism.md §1.4) after rivals moved to the player's scoring model: median wide Buzz 92 now delivers a median 63.7 (0.7 audience + 0.3 critic), so 63.7 - 0.18 x 92 = 47 (was 46). */
+/** Expected reception (0-100) for a film with zero Buzz. Re-derived by procedure R (docs/IMPLEMENTATION_PLAN_market_realism.md §1.4) after rivals moved to the player's scoring model: median wide Buzz 92 now delivers a median 63.7 (0.7 audience + 0.3 critic), so 63.7 - 0.18 x 92 = 47 (was 46). Phase 5's procedure R measured 45 (Buzz 89 delivers 60.9); kept at 47 by the owner's decision, because 45 breaks the archetype guard that an ordinary film declines gently while a hyped bad one collapses (docs/DESIGN_REVIEW_market_realism.md §7.5). */
 export const EXPECTED_RECEPTION_BASE = 47;
 /** Expected reception points added per point of Buzz (Buzz 80, the market median, expects 60.4 - what the median wide release delivers - so the typical film is neutral; Buzz 25 expects 50.5, Buzz 98 expects 63.6). */
 export const EXPECTED_RECEPTION_PER_BUZZ = 0.18;

@@ -23,7 +23,8 @@
 // they actually are, without the guesswork.
 //
 // Pure apart from the rng it is handed.
-import type { Person, ProductionRole } from '../types';
+import type { Person, ProductionRole, Script } from '../types';
+import { computeTalentCompatibility } from './compatibility';
 import { getCareerForRole, getTypicalSalaryForRole } from './person';
 import { findCandidatesNearPrice } from './talentFilter';
 import { randFloat, type RandomFn } from './random';
@@ -65,7 +66,15 @@ export function knownAbility(person: Person, role: ProductionRole): number {
   return attributes.length === 0 ? 50 : attributes.reduce((sum, a) => sum + a.value, 0) / attributes.length;
 }
 
-export function chooseRivalHires(available: Person[], role: ProductionRole, targetPrice: number, count: number, rng: RandomFn, usedBefore?: ReadonlySet<string>): Person[] {
+/**
+ * How much a director's fit for the script counts in a rival's read of them
+ * (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 5): rivals want the
+ * director whose taste suits the material, as a careful player does, not just
+ * the best record. Per point of compatibility away from a neutral 50.
+ */
+export const RIVAL_DIRECTOR_FIT_WEIGHT = 0.3;
+
+export function chooseRivalHires(available: Person[], role: ProductionRole, targetPrice: number, count: number, rng: RandomFn, usedBefore?: ReadonlySet<string>, script?: Script): Person[] {
   if (count <= 0) return [];
   const fee = (person: Person) => getTypicalSalaryForRole(person, role);
   const wanted = Math.max(count * 3, 6);
@@ -83,7 +92,8 @@ export function chooseRivalHires(available: Person[], role: ProductionRole, targ
       const read = usedBefore?.has(person.id)
         ? (1 - RIVAL_USED_ABILITY_WEIGHT) * record + RIVAL_USED_ABILITY_WEIGHT * knownAbility(person, role)
         : record + noise;
-      return { person, read };
+      const fit = role === 'Director' && script ? RIVAL_DIRECTOR_FIT_WEIGHT * ((computeTalentCompatibility(person, 'Director', script) ?? 50) - 50) : 0;
+      return { person, read: read + fit };
     })
     .sort((a, b) => b.read - a.read)
     .slice(0, count)
