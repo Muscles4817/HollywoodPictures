@@ -1047,3 +1047,7 @@ outranks a one-point re-derivation), accept `wideUnprofitablePct` at 38.5 as the
 market sitting a point profitable, merge Phase 5, and go on to Phase 6, whose
 riskier prep makes films less reliably good and should pull that metric back
 up; its own procedure R re-checks it. Then the full §1.3 check.
+
+**Owner's decision (after the stop).** Reception base kept at 47 (the measured
+45 broke the archetype guard), \`wideUnprofitablePct\` accepted at about a point
+profitable, Phase 5 merged; Phase 6's procedure R re-checks the market.
