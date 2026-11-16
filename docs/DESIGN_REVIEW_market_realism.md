@@ -940,3 +940,110 @@ removable by its tuning knob. Phase 4 has no procedure R. What I would do:
 accept it for now - Phases 5 and 6 each end with procedure R, whose level lever
 moves the whole market's grosses - and re-check it there; if it is still
 outside after Phase 6, the remedy is a higher ceiling (95-96), not the knee.
+
+### 7.5 Phase 5 - rivals compete for scripts and directors (STOPPED, not merged)
+
+The owner accepted Phase 4's `wideOver500PerYear` miss and asked to continue.
+Phase 5's code is complete and tested on a local branch (`p5-work`) but **not
+merged** into the working branch, because it is not green (below) and the stop
+is the owner's call.
+
+**Built.** `Opportunity.contested` (and `lapseSeen`); `marketHeat`,
+`CONTESTED_PER_BATCH` 2, `CONTESTED_MIN_HEAT` 62, `flagContested` on each new
+batch; a contested script with no offer at the weekly tick becomes ordinary.
+`ACQUIRE_OPPORTUNITY` refuses a contested script; `PLACE_BID` already accepts
+a first offer above the asking price. Rivals: `marketHeat` replaces the
+four-stat craft score, `BID_OPENING_PREMIUM_RANGE_CONTESTED` [0.15, 0.5],
+`CONTESTED_APPEAL` 8; `chooseRivalHires` takes the script and adds
+`RIVAL_DIRECTOR_FIT_WEIGHT` 0.3 x (compatibility - 50) for directors, noise
+draw unmoved. Bot: one offer at `min(1.25 x asking, the 20%-of-negative cap)`,
+never raised, nothing else started while open; counts offers and wins. Market
+card: "Contested" badge, the plan's lines, "Make an offer" in place of Acquire,
+the lapsed note shown once. Notification contract: won / lost / outbid already
+fire for contested scripts (tested); **the won card had no button at all** -
+it now opens the Asset Library and closes the Inbox (tested). Save 107 -> 108.
+Tests as the plan lists; `developmentPipeline.test.ts` now buys an ordinary
+listing.
+
+**Procedure R.** Measured (with Phase 4's ceiling now in the market too):
+quality 54 (unchanged), wide critic 49 (pivot 52 -> 49), audience 65 / critic 53
+(regard neutrals 68/55 -> 65/53), wide Buzz 89 delivers 60.9 (reception base
+47 -> 45). Gates after: whole-year the Phase 0 three plus
+`wideUnprofitablePct` **38.5** [40, 52] - and Phase 4's `wideOver500PerYear`
+miss gone (passes). Level lever, one step down (188M -> 186M):
+`wideUnprofitablePct` 39.2 (still out), `wideOver500PerYear` back out (8.6),
+`topDecileWideSharePct` 35.0 on its floor. The two metrics want the lever in
+opposite directions; **procedure R cannot restore the Phase 0 set - stop-and-ask
+point 4.** Measured below at 188M. Budget-tier: the Phase 0 six. Variance and
+buzz pass.
+
+**And one test.** `audienceSimulationInputs.test.ts` archetype 9 (an ordinary
+film declines gently, a hyped bad one collapses) fails with the reception base
+at 45 and passes at 47: a lower expectation punishes the hyped bad film less,
+so it holds better. The plan's procedure R sets this constant; the test guards
+the shape it exists for.
+
+**Career gate, all four tiers** (188M):
+
+**indie** (start £8.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 1.5 | 1.0 | 0.6 | 2.4 | 4.0 | 0.0 | 0.6 | -0.2 | 7.5 | 0.5 | 10 | 0 | 1 | 46 | 49 |
+| Scout | 7.7 | 0.4 | 0.3 | 0.2 | 0.8 | 0.8 | 4.4 | -0.1 | -0.0 | 0.4 | 10 | 0 | 2 | 41 | 62 |
+| Steady | 0.2 | 0.4 | 15.8 | 0.5 | 0.5 | -0.4 | 0.0 | 0.8 | 0.7 | 1.4 | 9 | 0 | 0 | 44 | 54 |
+| Careless | 0.1 | -0.5 | -0.1 | 0.2 | 0.1 | -0.4 | 0.6 | 0.1 | 0.2 | 0.2 | 10 | 0 | 8 | 37 | 74 |
+
+**boutique** (start £25.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 10.4 | 13.3 | 8.0 | 59.4 | 10.5 | 45.7 | 19.1 | 13.2 | 10.4 | 11.0 | 8 | 0 | 0 | 59 | 51 |
+| Scout | 9.0 | 6.4 | 20.7 | 13.0 | 5.6 | 9.3 | 5.8 | 6.3 | 9.1 | 6.4 | 10 | 0 | 0 | 55 | 66 |
+| Steady | 1.7 | 9.6 | 2.8 | 233 | 8.7 | 55.2 | 5.1 | 9.6 | 8.5 | -0.3 | 8 | 1 | 0 | 56 | 47 |
+| Careless | 0.1 | 0.1 | 0.9 | -0.3 | -0.0 | -0.0 | 0.7 | -0.0 | -0.6 | 0.3 | 10 | 0 | 3 | 38 | 90 |
+
+**midmajor** (start £80.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 36.7 | 32.8 | 53.2 | 498 | 56.4 | 225 | 285 | 359 | 90.4 | 45.0 | 5 | 2 | 0 | 64 | 39 |
+| Scout | 62.4 | 40.3 | 46.3 | 143 | 52.7 | 18.3 | 70.0 | 7.9 | 50.3 | 36.5 | 9 | 0 | 0 | 58 | 57 |
+| Steady | 127 | 131 | 170 | 723 | 522 | 202 | 124 | 128 | 106 | 70.9 | 1 | 2 | 0 | 64 | 44 |
+| Careless | 0.1 | -0.0 | 1.9 | 0.6 | 1.3 | 4.0 | 3.7 | 2.7 | 0.2 | 0.2 | 10 | 0 | 0 | 39 | 95 |
+
+**major** (start £200M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 300 | 411 | 526 | 487 | 487 | 635 | 479 | 399 | 495 | 316 | 0 | 0 | 0 | 66 | 32 |
+| Scout | 65.3 | 53.1 | 403 | 261 | 84.2 | 285 | 522 | 137 | 90.1 | 53.0 | 6 | 0 | 0 | 57 | 50 |
+| Steady | 473 | 38.1 | 396 | 484 | 612 | 206 | 470 | 588 | 132 | 151 | 3 | 0 | 0 | 67 | 43 |
+| Careless | 5.6 | 4.0 | 3.7 | 3.9 | 5.8 | 7.4 | 4.5 | 5.1 | 3.5 | 3.4 | 10 | 0 | 0 | 39 | 99 |
+
+Contested scripts the bot offered on / won: Indie Careful 15/33 (45%), Scout
+10/36, Steady 19/47, Careless 1/11 (9%); Boutique 29/78, 30/86, 48/132, 6/14;
+Mid-Major 36/91, 37/109, 71/189, 5/7; Major 31/98, 32/93, 62/185, 5/12. Every
+real strategy at every tier wins 28-45% (band 25-60%). Indie Careless's 1 of 11
+is just under the one-in-ten stop line, on a tiny sample.
+
+**Bands** (Careful / Steady): Mid-Major - shrinkers 5 / 1, largest 6.2x / 9.0x,
+median 0.92x / 1.62x, losing 39% / 44%, best fifth 110% / 96%. Major - shrinkers
+0 / 3, largest 3.2x / 3.1x, median 2.41x / 2.17x, losing 32% / 43%, best fifth
+64% / 122%. **Major Steady passes all five bands; Mid-Major Steady three**;
+Mid-Major Careful is now on the hard side (five shrinkers, median below 1x).
+
+**Other success numbers.** Rival direction at £10-40M: 69 (Phase 0-3: 67-68) -
++1 to +2, short of the +3 target; player-rival gap 9 (Steady 102; target 10 or
+less). Top-tenth directors booked mid-year 55-78%, no higher than Phase 0's
+60-80% - not met. `RIVAL_DIRECTOR_FIT_WEIGHT` not yet tuned (0.4 would be the
+first step).
+
+Guard rails: Careless Mid-Major 10 of 10 below a quarter; Indie Careful stalled
+1; one Boutique career above 4x (Steady 104, 9.3x; Phase 0 had two).
+
+**What I would do next.** Keep the reception base at 47 (the archetype guard
+outranks a one-point re-derivation), accept `wideUnprofitablePct` at 38.5 as the
+market sitting a point profitable, merge Phase 5, and go on to Phase 6, whose
+riskier prep makes films less reliably good and should pull that metric back
+up; its own procedure R re-checks it. Then the full §1.3 check.
