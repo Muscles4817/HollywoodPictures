@@ -1051,3 +1051,124 @@ up; its own procedure R re-checks it. Then the full §1.3 check.
 **Owner's decision (after the stop).** Reception base kept at 47 (the measured
 45 broke the archetype guard), \`wideUnprofitablePct\` accepted at about a point
 profitable, Phase 5 merged; Phase 6's procedure R re-checks the market.
+
+### 7.6 Phase 6 - a shoot that can go wrong, and the final check (STOPPED, not merged)
+
+**Built** exactly as the plan's table: table read [1, 5], rehearsal chemistry
+[1, 4], design breakthrough [1, 4], casting chemistry concern [-7, -2],
+"Commission the rewrite" [-2, 7], "Find the money and build it" [-1, 8]; the two
+new medium setbacks (`preprod-script-problem-surfaced` [-6, -2],
+`preprod-look-never-settled` [-5, -1], risk [2, 6]) with the plan's text; the
+two option descriptions reworded. Tests: ids unique, new templates plain and
+negative, a weak writer's rewrite can lose quality while a strong one's still
+gains on average, the set can come off badly. Full suite green (2883). The code
+is on a local branch (`p6-pop194`), **not merged**: the gates below are the
+owner's call.
+
+**The market moved far more than the table did.** Before procedure R the
+whole-year gate had ten misses: median wide gross 164M -> 102M, wide-release
+Buzz 89 -> 51, bombs 19%. Rival films' net event quality fell from +25 to +5 a
+film (measured on 60 synthetic productions), the market's median quality 54 ->
+51, and the drop compounded through rivals' own cash and campaigns. (Brand drift
+was ruled out: with reversion off the gate read identically.)
+
+**Procedure R.** quality 54 -> 51, wide critic 49 -> 45, regard neutrals 65/53 ->
+59/49; reception base re-derives to 46.5 and stays 47. After it: the Phase 0
+three plus a thin top - `wideOver500PerYear` 6.3, `wideOver1000PerYear` 1.1,
+`topDecileWideSharePct` 34.1. Level lever up ("the reverse" - not profitable
+enough at the top):
+
+| population | over 500M / yr | over 1B / yr | top-decile share | unprofitable wide |
+|---|---|---|---|---|
+| 188M | 6.3 | 1.1 | 34.1 | - |
+| 190M | 6.5 | 1.5 | 33.9 | 43.9 |
+| 194M | 7.1 | 2.0 (a hair under) | 35+ | 42.3 |
+| 198M | 7.4 | 1.9 | 34.9 | 42.7 |
+
+About 0.4 films over 500M a year per 4M step; 204M (the plan's limit) would
+not reach 10. **Procedure R cannot restore the Phase 0 set - stop-and-ask
+point 4.** Measured below at 194M. Variance: **least-exposed third CV 0.143**
+(ceiling 0.12) - safe plans are no longer dependable once any prep can go
+wrong; most-exposed 0.485, correlation 0.68 pass. Budget-tier: the Phase 0 six.
+Buzz passes.
+
+**Career gate, all four tiers** (194M):
+
+**indie** (start £8.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 0.3 | 5.7 | -0.5 | -0.3 | 4.0 | -0.1 | 2.6 | 1.7 | -0.0 | 9.0 | 9 | 0 | 1 | 45 | 55 |
+| Scout | 5.0 | 5.0 | 10.3 | 2.0 | -0.1 | 6.4 | 4.4 | 3.4 | 1.3 | -1.1 | 9 | 0 | 0 | 46 | 53 |
+| Steady | 1.2 | 10.2 | -0.7 | -0.9 | 0.5 | 3.4 | -0.7 | 1.2 | 7.2 | -0.1 | 9 | 0 | 2 | 41 | 51 |
+| Careless | 1.1 | 0.0 | -0.3 | 0.1 | 0.3 | 0.2 | 0.3 | -0.1 | -0.5 | -0.3 | 10 | 0 | 4 | 36 | 71 |
+
+**boutique** (start £25.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 8.0 | 11.1 | 40.8 | 50.8 | 11.0 | 11.8 | 11.3 | 12.3 | 9.9 | 15.0 | 8 | 0 | 0 | 55 | 55 |
+| Scout | 16.6 | 10.1 | 27.5 | 32.7 | 16.6 | 8.0 | 6.5 | 5.8 | 5.3 | 13.0 | 8 | 0 | 0 | 54 | 62 |
+| Steady | 5.0 | 10.5 | 2.1 | 39.2 | 11.9 | 11.0 | 6.5 | 19.1 | 5.3 | 5.0 | 9 | 0 | 0 | 55 | 48 |
+| Careless | 0.9 | -0.2 | 0.8 | 1.0 | 0.2 | 0.1 | 0.1 | -0.5 | -0.7 | -0.0 | 10 | 0 | 1 | 38 | 90 |
+
+**midmajor** (start £80.0M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 93.2 | 71.6 | 120 | 135 | 28.6 | 132 | 132 | 104 | 26.7 | 70.4 | 4 | 0 | 0 | 61 | 47 |
+| Scout | 32.2 | 24.9 | 22.8 | 71.4 | 63.0 | 33.0 | 16.4 | 16.8 | 61.3 | 39.5 | 10 | 0 | 0 | 55 | 58 |
+| Steady | 215 | 91.1 | 574 | 111 | 85.7 | 29.1 | 121 | 222 | 102 | 119 | 1 | 1 | 0 | 59 | 45 |
+| Careless | 1.4 | 2.4 | 1.4 | 1.1 | -0.1 | 1.7 | 3.7 | 4.3 | 1.6 | 0.1 | 10 | 0 | 0 | 37 | 97 |
+
+**major** (start £200M; year-10 cash £M per seed; then careers below start, above 4x, stalled; median film quality; % films losing all-in)
+
+| strategy | 101 | 102 | 103 | 104 | 105 | 106 | 107 | 108 | 109 | 110 | <start | >4x | stalled | q50 | lose% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Careful | 366 | 511 | 757 | 690 | 500 | 314 | 628 | 532 | 522 | 494 | 0 | 0 | 0 | 66 | 28 |
+| Scout | 76.6 | 9.3 | 566 | 480 | 349 | 218 | 101 | 96.5 | 135 | 41.1 | 6 | 0 | 0 | 55 | 55 |
+| Steady | 514 | 679 | 627 | 473 | 513 | 711 | 621 | 398 | 571 | 160 | 1 | 0 | 0 | 66 | 34 |
+| Careless | 4.9 | 9.6 | 6.9 | 7.5 | 6.0 | 3.7 | 7.8 | 4.1 | 1.0 | 4.0 | 10 | 0 | 0 | 37 | 99 |
+
+**Event points (anatomy).** Player median +21.3 / +23.6 (Mid-Major Careful 101
+/ Steady 102), rivals +13.6 / +13.2 - gaps 7.7 and 10.4 (target 8 or less);
+player 10th percentile +6.5 / -1.0 (target below +5). Half met on each count;
+the plan's one tuning step (positives one point lower again) not taken, given
+the stop.
+
+**The §1.3 check** (Careful / Steady):
+
+| band | Mid-Major | Major |
+|---|---|---|
+| shrinkers 1-3 | **4** / 1 | 0 / 1 |
+| largest <= 4x | 1.7x / **7.2x** | 3.8x / 3.6x |
+| median 1-2.5x | 1.23x / 1.44x | **2.58x** / **2.71x** |
+| losing all-in 35-45% | **46.9%** / **45.3%** | **28%** / **34.4%** |
+| best fifth > 100% | **90%** / **91%** | **57%** / **83%** |
+
+(bold = missed.) Mid-Major Careful is just on the hard side (four shrinkers,
+47% of films losing); Mid-Major Steady has one runaway (seed 103, 7.2x) and
+otherwise sits inside; Major is a little easy on the median and on losers. No
+cell yet has the best fifth of films earning more than all the profit - losing
+films still lose too little each. Guard rails: Careless Mid-Major 10 of 10
+below a quarter; Indie Careful stalled 1; no Boutique career above 4x.
+
+From Phase 0 to here, careful big studios went from "cannot lose" (Mid-Major
+Careful £44-785M, Major £438-960M, nobody shrinking at Major) to Mid-Major
+Careful £27-135M and Major Careful £314-757M, with careers shrinking at both
+tiers and the after-market no longer doubling every film.
+
+**Decisions for the owner.**
+1. Accept the thin top (over-500M and over-1B releases a year below band, a
+   consequence of Phase 4's audience ceiling compounded by weaker rival films),
+   or raise `AUDIENCE_CEILING` 94 -> 96 and re-run procedure R - my
+   recommendation, since the knee showed the ceiling is what sets the top.
+2. The variance gate's safe-plan ceiling (0.12) now fails at 0.143: a property
+   of Phase 6 itself (every prep can go wrong). Either accept it, or soften the
+   two new setbacks.
+3. The §1.3 bands are missed on both sides by small margins in different cells,
+   so the plan's rules ("easy side: stop and ask"; "hard side: give back
+   `REGARD.span` one step") point different ways. I would leave the economy
+   here and ask for the playtest the plan ends with: the bot never picks a
+   release date, never tunes a campaign and takes the first option in every
+   decision, so these bands are a floor on how easy the game is.
