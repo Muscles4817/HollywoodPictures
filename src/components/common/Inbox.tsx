@@ -7,6 +7,7 @@ import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
 import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '../../engine/project';
 import { wasPulledFromTheatres } from '../../engine/boxOfficeRun';
 import { brandNoticeText } from '../../engine/reputation';
+import { PREP_PAUSED_MESSAGE } from './decisionText';
 import { unseenApplicants } from '../../engine/castingCalls';
 import { derivePostProductionStatus, describePostProductionWait } from '../../engine/postProductionStatus';
 import { highestBid } from '../../engine/opportunities';
@@ -141,7 +142,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // which point at drawers that aren't on screen. The exact same derivation
   // Header.tsx's badge count reads (engine/project.ts:inboxBadgeCount), so the
   // two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished, brandNotice } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays, state.studio?.brandNotice);
+  const { awaitingChoice, prepAwaitingChoice, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished, brandNotice } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays, state.studio?.brandNotice);
   // Recently-resolved award ceremonies the player hasn't clicked through yet
   // (state/selectors.ts) - awards settle silently in the background tick, so
   // this is the Inbox's "Awards night" catch-up beat.
@@ -211,6 +212,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   const auditionCards = auditionsReady.flatMap(({ production, auditions }) => groupAuditionsByCharacter(production, auditions, state.talentPool.Actor));
   const needsYouCount =
     awaitingChoice.length +
+    prepAwaitingChoice.length +
     pressTourIncidents.length +
     wrapped.length +
     parked.length +
@@ -285,6 +287,24 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
               }
               return null;
             })}
+
+            {prepAwaitingChoice.map((production) => (
+              // A prep decision, answered in place - the prep twin of the on-set
+              // card above. Prep is paused until it is answered.
+              <div className="stack" key={`${production.id}-prep`}>
+                <h4 style={{ margin: 0 }}>{production.title || 'Untitled Film'} · pre-production</h4>
+                <OnSetDecisionCard
+                  pendingChoice={production.preProduction!.pendingChoice!}
+                  talent={production.talent.map((a) => a.person)}
+                  talentPool={state.talentPool}
+                  script={production.script}
+                  totalDays={state.totalDays}
+                  pausedMessage={PREP_PAUSED_MESSAGE}
+                  showChoiceCosts
+                  onChoose={(choiceId) => dispatch({ type: 'RESOLVE_PREPRODUCTION_CHOICE', choiceId, productionId: production.id })}
+                />
+              </div>
+            ))}
 
             {pressTourIncidents.map((production) => {
               const incident = production.pressTourIncident!;

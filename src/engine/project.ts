@@ -131,6 +131,8 @@ export interface InboxItems {
   nowPlaying: Film[];
   /** The player's own films whose theatrical run has ended but whose final breakdown the player hasn't reviewed yet (Film.boxOfficeRun.acknowledged === false). Informational catch-up: it replaces the old blocking BoxOfficeFinishedPopup, and the Inbox routes it to the film's own dossier (components/common/FilmDetailModal.tsx) rather than reproducing the numbers. Unread until the player opens that dossier, which sets acknowledged (ACKNOWLEDGE_BOX_OFFICE_RESULTS). */
   boxOfficeFinished: Film[];
+  /** Backgrounded productions whose PRE-PRODUCTION is paused on a decision (PreProductionState.pendingChoice) - the prep twin of `awaitingChoice`, which only ever covered the shoot and the test screening. Resolved in place from the Inbox via RESOLVE_PREPRODUCTION_CHOICE (it takes a productionId), so like awaitingChoice it needs no read state: the project is its record. */
+  prepAwaitingChoice: FilmDraft[];
   /** The studio's name fading or recovering through drift (Studio.brandNotice, docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3) while the studio overview has not yet shown it; null otherwise. Only present when the caller passes the studio's notice. */
   brandNotice: BrandNotice | null;
 }
@@ -179,6 +181,7 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null, 
     // Post-Production screen) - see components/common/Inbox.tsx, which picks
     // whichever of the two a given production actually has pending.
     awaitingChoice: productions.filter((p) => p.photography?.status === 'awaiting-choice' || p.testScreeningPendingChoice),
+    prepAwaitingChoice: productions.filter((p) => p.preProduction?.status === 'awaiting-choice' && !!p.preProduction.pendingChoice),
     wrapped: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && !p.postProductionChoices),
     parked: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && p.postProductionChoices),
     casting: castingDrafts
@@ -224,6 +227,7 @@ export function inboxBadgeCount(projects: Project[], excludeId: string | null, t
   const items = deriveInboxItems(projects, excludeId, totalDays, brandNotice);
   return (
     items.awaitingChoice.length +
+    items.prepAwaitingChoice.length +
     items.wrapped.length +
     items.parked.filter(isParkedActionable).length +
     // One badge point per casting CALL, not per production - each is its own

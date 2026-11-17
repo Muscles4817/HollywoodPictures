@@ -7,6 +7,7 @@ import { StatTile } from '../common/StatTile';
 import { ScoreBar } from '../common/ScoreBar';
 import { SeverityBadge } from '../common/SeverityBadge';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
+import { PREP_PAUSED_MESSAGE } from '../common/decisionText';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { asPlayerDraft, findProject } from '../../engine/project';
 import { formatGameDateWithMonth } from '../../engine/calendar';
@@ -106,6 +107,8 @@ export function PreProductionRun() {
             talentPool={state.talentPool}
             script={draft.script}
             totalDays={state.totalDays}
+            pausedMessage={PREP_PAUSED_MESSAGE}
+            showChoiceCosts
             onChoose={(choiceId) => dispatch({ type: 'RESOLVE_PREPRODUCTION_CHOICE', choiceId, productionId: draft.id })}
           />
         )}

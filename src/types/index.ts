@@ -741,6 +741,7 @@ export type ScriptScale = 'Intimate' | 'Medium' | 'Epic';
 export interface ProductionRequirements {
   extras: NormalizedScalar; // background/day-player cast need
   locations: NormalizedScalar; // how location-heavy vs contained to a handful of sets
+  /** Mirrors the setting archetype's own period flag (set from it at generation). Nothing reads this copy: SETTING_ARCHETYPE_PROFILES[primarySetting].periodSetting is the one source of truth. */
   periodSetting: boolean; // costume/production design has to recreate an era
   vehicles: boolean; // meaningfully features cars, aircraft, ships, etc.
   animals: boolean; // meaningfully features trained animals

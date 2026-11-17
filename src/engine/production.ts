@@ -58,7 +58,17 @@ const MAX_CAST_SIZE_DAYS = 18; // a large ensemble is far slower to schedule and
 const MAX_RUNTIME_DAYS = 22; // a three-hour epic photographs far more material than a lean 90-minute film
 const MAX_EFFECTS_DAYS = 22; // practical rigs, stunts and effects units slow the shoot down on the day
 const MAX_SETTING_DAYS = 16; // a travel-heavy, many-location shoot loses days moving; a single interior loses none
-const CAST_SIZE_BASELINE = 6; // roughly the mandatory-roles floor before any multi-hire roles kick in
+// Cast size counts ACTORS. It used to be talent.length, which counts crew too, so
+// hiring a production designer or a VFX supervisor lengthened prep and the shoot
+// as if another actor had joined. One actor beyond the baseline is exactly what
+// the old count gave the minimum package (seven mandatory roles, one lead, one
+// supporting part), so that package reads as it always did.
+const CAST_SIZE_BASELINE = 1;
+
+/** The number of acting roles filled - a lead and supporting parts, not the crew. */
+function castCount(talent: TalentAssignment[]): number {
+  return talent.filter((a) => a.role === 'Lead Actor' || a.role === 'Supporting Actor').length;
+}
 const SHOOT_CAST_DAYS_PER_MEMBER = 2; // extra shoot days each cast member beyond the baseline adds, before the cap
 
 /**
@@ -76,7 +86,7 @@ const SHOOT_CAST_DAYS_PER_MEMBER = 2; // extra shoot days each cast member beyon
  */
 export function computeRecommendedShootDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
   const complexityDays = (script.complexity / 100) * MAX_COMPLEXITY_DAYS;
-  const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * SHOOT_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_DAYS);
+  const castDays = clamp((castCount(talent) - CAST_SIZE_BASELINE) * SHOOT_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_DAYS);
   const runtimeDays = choices.runtimeIntensity * MAX_RUNTIME_DAYS;
   const effectsDays = (practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) * (MAX_EFFECTS_DAYS / 2);
   const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
@@ -154,7 +164,7 @@ const SCALE_PREPRODUCTION_FRACTION: Record<Script['scale'], number> = { Intimate
  */
 export function computeRecommendedPreProductionDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
   const scaleDays = SCALE_PREPRODUCTION_FRACTION[script.scale] * MAX_SCALE_PREPRODUCTION_DAYS;
-  const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * PREPRODUCTION_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_PREPRODUCTION_DAYS);
+  const castDays = clamp((castCount(talent) - CAST_SIZE_BASELINE) * PREPRODUCTION_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_PREPRODUCTION_DAYS);
   const ambitionDays = ((practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) / 2) * MAX_AMBITION_PREPRODUCTION_DAYS;
   // Building the world before the shoot: heavy set construction and hard-to-scout
   // locations both stretch prep, and a period piece adds its own research/costume

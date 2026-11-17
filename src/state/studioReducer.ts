@@ -12,7 +12,7 @@ import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequi
 import { splitCastBudgetByImportance } from '../engine/castBudget';
 import { appendStaffingEvent } from './staffingBoard';
 import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge } from '../engine/casting';
-import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
+import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { RESHOOT_REQUIREMENTS, reshootSurcharge } from '../engine/reshootAvailability';
@@ -21,7 +21,7 @@ import { promoteFilmToIp, ipForSourceFilm, recordFranchiseEntries } from '../eng
 import { generateSequelScript } from '../engine/scriptGenerator';
 import { SEQUEL_DEVELOPMENT_SETUP_DAYS, makePendingSequelDevelopment, settlePendingSequelDevelopments } from '../engine/sequelDevelopment';
 import { computeDailyShootBurn, computeDailyPrepBurn, draftNegativeCost, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
-import { computeSetsAmbition, defaultDesignPrepDays, NO_DESIGNER_SKILL } from '../engine/setsFacet';
+import { effectivePreProductionDays } from '../engine/prepLength';
 import { assignmentCost, getActorCareer, getCrewCareer, getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, latestCastBookingEnd, withCommitment, withReputationChange } from '../engine/person';
 import { computeActorAppeal } from '../engine/castingAppeal';
 import { computeAskingPrice, resolveNegotiation } from '../engine/castingNegotiation';
@@ -1063,7 +1063,108 @@ function withBrandDrift(state: GameState): GameState {
 }
 
 export function studioReducer(state: GameState, action: GameAction): GameState {
-  return withRunningCosts(state, withCareerNewsFor(state, withIndustryTurnover(state, withDraftsAtAssetHead(applyGameAction(state, action)))));
+  return withRunningCosts(state, withBookingsFollowFilms(state, withPrepCalendar(state, withCareerNewsFor(state, withIndustryTurnover(state, withDraftsAtAssetHead(applyGameAction(state, action)))))));
+}
+
+/** The day a greenlit film now expects to finish its shoot: today plus what is left of prep and the shoot (a shoot running past its schedule is booked at least a day ahead). Null before greenlight or once photography has wrapped. */
+export function expectedShootEndDay(draft: FilmDraft, today: number): number | null {
+  const prep = draft.preProduction;
+  if (!prep || !draft.script || !draft.productionChoices) return null;
+  const photography = draft.photography;
+  if (photography) {
+    if (photography.status === 'finished') return null;
+    return today + Math.max(1, photography.recommendedDays - photography.daysElapsed);
+  }
+  const prepStart = prep.status === 'scheduled' && draft.shootStartsOnDay !== undefined ? Math.max(today, draft.shootStartsOnDay) : today;
+  const prepLeft = prep.status === 'scheduled' ? prep.recommendedDays : Math.max(0, prep.recommendedDays - prep.daysElapsed);
+  return prepStart + prepLeft + computeRecommendedShootDays(draft.talent, draft.script, draft.productionChoices);
+}
+
+/**
+ * Bookings follow the film (docs/IMPLEMENTATION_PLAN_preproduction_realism.md
+ * Phase 1). A film's people were booked once, at greenlight, and never again:
+ * a prep or a shoot that ran past that window left them free on paper while the
+ * film still had them, so rivals could hire them. After any action that moves
+ * the calendar, each greenlit film's hires have their booking for this project
+ * extended to the film's current expected end. Bookings only ever extend here;
+ * nobody is released early.
+ */
+function withBookingsFollowFilms(before: GameState, after: GameState): GameState {
+  if (after.totalDays <= before.totalDays || before.talentDatabaseId !== after.talentDatabaseId) return after;
+  let talentPool = after.talentPool;
+  let changed = false;
+  for (const project of after.projects) {
+    const draft = asPlayerDraft(project);
+    if (!draft) continue;
+    const end = expectedShootEndDay(draft, after.totalDays);
+    if (end === null) continue;
+    for (const assignment of draft.talent) {
+      const profession = professionForProductionRole(assignment.role);
+      const roster = talentPool[profession];
+      const index = roster.findIndex((t) => t.id === assignment.person.id);
+      if (index < 0) continue;
+      const person = roster[index];
+      const commitments = person.availability.commitments;
+      if (!commitments.some((c) => c.projectId === draft.id && c.endDay < end)) continue;
+      const extended = { ...person, availability: { commitments: commitments.map((c) => (c.projectId === draft.id && c.endDay < end ? { ...c, endDay: end } : c)) } };
+      if (!changed) talentPool = { ...talentPool };
+      changed = true;
+      talentPool[profession] = roster.map((t, i) => (i === index ? extended : t));
+    }
+  }
+  return changed ? { ...after, talentPool } : after;
+}
+
+/**
+ * Pre-production keeps pace with the calendar, whatever moved it
+ * (docs/IMPLEMENTATION_PLAN_preproduction_realism.md Phase 1). Only ADVANCE_DAY
+ * used to advance other films' prep, so a second film's prep froze while the
+ * player shot or prepped another film, and its bookings drifted. After any
+ * action that moves the calendar, every player prep the action itself did not
+ * touch (its days elapsed unchanged) advances by the days that passed, and a
+ * film held for its cast ('scheduled') starts once its start day arrives - it
+ * used to wait for the player to open it.
+ */
+function withPrepCalendar(before: GameState, after: GameState): GameState {
+  const days = after.totalDays - before.totalDays;
+  if (days <= 0 || before.talentDatabaseId !== after.talentDatabaseId) return after;
+  const beforePrep = new Map(
+    before.projects.flatMap((p) => {
+      const d = asPlayerDraft(p);
+      return d?.preProduction ? [[d.id, d.preProduction] as const] : [];
+    }),
+  );
+  const started = (d: FilmDraft): FilmDraft =>
+    d.preProduction?.status === 'scheduled' && d.shootStartsOnDay !== undefined && after.totalDays >= d.shootStartsOnDay
+      ? { ...d, preProduction: { ...d.preProduction, status: 'in-progress' } }
+      : d;
+  // Advance only a prep that was already running before this action and that
+  // the action left alone - or one this wrapper has just started from its hold.
+  // A prep the action started itself (ADVANCE_TO_SHOOT_START) is not advanced
+  // through the very jump that started it.
+  const untouched = (d: FilmDraft, wasHeld: boolean): boolean => {
+    const prior = beforePrep.get(d.id);
+    return d.preProduction?.status === 'in-progress' && (wasHeld || (prior?.status === 'in-progress' && prior.daysElapsed === d.preProduction.daysElapsed));
+  };
+  const drafts = after.projects.flatMap((p) => {
+    const d = asPlayerDraft(p);
+    return d ? [d] : [];
+  });
+  const needsStart = drafts.some((d) => started(d) !== d);
+  const toAdvance = drafts.flatMap((d) => {
+    const s = started(d);
+    return untouched(s, s !== d) ? [s] : [];
+  });
+  if (!needsStart && toAdvance.length === 0) return after;
+  const { result, nextSeed } = withRng(after.rngSeed, (rng) => settlePreProductionsInProgress(toAdvance, days, rng));
+  const advanced = new Map(result.drafts.map((d) => [d.id, d]));
+  const projects = after.projects.map((p) => {
+    const d = asPlayerDraft(p);
+    if (!d) return p;
+    const next = advanced.get(d.id) ?? started(d);
+    return next === d ? p : playerDraftToProject(next);
+  });
+  return { ...after, rngSeed: nextSeed, projects, studio: chargePreProduction(after.studio, after.totalDays, result.charges) };
 }
 
 function applyGameAction(state: GameState, action: GameAction): GameState {
@@ -2324,14 +2425,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // is the dominant prep activity, so the phase runs at least as long as the
       // granted design days (falling back to the designer's own recommendation),
       // with the legacy scope-based estimate as a floor.
-      const designer = findAssignedPerson(focusedDraft.talent, 'Production Designer');
-      const designerSkill = (designer && getCrewCareer(designer, 'Production Designer')?.skill) ?? NO_DESIGNER_SKILL;
-      const designPrepDays =
-        focusedDraft.productionChoices.designPrepDays ?? defaultDesignPrepDays(computeSetsAmbition(focusedDraft.script), designerSkill);
-      const preProductionDays = Math.max(
-        computeRecommendedPreProductionDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices),
-        designPrepDays,
-      );
+      const preProductionDays = effectivePreProductionDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
       // Commit the full Shooting Budget AND the Contingency Reserve up front;
       // the reserve is reconciled at wrap (wrapPhotography), coming back in full
       // if the shoot stayed on schedule (docs/DESIGN_REVIEW_production_redesign.md §8).

@@ -1,6 +1,7 @@
 import { useStudio } from '../../state/StudioContext';
 import { deriveFocusedDraft, deriveGreenlightCommitment } from '../../state/selectors';
-import { computeRecommendedPreProductionDays, computeRecommendedShootDays } from '../../engine/production';
+import { computeRecommendedShootDays } from '../../engine/production';
+import { effectivePreProductionDays } from '../../engine/prepLength';
 import { professionForProductionRole } from '../../data/helpers';
 import { latestCastBookingEnd } from '../../engine/person';
 import { formatGameDateWithMonth } from '../../engine/calendar';
@@ -25,7 +26,7 @@ export function GreenlightConfirmation({ onClose }: { onClose: () => void }) {
   const script = draft.script!;
   const productionChoices = draft.productionChoices!;
   const commitment = deriveGreenlightCommitment(draft, state.studio.cash);
-  const preProductionDays = computeRecommendedPreProductionDays(draft.talent, script, productionChoices);
+  const preProductionDays = effectivePreProductionDays(draft.talent, script, productionChoices);
   const shootDays = computeRecommendedShootDays(draft.talent, script, productionChoices);
   // Deferred Start: if a cast member you waited for is still booked elsewhere,
   // the shoot can't begin until then - the film will be greenlit into a
