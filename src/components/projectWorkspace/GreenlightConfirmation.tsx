@@ -7,6 +7,7 @@ import { latestCastBookingEnd } from '../../engine/person';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
+import { PrepOutlook } from '../common/PrepOutlook';
 
 /**
  * The last explicit confirmation before the studio actually commits -
@@ -59,6 +60,8 @@ export function GreenlightConfirmation({ onClose }: { onClose: () => void }) {
             <div className="stat-value">~{shootDays} days</div>
           </div>
         </div>
+
+        <PrepOutlook script={script} talent={draft.talent} choices={productionChoices} />
 
         <div className="row-between"><span>Total Commitment</span><Money amount={commitment.totalCommitment} /></div>
         <div className="row-between"><span>Studio Cash (now)</span><Money amount={state.studio.cash} /></div>

@@ -38,6 +38,8 @@ import { facetConfidence, type FacetOutlook } from '../../engine/facetModel';
 import { stuntTeamById, stuntTeamEffectiveSkill, stuntTeamFitsGenre } from '../../engine/stuntTeams';
 import { STUNT_SPECIALTY_LABEL } from '../../data/stuntTeams';
 import { DistributionEditor } from '../common/DistributionEditor';
+import { PrepOutlook } from '../common/PrepOutlook';
+import { effectivePreProductionDays } from '../../engine/prepLength';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
 import { ScoreBar } from '../common/ScoreBar';
@@ -564,6 +566,19 @@ export function ProductionPlanning() {
           <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>{setsOutlookText}</p>
         )}
       </div>
+
+      {/* Pre-production at a glance (docs/DESIGN_REVIEW_preproduction_realism.md
+          §4.1-4.2): how long prep will run on this plan and what it will have
+          to deal with, front by front - in words, before anything is committed. */}
+      {draft.productionChoices && (
+        <div className="card stack">
+          <div className="row-between">
+            <h3 style={{ margin: 0 }}>Pre-production</h3>
+            <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>About {Math.round(effectivePreProductionDays(draft.talent, script, draft.productionChoices) / 7)} weeks</span>
+          </div>
+          <PrepOutlook script={script} talent={draft.talent} choices={draft.productionChoices} />
+        </div>
+      )}
 
       <RecommendationCard
         title="Effects Strategy"

@@ -1151,12 +1151,21 @@ function withPrepCalendar(before: GameState, after: GameState): GameState {
     return d ? [d] : [];
   });
   const needsStart = drafts.some((d) => started(d) !== d);
+  // A film started from its hold by this wrapper is advanced only by the days
+  // since its start day - so arriving on the day itself credits none, exactly
+  // as ADVANCE_TO_SHOOT_START does, and a long jump never bills prep for days
+  // before the film began.
   const toAdvance = drafts.flatMap((d) => {
     const s = started(d);
-    return untouched(s, s !== d) ? [s] : [];
+    if (!untouched(s, s !== d)) return [];
+    const ownDays = s !== d ? Math.max(0, after.totalDays - (d.shootStartsOnDay ?? after.totalDays)) : days;
+    return [{ draft: s, days: ownDays }];
   });
   if (!needsStart && toAdvance.length === 0) return after;
-  const { result, nextSeed } = withRng(after.rngSeed, (rng) => settlePreProductionsInProgress(toAdvance, days, rng));
+  const { result, nextSeed } = withRng(after.rngSeed, (rng) => {
+    const settled = toAdvance.map(({ draft, days: n }) => settlePreProductionsInProgress([draft], n, rng));
+    return { drafts: settled.flatMap((r) => r.drafts), charges: settled.flatMap((r) => r.charges) };
+  });
   const advanced = new Map(result.drafts.map((d) => [d.id, d]));
   const projects = after.projects.map((p) => {
     const d = asPlayerDraft(p);

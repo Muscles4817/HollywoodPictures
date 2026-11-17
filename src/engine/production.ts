@@ -38,6 +38,7 @@ import { findCandidatesNearPrice } from './talentFilter';
 import { professionForProductionRole, filterAssignedPeople, findAssignedPerson } from '../data/helpers';
 import { getCareerForRole, getCrewCareer, getTypicalSalaryForRole } from './person';
 import { classifyEventImpact } from './productionExecution';
+import { derivePrepDemands, designAskDays, recommendedPrepDays } from './prep/demands';
 import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 
 // --- Stage durations (Timeline Recalibration) ---------------------------
@@ -134,47 +135,18 @@ export function footageUpperBound(recommendedDays: number): number {
   return Math.round(recommendedDays * FOOTAGE_UPPER_RATIO);
 }
 
-const BASE_PREPRODUCTION_DAYS = 21;
-const MAX_SCALE_PREPRODUCTION_DAYS = 32;
-const MAX_CAST_SIZE_PREPRODUCTION_DAYS = 16;
-const MAX_AMBITION_PREPRODUCTION_DAYS = 28;
-const MAX_SETTING_PREPRODUCTION_DAYS = 18; // scouting locations and building sets before a frame is shot
-const PERIOD_SETTING_PREPRODUCTION_DAYS = 10; // recreating a real historical era adds research, costume and design lead time
-const PREPRODUCTION_CAST_DAYS_PER_MEMBER = 2.5; // extra prep days each cast member beyond the baseline adds, before the cap
-const SCALE_PREPRODUCTION_FRACTION: Record<Script['scale'], number> = { Intimate: 0, Medium: 0.5, Epic: 1 };
-
 /**
- * How many days of pre-production this film calls for - locking cast/crew
- * deals, scouting/building sets, previs for anything effects-heavy, before
- * a single day of Principal Photography. This is the *length* of the
- * pre-production phase, which the reducer then burns down day-by-day
- * (state/studioReducer.ts:ADVANCE_PREPRODUCTION_DAY, off the recommendedDays
- * this returns) - it is NOT a lump sum charged at Greenlight; Greenlight
- * only books talent and cash, and the phase's real prep window can be
- * stretched further still by a Production Designer's granted prep time
- * (studioReducer.ts:GREENLIGHT_PROJECT takes max(this, designPrepDays)).
- *
- * Driven by the particulars of this specific film: bigger scale, bigger
- * cast and heavier effects ambition all mean more to lock down, and - added
- * in the Timeline Recalibration - a build-heavy or hard-to-scout setting,
- * plus a period piece's extra research/costume lead time, push prep out
- * further still. Ranges from ~3 weeks for a small contained film to roughly
- * four months for a large, effects-heavy, period tentpole - first-draft,
- * tunable constants like every other numeric constant in this simulation.
+ * How many days of pre-production this film calls for: the core every prep has
+ * plus its slowest department's chain - derived from the film's moving parts
+ * (engine/prep/demands.ts, docs/DESIGN_REVIEW_preproduction_realism.md §4.1),
+ * not from its budget. The design chain is the production designer's own ask,
+ * or the design window granted (choices.designPrepDays), which may be shorter -
+ * a rushed design is a real choice whose cost lands on the sets. This is the
+ * length the reducer burns down day by day; it is not a lump sum.
  */
 export function computeRecommendedPreProductionDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
-  const scaleDays = SCALE_PREPRODUCTION_FRACTION[script.scale] * MAX_SCALE_PREPRODUCTION_DAYS;
-  const castDays = clamp((castCount(talent) - CAST_SIZE_BASELINE) * PREPRODUCTION_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_PREPRODUCTION_DAYS);
-  const ambitionDays = ((practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) / 2) * MAX_AMBITION_PREPRODUCTION_DAYS;
-  // Building the world before the shoot: heavy set construction and hard-to-scout
-  // locations both stretch prep, and a period piece adds its own research/costume
-  // lead time on top. A Single Interior Location sits near zero here; a
-  // Medieval Kingdom or Global Multi-Location shoot adds real weeks.
-  const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
-  const settingDays =
-    (settingProfile.setConstructionDemand * 0.6 + settingProfile.locationComplexity * 0.4) * MAX_SETTING_PREPRODUCTION_DAYS;
-  const periodDays = settingProfile.periodSetting ? PERIOD_SETTING_PREPRODUCTION_DAYS : 0;
-  return Math.round(BASE_PREPRODUCTION_DAYS + scaleDays + castDays + ambitionDays + settingDays + periodDays);
+  const demands = derivePrepDemands({ script, talent, choices });
+  return recommendedPrepDays(demands, designAskDays(script, talent), choices.designPrepDays, script.scale);
 }
 
 // Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md

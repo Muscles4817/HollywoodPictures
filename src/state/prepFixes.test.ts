@@ -10,6 +10,7 @@ import { computeRecommendedPreProductionDays, computeRecommendedShootDays } from
 import { effectivePreProductionDays } from '../engine/prepLength';
 import { deriveRequirementProfile } from '../engine/requirementProfile';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
+import { PREP_CORE_DAYS } from '../data/prep';
 import { generateTalentCandidates } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { professionForProductionRole } from '../data/helpers';
@@ -63,9 +64,10 @@ describe('prep decisions reach the Inbox', () => {
 describe('one prep length everywhere', () => {
   it('the shared helper honours a long design window, as the reducer does', () => {
     const draft = asPlayerDraft(buildStateWithReadyDraft(2).projects[0])!;
-    const base = computeRecommendedPreProductionDays(draft.talent, draft.script!, draft.productionChoices!);
-    const choices = { ...draft.productionChoices!, designPrepDays: base + 30 };
-    expect(effectivePreProductionDays(draft.talent, draft.script!, choices)).toBe(base + 30);
+    const choices = { ...draft.productionChoices!, designPrepDays: 300 };
+    // The design window is the slowest chain, so prep is the core plus it.
+    expect(effectivePreProductionDays(draft.talent, draft.script!, choices)).toBe(PREP_CORE_DAYS + 300);
+    expect(computeRecommendedPreProductionDays(draft.talent, draft.script!, choices)).toBe(PREP_CORE_DAYS + 300);
   });
 });
 
@@ -82,12 +84,19 @@ describe('the greenlight gate counts the contingency reserve', () => {
 });
 
 describe('cast size counts actors, not crew', () => {
-  it('hiring a production designer does not lengthen prep or the shoot', () => {
+  it('hiring a production designer does not lengthen prep or the shoot, even on a fully crewed film', () => {
     const draft = asPlayerDraft(buildStateWithReadyDraft(4).projects[0])!;
+    // A full package - well past the old count's baseline of six hires - so the
+    // old talent.length reading would have charged the designer as a seventh.
+    const crew: TalentAssignment[] = (['Writer', 'Cinematographer', 'Composer', 'Editor'] as const).map((role, i) => ({
+      role,
+      person: withRng(30 + i, (rng) => generateTalentCandidates(role, rng, 1)[0]).result,
+    }));
+    const crewed = [...draft.talent, ...crew];
     const designer = withRng(9, (rng) => generateTalentCandidates('Production Designer', rng, 1)[0]).result;
-    const withDesigner: TalentAssignment[] = [...draft.talent, { role: 'Production Designer', person: designer }];
-    expect(computeRecommendedShootDays(withDesigner, draft.script!, draft.productionChoices!)).toBe(computeRecommendedShootDays(draft.talent, draft.script!, draft.productionChoices!));
-    expect(computeRecommendedPreProductionDays(withDesigner, draft.script!, draft.productionChoices!)).toBe(computeRecommendedPreProductionDays(draft.talent, draft.script!, draft.productionChoices!));
+    const withDesigner: TalentAssignment[] = [...crewed, { role: 'Production Designer', person: designer }];
+    expect(crewed.length).toBeGreaterThanOrEqual(7);
+    expect(computeRecommendedShootDays(withDesigner, draft.script!, draft.productionChoices!)).toBe(computeRecommendedShootDays(crewed, draft.script!, draft.productionChoices!));
   });
 
   it('another actor still does', () => {
@@ -108,12 +117,32 @@ describe('one period flag', () => {
 });
 
 describe('prep keeps pace with the calendar', () => {
-  it('a held film starts by itself once its start day arrives', () => {
+  it('a held film starts by itself once its start day arrives, with no prep credited for the days it waited', () => {
     const s = { ...twoFilmState({ shootStartsOnDay: 3, preProduction: prep({ status: 'scheduled' }) }), totalDays: 1 };
     let after = studioReducer(s, { type: 'ADVANCE_DAY' });
     expect(draftOf(after, 'film-a').preProduction!.status).toBe('scheduled');
     after = studioReducer(after, { type: 'ADVANCE_DAY' });
-    expect(draftOf(after, 'film-a').preProduction!.status).not.toBe('scheduled');
+    const started = draftOf(after, 'film-a').preProduction!;
+    expect(started.status).not.toBe('scheduled');
+    // Arriving on the start day itself credits nothing, as ADVANCE_TO_SHOOT_START does.
+    expect(started.daysElapsed).toBe(0);
+    expect(started.runningCost).toBe(0);
+  });
+
+  it('a long jump past the start day credits only the days since the start', () => {
+    const s: GameState = { ...twoFilmState({ shootStartsOnDay: 3, preProduction: prep({ status: 'scheduled' }) }, { preProduction: prep({ status: 'awaiting-choice', pendingChoice: { ...choice, choices: [{ ...choice.choices[0], delayDaysRange: [9, 9] }] } }) }), totalDays: 1 };
+    const after = studioReducer(s, { type: 'RESOLVE_PREPRODUCTION_CHOICE', choiceId: 'lock', productionId: 'film-b' });
+    expect(after.totalDays).toBe(10);
+    const a = draftOf(after, 'film-a').preProduction!;
+    // Seven days since day 3, plus any delay days its own prep events added.
+    expect(a.daysElapsed).toBe(7 + a.events.reduce((sum, e) => sum + e.delayDaysDelta, 0));
+  });
+
+  it('does not advance a film through the very jump that started it (advance to the shoot start)', () => {
+    const s: GameState = { ...twoFilmState({ shootStartsOnDay: 8, preProduction: prep({ status: 'scheduled' }) }), totalDays: 1, focusedProjectId: 'film-a' };
+    const after = studioReducer(s, { type: 'ADVANCE_TO_SHOOT_START' });
+    expect(after.totalDays).toBe(8);
+    expect(draftOf(after, 'film-a').preProduction!.daysElapsed).toBe(0);
   });
 
   it("another film's prep advances while the focused film preps", () => {
@@ -146,5 +175,16 @@ describe('bookings follow the film', () => {
     const commitment = after.talentPool[profession].find((p) => p.id === director.id)!.availability.commitments.find((c) => c.projectId === 'film-a')!;
     expect(end).toBeGreaterThan(2);
     expect(commitment.endDay).toBe(end);
+  });
+
+  it('extends bookings for a shoot running past its schedule', () => {
+    const base = twoFilmState({ preProduction: prep({ status: 'finished' }), photography: { status: 'in-progress', recommendedDays: 10, daysElapsed: 14, events: [], runningCost: 0, pendingChoice: null } });
+    const lead = draftOf(base, 'film-a').talent.find((a) => a.role === 'Lead Actor')!.person;
+    const profession = professionForProductionRole('Lead Actor');
+    const booked = { ...lead, availability: { commitments: [{ projectId: 'film-a', role: 'Lead Actor' as const, startDay: 1, endDay: 1 }] } };
+    const s: GameState = { ...base, talentPool: { ...base.talentPool, [profession]: [booked, ...base.talentPool[profession]] } };
+    const after = studioReducer(s, { type: 'ADVANCE_DAY' });
+    const commitment = after.talentPool[profession].find((p) => p.id === lead.id)!.availability.commitments.find((c) => c.projectId === 'film-a')!;
+    expect(commitment.endDay).toBeGreaterThan(after.totalDays);
   });
 });
