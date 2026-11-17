@@ -787,6 +787,11 @@ locked out of good material).
 
 ## Phase 6. A shoot that can go wrong
 
+> **Withdrawn (owner's decision).** This phase re-weighted random prep events
+> to force an outcome. It was built and measured but never merged; see
+> `DESIGN_REVIEW_market_realism.md` §7.6. Pre-production is being redesigned
+> from how real prep works instead: `DESIGN_REVIEW_preproduction_realism.md`.
+
 **Goal.** A player's shoot stops being reliably lucky. Rivals share the prep
 table since Phase 2, so this moves them too.
 
