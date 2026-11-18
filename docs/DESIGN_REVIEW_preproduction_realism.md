@@ -832,3 +832,110 @@ memory.
 
 **Not yet measured:** what the problems do to the market and to careers. That
 is Phase 7.
+
+**What the Phase 4 reviewer found, and what was done:**
+
+- **Discovery found less than half what it was built to find (fixed).**
+  - The daily roll hashed the film's seed, the problem and the day with
+    FNV-1a, which has no final mixing step. Keys that differed only in the day
+    landed within about 1/256 of each other, so a problem was found on its
+    first eligible day or never. A designed find share of 0.98 came out as
+    0.42, and the owner's skill barely mattered.
+  - Rolls now go through `engine/prep/roll.ts:keyedRoll`, which seeds
+    mulberry32 with the hash.
+  - Two tests guard it. Days are uniform and independent, and a window now
+    finds a problem at its designed share, ±6%.
+- **An early wrap dodged carried problems (fixed).** A problem scheduled after
+  the wrap day now lands at wrap. It costs no extra shoot days but keeps its
+  quality and overrun money (`handoff.ts:unfiredAtWrap`).
+- **Rivals got more events than an equivalent player film (fixed).** A
+  player's incident days replace that day's roll. A rival's random event
+  count now drops by the rolls those days would have made.
+- **Handing over a paused checkpoint that finished prep left the screen behind
+  (fixed).** The screen now moves on to the shoot.
+- **The briefing said "if it happens" about a carried problem (fixed).** A
+  carried problem always happens, so it now reads "On the shoot: …".
+- **Tests strengthened.**
+  - A paid fix leaves cash.
+  - The wrap refund after a contingency draw equals the reserve, less the
+    shoot's spend, less the draw.
+  - A backgrounded shoot fires carried problems.
+  - Handing over the last checkpoint moves to the shoot.
+- **Accepted deviations, recorded:**
+  - Problems do not read the facet stretch, and a player's release is never
+    "already dated". Rivals' releases are dated.
+  - A scope cut saves no money.
+  - A difficult lead raises casting demand, which lengthens prep, and also
+    brings its own problem. These are two separate effects of one fact.
+  - Delegation defaults to on, as the owner decided.
+  - A checkpoint card shows only a note while another film is focused. This
+    is the same rule every other card follows.
+- **Measured** (`src/engine/prep.diagnostic.test.ts`, `PREP_DIAGNOSTIC=1`, 200
+  generated films, recommended prep, owners' skill 20 / 50 / 80):
+
+  | | Skill 20 | Skill 50 | Skill 80 |
+  |---|---|---|---|
+  | Problems generated per film | about 7.4 | about 7.4 | about 7.4 |
+  | Breakdown problems found | 68% | 92% | 99% |
+  | Locations problems found (needs scouting) | 48% | 71% | 95% |
+  | Shoot days lost to carried problems | 4.3% | 1.8% | 0.4% |
+  | Money over from carried problems (share of shooting budget) | 1.7% | 0.7% | 0.2% |
+  | Quality left on the film (shoot-event units) | −9 | −7 | −5 |
+
+  - A short prep (×0.75) at skill 50 loses **3.7%** of shoot days (p90 7.7%),
+    inside 03 §13's "short prep: 3–10% over".
+  - A long prep (×1.25) is no better than the recommendation (1.8%). Only the
+    long-lead problems ease with extra time.
+  - Fixes taken at skill 50: about 54% pay, 39% cut, 5% rewrite, 2% take more
+    time.
+  - **Prep burn is 3.6% of the negative.** That is far under the "15–25%" of
+    11 §8.1. The difference is deliberate: the burn is only the core prep
+    team, priced as 04 §1.4 prices it. Builds, costumes and effects are the
+    production budget's own lines, paid at greenlight.
+  - **What to watch:** the quality left even by a strong team (−5) is mostly
+    the scope cuts its decisions chose. Whether that is the right size against
+    the shoot's own events needs the box-office gates (Phase 7).
+
+### 10.5 Phase 5 — time costs real things
+
+- **Prep cost from the film's own shooting day.**
+  `cost.ts:computeDailyPrepBurn(dailyShootBurn)` makes a prep week cost 0.4
+  of the film's shooting day (04 §1.4: $50–150K a prep week against
+  $150–400K a lost day).
+  - This replaces a share of the negative capped per scale. That cap made a
+    prep week on a large film cost a whole shooting day or more.
+  - The revealing work adds its own burn on top.
+  - The greenlight read (`deriveGreenlightCommitment`, the readiness gate)
+    now counts the expected prep spend. It is paid day by day, but the studio
+    has to carry it.
+  - The harness bot's prep allowance became a share of the negative (9%).
+- **A slip moves people** (`engine/prep/slips.ts`, `withSlipsMovePeople` in
+  the reducer).
+  - When prep grows, the film's window moves. Anyone whose next job now
+    overlaps it leaves.
+  - Of those booked elsewhere, a share also take the confirmed job. The share
+    grows with the total slip: none under a week, 10% at one week, 35% at two
+    weeks, 75% at six or more (04 §9.6). The best-booked go first.
+  - Replacements come from people free for the new window, nearest the fee.
+  - Cast and the director are pay-or-play: the studio owes the departed and
+    pays the replacement too, so a lead leaving is expensive and says so.
+  - Crew are paid for the time they worked; the unworked part of the fee
+    comes back.
+  - If nobody is free, the production buys the person out of their other job
+    (40% of their fee) and keeps them.
+  - Bookings for those who stay are extended by the existing
+    `withBookingsFollowFilms`.
+- **Notification.**
+  - Each change is logged on the prep and appears as an Inbox card. It names
+    who left, why, who replaced them and the cost.
+  - The card is counted in the badge. "Noted" clears it
+    (`ACKNOWLEDGE_CREW_CHANGES`).
+- **Tests** (`src/state/prepSlips.test.ts`):
+  - A three-week slip into the director's next job loses and replaces the
+    director, and it costs money.
+  - A two-day slip that clashes with nobody loses nobody.
+  - The leave share rises with the slip.
+  - The notice appears, is counted in the badge, and clears.
+  - Bookings extend for those who stay.
+- **Not modelled:** a held start (a film waiting on its cast) does not trigger
+  departures. It is already the cast's own booking that holds it.

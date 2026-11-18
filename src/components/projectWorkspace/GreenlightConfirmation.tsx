@@ -47,7 +47,8 @@ export function GreenlightConfirmation({ onClose }: { onClose: () => void }) {
         <h2 style={{ margin: 0 }}>Greenlight {draft.title || script.title}?</h2>
         <p style={{ margin: 0 }}>
           Talent salary, the production budget, and the full contingency reserve all leave Studio Cash the instant
-          you confirm, and your cast's schedules are locked in for the shoot.
+          you confirm, and your cast's schedules are locked in for the shoot. Pre-production is paid as it runs; it is
+          counted here because the studio has to be able to carry it.
         </p>
 
         <div className="row">
@@ -63,6 +64,10 @@ export function GreenlightConfirmation({ onClose }: { onClose: () => void }) {
 
         <PrepOutlook script={script} talent={draft.talent} choices={productionChoices} />
 
+        <div className="row-between" style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>
+          <span>of which pre-production, spent day by day</span>
+          <Money amount={commitment.prepCost} />
+        </div>
         <div className="row-between"><span>Total Commitment</span><Money amount={commitment.totalCommitment} /></div>
         <div className="row-between"><span>Studio Cash (now)</span><Money amount={state.studio.cash} /></div>
         <div className="row-between" style={{ fontWeight: 600 }}>

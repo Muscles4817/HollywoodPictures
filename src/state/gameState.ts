@@ -363,6 +363,7 @@ export type GameAction =
   | { type: 'SET_PREP_PLAN'; plan: PrepPlan }
   | { type: 'RESOLVE_PREP_CHECKPOINT'; productionId: string; choices: Record<string, PrepFixKind> }
   | { type: 'SET_PREP_DELEGATION'; productionId: string; delegated: boolean }
+  | { type: 'ACKNOWLEDGE_CREW_CHANGES'; productionId: string }
   // Workstream II, Layer 2 - set the producer's Execution Strategy method(s) for
   // the focused film. Merges the patch into FilmDraft.executionStrategy (partial;
   // unset axes follow the script's lean-derived default). Re-routes requirements

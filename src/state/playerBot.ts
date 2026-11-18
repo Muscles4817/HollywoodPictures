@@ -22,7 +22,6 @@ import {
 } from '../engine/recommendation';
 import { footageLowerBound } from '../engine/production';
 import { buildCreditIndex, deriveTalentKnowledge, knowledgeAttributes, weightedConfidence, type TalentKnowledge } from '../engine/talentKnowledge';
-import { computeDailyPrepBurn, PREP_DAILY_BURN_FRACTION } from '../engine/cost';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
@@ -363,25 +362,23 @@ function scriptQuality(script: Script): number {
 }
 
 /**
- * Pre-production burns overhead every day in proportion to the film's negative,
- * up to a ceiling for its scale (engine/cost.ts), so it has to be allowed for
- * before anything else is budgeted.
+ * Pre-production burns overhead every day, a prep week costing about 0.4 of the
+ * film's shooting day (engine/cost.ts, 04 §1.4). Over a typical prep - one and
+ * a half to three times the shoot's length (engine/prep/demands.ts) - with the
+ * shooting budget about half the negative, that is roughly 4-9% of the
+ * negative; the bot allows the top of that before anything else is budgeted.
  */
-const PREP_DAYS_ALLOWANCE = 55;
+const PREP_OVERHEAD_SHARE = 0.09;
 
 /**
  * The negative cost (screenplay, cast, shoot, reserve) the strategy allows a
  * film of this scale started today: the all-in share of cash, less the prep
  * overhead, less the marketing that has to be left for the release.
  */
-function negativeBudgetFor(cash: number, strategy: BotStrategy, scale: Script['scale'], share = strategy.filmBudgetShare): number {
+function negativeBudgetFor(cash: number, strategy: BotStrategy, _scale: Script['scale'], share = strategy.filmBudgetShare): number {
   const allIn = cash * share;
   if (!strategy.budgetsForOverhead) return allIn / (1 + strategy.marketingRatio);
-  // Overhead is a fraction of the negative until it hits the scale's ceiling,
-  // so the negative is whichever of the two regimes leaves more.
-  const proportional = allIn / (1 + strategy.marketingRatio + PREP_DAILY_BURN_FRACTION * PREP_DAYS_ALLOWANCE);
-  const capped = (allIn - computeDailyPrepBurn(scale, Infinity) * PREP_DAYS_ALLOWANCE) / (1 + strategy.marketingRatio);
-  return Math.max(proportional, capped);
+  return allIn / (1 + strategy.marketingRatio + PREP_OVERHEAD_SHARE);
 }
 
 /**

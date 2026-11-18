@@ -5,7 +5,8 @@ import type { PreProductionState, PrepProblem, StaticProductionRisk } from '../.
 import { PREP_ACTIVITIES, PREP_PROBLEMS, PREP_SACRIFICE_ORDER, type PrepFront } from '../../data/prep';
 import { buildPrepContext, type PrepContext } from './context';
 import { generatePrepProblems } from './problems';
-import { findShare } from './discovery';
+import { discoverOnDay, findShare } from './discovery';
+import { keyedRoll } from './roll';
 import { checkpointDaysFor, fixOptions } from './checkpoints';
 import { decideProblem, optionCostInShootDays } from './delegation';
 import { carriedIncidentsFor, fireCarriedIncidents, incidentEvent } from './handoff';
@@ -221,5 +222,29 @@ describe('the demands the player film actually has', () => {
     expect(prep.problems.length).toBeGreaterThan(0);
     expect(prep.delegated).toBe(true);
     expect(prep.checkpointDays).toEqual(checkpointDaysFor(60));
+  });
+});
+
+describe('the keyed roll', () => {
+  it("is uniform even when keys differ only in the last characters (a problem's days)", () => {
+    const xs = Array.from({ length: 2000 }, (_, d) => keyedRoll(`123|implied-element-0|${d}`));
+    expect(Math.abs(xs.reduce((a, b) => a + b, 0) / xs.length - 0.5)).toBeLessThan(0.03);
+    // Neighbouring days are not near-equal.
+    const steps = xs.slice(1).map((x, i) => Math.abs(x - xs[i]));
+    expect(steps.reduce((a, b) => a + b, 0) / steps.length).toBeGreaterThan(0.25);
+  });
+
+  it('a window finds a problem about as often as its find share says', () => {
+    const p: PrepProblem = { id: 'visions-differ-0', kind: 'visions-differ', front: 'visual', severity: 0.6, foundOnDay: null, resolution: null };
+    const ctx = ctxWith(80);
+    let found = 0;
+    const n = 600;
+    for (let seed = 1; seed <= n; seed++) {
+      let prep = makePrep({ seed, recommendedDays: 80, problems: [p] });
+      for (let day = 1; day <= 80; day++) prep = discoverOnDay(prep, ctx, day);
+      if (prep.problems[0].foundOnDay !== null) found++;
+    }
+    expect(found / n).toBeGreaterThan(findShare(p, makePrep(), ctx) - 0.06);
+    expect(found / n).toBeLessThan(findShare(p, makePrep(), ctx) + 0.06);
   });
 });

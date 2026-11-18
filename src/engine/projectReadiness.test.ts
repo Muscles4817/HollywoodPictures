@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { estimatedPrepSpend } from './prepLength';
 import { deriveProjectReadiness } from './projectReadiness';
 import { createDraftFromAsset } from '../state/gameState';
 import { buildReadyAsset } from '../state/testFixtures';
@@ -149,7 +150,8 @@ describe('deriveProjectReadiness - production plan and affordability', () => {
   it('low-cash-reserve is a warning, not a blocker, when cash after greenlighting is thin but non-negative', () => {
     const draft = readyDraft(22);
     const talentCost = computeTalentCost(draft.talent);
-    const totalCommitment = talentCost + draft.productionChoices!.shootingBudgetAmount + draft.productionChoices!.setQualityAmount + PRACTICAL_EFFECTS_RANGE.min + VFX_RANGE.min;
+    // The gate also counts the prep the studio will have to carry (Phase 5).
+    const totalCommitment = talentCost + draft.productionChoices!.shootingBudgetAmount + draft.productionChoices!.setQualityAmount + PRACTICAL_EFFECTS_RANGE.min + VFX_RANGE.min + estimatedPrepSpend(draft);
     const readiness = deriveProjectReadiness(draft, totalCommitment + 50_000);
     expect(readiness.ready).toBe(true);
     expect(readiness.warnings.map((w) => w.code)).toContain('low-cash-reserve');

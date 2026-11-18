@@ -12,7 +12,8 @@
 import type { PrepProblem, PreProductionState } from '../../types';
 import { PREP_FIND_SHARE, PREP_PROBLEMS, PREP_FRONT_LABEL } from '../../data/prep';
 import type { PrepContext } from './context';
-import { clamp, hashUnit } from '../random';
+import { clamp } from '../random';
+import { keyedRoll } from './roll';
 
 /** The chance, over its whole window, that this problem is found. 0 when its revealing work is not being done. */
 export function findShare(problem: PrepProblem, prep: Pick<PreProductionState, 'activities'>, ctx: PrepContext): number {
@@ -51,7 +52,7 @@ export function discoverOnDay(prep: PreProductionState, ctx: PrepContext, day: n
   const problems = prep.problems.map((p) => {
     if (p.foundOnDay !== null) return p;
     const chance = dailyFindChance(p, prep, ctx, day);
-    if (chance <= 0 || hashUnit(`${prep.seed}|${p.id}|${day}`) >= chance) return p;
+    if (chance <= 0 || keyedRoll(`${prep.seed}|${p.id}|${day}`) >= chance) return p;
     changed = true;
     log.push({ day, kind: 'found', text: `${PREP_FRONT_LABEL[p.front]}: ${PREP_PROBLEMS[p.kind].found}` });
     return { ...p, foundOnDay: day };

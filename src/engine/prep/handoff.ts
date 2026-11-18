@@ -6,7 +6,7 @@
 // day (shootIncidents.ts). Also the readiness checklist prep shows (04 §12).
 import type { CarriedIncident, PhotographyState, PreProductionState, ProductionEvent } from '../../types';
 import { PREP_ACTIVITY_FRONTS, PREP_FRONT_LABEL, PREP_FRONT_SHOOT_SHARE, PREP_PROBLEMS, PREP_SOLVED_SEVERITY, PREP_ACTIVITIES, type PrepFront } from '../../data/prep';
-import { hashUnit } from '../random';
+import { keyedRoll } from './roll';
 
 export function carriedIncidentsFor(prep: PreProductionState | null | undefined, shootDays: number): CarriedIncident[] {
   if (!prep?.problems) return [];
@@ -14,7 +14,7 @@ export function carriedIncidentsFor(prep: PreProductionState | null | undefined,
     .filter((p) => p.severity > PREP_SOLVED_SEVERITY)
     .map((p) => {
       const [a, b] = PREP_FRONT_SHOOT_SHARE[p.front];
-      const share = a + (b - a) * hashUnit(`${prep.seed}|shoot|${p.id}`);
+      const share = a + (b - a) * keyedRoll(`${prep.seed}|shoot|${p.id}`);
       return { day: Math.max(1, Math.min(shootDays, Math.round(share * shootDays))), problemId: p.id, kind: p.kind, severity: p.severity };
     })
     .sort((x, y) => x.day - y.day || x.problemId.localeCompare(y.problemId));
@@ -74,4 +74,18 @@ export function fireCarriedIncidents(photography: PhotographyState, dailyShootBu
     events: [...photography.events, ...events],
     runningCost: photography.runningCost + dailyShootBurn * days,
   };
+}
+
+/**
+ * A shoot wrapped before some carried problems' days: the scenes they would
+ * have hit were still in the script, so the problem lands anyway - shot in a
+ * hurry without the fix, or cut. Each becomes its event with no lost days (the
+ * shoot is over) but its quality and overrun money intact, so an early wrap is
+ * not a way round them (Phase 4 review).
+ */
+export function unfiredAtWrap(photography: PhotographyState, dailyShootBurn: number): ProductionEvent[] {
+  return (photography.carriedIncidents ?? []).map((i) => {
+    const e = incidentEvent(i, dailyShootBurn);
+    return { ...e, delayDaysDelta: 0, description: `Never fixed, and the scenes it hit were rushed: ${e.description.charAt(0).toLowerCase()}${e.description.slice(1)}` };
+  });
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { prepDailyBurnWith } from '../engine/prep/run';
+import { draftDailyPrepBurn } from '../engine/prep/context';
 import { prepContingencyUsed } from '../engine/prep/checkpoints';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices, conformActorGenderToSlot, shootThroughToFinish, prepThroughToShoot } from './testFixtures';
@@ -7,7 +8,7 @@ import { createInitialStudio } from './gameState';
 import { withRng } from '../engine/random';
 import { studioCreditFromMarkets, domesticKeepShareForFilm } from '../engine/distribution';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
-import { computeTalentCost, computeProductionBudgetCost, computeDailyPrepBurn, draftNegativeCost } from '../engine/cost';
+import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, footageLowerBound, footageUpperBound } from '../engine/production';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
@@ -925,7 +926,7 @@ describe('GREENLIGHT_PROJECT - enters the live pre-production phase', () => {
     // every elapsed prep day, plus what the checkpoints' fixes cost - in cash or
     // from the contingency (engine/prep/run.ts, engine/prep/checkpoints.ts).
     const prep = draft.preProduction!;
-    const expectedBurn = prepDailyBurnWith(computeDailyPrepBurn(draft.script!.scale, draftNegativeCost(draft)), prep.activities) * prep.daysElapsed;
+    const expectedBurn = prepDailyBurnWith(draftDailyPrepBurn(draft), prep.activities) * prep.daysElapsed;
     expect(prep.runningCost).toBe(expectedBurn + prep.fixSpend + prepContingencyUsed(prep));
   });
 

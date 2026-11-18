@@ -6,10 +6,9 @@ import { describe, it, expect } from 'vitest';
 import { settlePreProductionsInProgress } from './productionsInProgress';
 import { buildStateWithReadyDraft } from '../state/testFixtures';
 import { asPlayerDraft } from './project';
-import { computeDailyPrepBurn, draftNegativeCost } from './cost';
 import type { FilmDraft, PreProductionState } from '../types';
 import { makePrep } from '../state/testFixtures';
-import { prepRunFor } from './prep/context';
+import { draftDailyPrepBurn, prepRunFor } from './prep/context';
 import type { PrepRunLookup } from './productionsInProgress';
 
 // A prep with no problems and none of the revealing work: one clean day of
@@ -32,7 +31,7 @@ describe('settlePreProductionsInProgress', () => {
     expect(drafts[0].preProduction!.status).toBe('in-progress');
     // Charged the same daily overhead the focused ADVANCE_PREPRODUCTION_DAY charges.
     expect(charges).toHaveLength(1);
-    expect(charges[0].amount).toBe(computeDailyPrepBurn(draft.script!.scale, draftNegativeCost(draft)));
+    expect(charges[0].amount).toBe(draftDailyPrepBurn(draft));
   });
 
   it('finishes prep and opens Principal Photography once it reaches its recommended days', () => {

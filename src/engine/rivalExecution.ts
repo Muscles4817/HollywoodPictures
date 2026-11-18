@@ -27,7 +27,7 @@ import { buildPrepContext } from './prep/context';
 import { derivePrepDemands } from './prep/demands';
 import { applyPrepRiskAdjustments, createPreProduction, prepRiskAdjustments, runPrepHeadless } from './prep/run';
 import { carriedIncidentsFor, incidentEvent } from './prep/handoff';
-import { computeDailyPrepBurn, computeDailyShootBurn, draftNegativeCost } from './cost';
+import { computeDailyPrepBurn, computeDailyShootBurn } from './cost';
 import { deriveTraits } from './personTraits';
 import { NO_PRODUCTION_TEAM_SKILL } from '../data/productionTeams';
 import { computeExecutionResilience } from './productionExecution';
@@ -87,13 +87,13 @@ export function synthesizeRivalPrep(production: RivalExecutionInput, rng: Random
   const seed = forkSeed(rng);
   const prepDays = computeRecommendedPreProductionDays(talent, script, productionChoices);
   const shootDays = computeRecommendedShootDays(talent, script, productionChoices);
-  const negative = draftNegativeCost({ talent, productionChoices });
+  const dailyShootBurn = computeDailyShootBurn(productionChoices.shootingBudgetAmount, shootDays);
   const ctx = buildPrepContext({
     talent,
     genre,
     team: null,
-    dailyShootBurn: computeDailyShootBurn(productionChoices.shootingBudgetAmount, shootDays),
-    dailyPrepBurn: computeDailyPrepBurn(script.scale, negative),
+    dailyShootBurn,
+    dailyPrepBurn: computeDailyPrepBurn(dailyShootBurn),
     shootDays,
     contingencyAvailable: productionChoices.contingencyReserveAmount ?? 0,
     cashPressure: RIVAL_PREP_CASH_PRESSURE,
@@ -158,7 +158,12 @@ export function resolveRivalExecution(production: RivalExecutionInput, rng: Rand
   // Expected notable events ≈ the player's per-day odds integrated over the
   // shoot, then jittered so no two comparable shoots produce an identical count.
   const expected = recommendedDays * dailyEventChance(baseAvgRisk);
-  const baseCount = Math.max(0, Math.round(expected * randFloat(rng, 1 - COUNT_JITTER, 1 + COUNT_JITTER)));
+  // A player's shoot makes no roll of its own on a day a carried incident fires
+  // (engine/prep/handoff.ts:fireCarriedIncidents), so those days' random events
+  // come off the count - the incidents replace them rather than adding to them.
+  const incidentDays = new Set(carriedIncidentsFor(prep, recommendedDays).map((i) => i.day)).size;
+  const displaced = incidentDays * dailyEventChance(baseAvgRisk);
+  const baseCount = Math.max(0, Math.round((expected - displaced) * randFloat(rng, 1 - COUNT_JITTER, 1 + COUNT_JITTER)));
 
   const events: ProductionEvent[] = [...incidents];
   const usedIds = new Set<string>(incidents.map((e) => e.id));

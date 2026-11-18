@@ -147,6 +147,7 @@ export function prepRunFor(draft: FilmDraft, world: PrepWorld): { ctx: PrepConte
   const choices = draft.productionChoices;
   const shootDays = computeRecommendedShootDays(draft.talent, draft.script, choices);
   const negative = draftNegativeCost(draft);
+  const dailyShootBurn = computeDailyShootBurn(choices.shootingBudgetAmount, shootDays);
   const team = draft.preProduction?.team ?? null;
   const ctx = buildPrepContext({
     talent: draft.talent,
@@ -154,8 +155,8 @@ export function prepRunFor(draft: FilmDraft, world: PrepWorld): { ctx: PrepConte
     team,
     stuntTeam: stuntTeamById(world.stuntTeamPool, draft.stuntTeamId) ?? null,
     pairings: world.talentPairings,
-    dailyShootBurn: computeDailyShootBurn(choices.shootingBudgetAmount, shootDays),
-    dailyPrepBurn: computeDailyPrepBurn(draft.script.scale, negative),
+    dailyShootBurn,
+    dailyPrepBurn: computeDailyPrepBurn(dailyShootBurn),
     shootDays,
     contingencyAvailable: (choices.contingencyReserveAmount ?? 0) - prepContingencyUsed(draft.preProduction),
     // Money weighs more the less of it the studio has against the film's size.
@@ -163,4 +164,11 @@ export function prepRunFor(draft: FilmDraft, world: PrepWorld): { ctx: PrepConte
     datedRelease: false,
   });
   return { ctx, decider: { skill: team?.skill ?? NO_PRODUCTION_TEAM_SKILL, seed: draft.preProduction?.seed ?? 0 } };
+}
+
+/** A draft's daily prep burn (before its revealing work's extra): the core prep team, priced from its own shooting day (engine/cost.ts). */
+export function draftDailyPrepBurn(draft: Pick<FilmDraft, 'talent' | 'script' | 'productionChoices'>): number {
+  if (!draft.script || !draft.productionChoices) return computeDailyPrepBurn(0);
+  const shootDays = computeRecommendedShootDays(draft.talent, draft.script, draft.productionChoices);
+  return computeDailyPrepBurn(computeDailyShootBurn(draft.productionChoices.shootingBudgetAmount, shootDays));
 }

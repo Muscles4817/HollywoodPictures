@@ -2,6 +2,7 @@ import { unreadIndustryNoticeCount } from '../engine/careerTurnover';
 import type { AncillaryWindow, AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, StuntTeam, ProductionTeam, TalentAssignment, WizardStep } from '../types';
 import { yearOf } from '../engine/calendar';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
+import { estimatedPrepSpend } from '../engine/prepLength';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { stuntTeamById, stuntTeamFee } from '../engine/stuntTeams';
 import { productionTeamById, productionTeamFee } from '../engine/productionTeams';
@@ -983,6 +984,8 @@ export interface GreenlightCommitment {
   talentCost: number;
   productionCost: number;
   contingency: number;
+  /** Expected prep burn, paid day by day over prep (not at greenlight). */
+  prepCost: number;
   totalCommitment: number;
   cashAfter: number;
   canAfford: boolean;
@@ -996,9 +999,12 @@ export function deriveGreenlightCommitment(draft: FilmDraft, studioCash: number)
   const contingency = draft.productionChoices
     ? draft.productionChoices.shootingBudgetAmount + (draft.productionChoices.contingencyReserveAmount ?? 0)
     : 0;
-  const totalCommitment = talentCost + productionCost + contingency;
+  // Prep's burn, spent over prep rather than at greenlight, but counted: the
+  // studio has to carry it (engine/prepLength.ts:estimatedPrepSpend).
+  const prepCost = estimatedPrepSpend(draft);
+  const totalCommitment = talentCost + productionCost + contingency + prepCost;
   const cashAfter = studioCash - totalCommitment;
-  return { talentCost, productionCost, contingency, totalCommitment, cashAfter, canAfford: cashAfter >= 0 };
+  return { talentCost, productionCost, contingency, prepCost, totalCommitment, cashAfter, canAfford: cashAfter >= 0 };
 }
 
 /**

@@ -39,33 +39,26 @@ export function computeEventsCostDelta(events: ProductionEvent[]): number {
   return events.reduce((sum, e) => sum + e.costDelta, 0);
 }
 
-// Pre-production overhead burned per day — the production office, department
-// heads prepping, scouts, the design build in progress (docs/DESIGN_REVIEW_production_redesign.md,
-// cost-of-time model). It follows the size of the film being prepped: real prep
-// runs 15-25% of a budget (docs/domain/11 §8.1), and a micro-budget film preps
-// with a handful of people for a few weeks (docs/domain/04 §1). The per-scale
-// rates below are the CEILING - what a fully-funded production of that scale
-// burns - not a flat charge. As a flat charge an Intimate film paid ~£1.4M of
-// prep whatever it cost, which was more than the two cheapest starting tiers
-// owned and two thirds of everything an Indie studio spent on making its films
-// (docs/DESIGN_REVIEW_player_economy.md §3.1).
-const PREP_DAILY_BURN_BY_SCALE: Record<'Intimate' | 'Medium' | 'Epic', number> = {
-  Intimate: 25_000,
-  Medium: 55_000,
-  Epic: 95_000,
-};
+// Pre-production overhead burned per day: the core prep team - the production
+// office, the department heads prepping, the scouts - priced against the film's
+// own shooting day, because that is how the reference prices it (04 §1.4): "a
+// prep week for the core prep team on a mid-budget studio film costs roughly
+// $50-150K; a lost shooting day on the same film costs $150-400K". A prep week
+// is therefore about a third to a half of a shooting day; we take 0.4. The
+// builds, costumes and effects work prep commissions are not in this burn -
+// they are the production budget's own lines (sets, practical, VFX), paid at
+// greenlight. Replaces a share of the negative capped per scale
+// (docs/IMPLEMENTATION_PLAN_preproduction_realism.md Phase 5), whose cap made a
+// prep week on a large film cost a whole shooting day or more.
 
-/** A day of prep costs this share of the film's committed negative: ~20% of budget over a typical 50-day prep. */
-export const PREP_DAILY_BURN_FRACTION = 0.004;
+/** A prep week costs this many of the film's shooting days (04 §1.4). */
+export const PREP_WEEK_IN_SHOOT_DAYS = 0.4;
 /** However small the film, someone is being paid to prepare it. */
 export const PREP_DAILY_BURN_FLOOR = 2_000;
 
-/**
- * Cash burned per day of pre-production: a share of the film's committed
- * negative, floored, and capped at what a full production of its scale burns.
- */
-export function computeDailyPrepBurn(scale: 'Intimate' | 'Medium' | 'Epic', negativeCost: number): number {
-  return Math.min(PREP_DAILY_BURN_BY_SCALE[scale], Math.max(PREP_DAILY_BURN_FLOOR, Math.round(negativeCost * PREP_DAILY_BURN_FRACTION)));
+/** Cash burned per calendar day of pre-production, from the film's daily shoot burn. */
+export function computeDailyPrepBurn(dailyShootBurn: number): number {
+  return Math.max(PREP_DAILY_BURN_FLOOR, Math.round((dailyShootBurn * PREP_WEEK_IN_SHOOT_DAYS) / 7));
 }
 
 /** What a draft has committed to its negative: cast and crew, the production plan, and the shooting budget. */

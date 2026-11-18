@@ -149,6 +149,14 @@ export interface PrepFixSpec {
 /** Typed impacts an incident or a cut can carry (a subset of ProductionExecutionImpact). */
 export type ShootImpact = 'performances' | 'coverage' | 'sets' | 'vfx' | 'practical' | 'visual' | 'pacing' | 'script' | 'general';
 
+// Rates (expected count on a film whose front is at full demand) are judgement
+// read from the reference's frequency words, not measured figures: "every
+// script implies elements nobody costed" (04 §2.6) -> the highest rate; a
+// script not locked is "the root cause of most overruns" (03 §13) -> common;
+// a flat pairing "happens on a minority of films and is unfixable on the day"
+// (04 §8.3) -> rare. Severity ranges are shares of each incident's full size.
+// These are the first numbers to revisit if the PREP_DIAGNOSTIC harness reads
+// wrong against 03 §13 / 04 §1.4.
 export interface PrepProblemSpec {
   front: PrepFront;
   /** Expected count on a film whose front demand is 1 (Poisson-ish draw, scaled by demand). */
@@ -319,11 +327,17 @@ export const PREP_CHECKPOINTS: readonly { at: number; title: string }[] = [
 ];
 
 /** Discovery: the share of a problem's window in which a skill-0 and a skill-100 owner find it, if the work that reveals it is done. */
+// How much of a problem's window finds it. Judgement, anchored on 04 §5.2 and
+// §10 (a skilled location manager "finds it on the recce"; juniors miss it) and
+// tuned so the PREP_DIAGNOSTIC harness puts carried-problem lost days for a
+// weak team at the reference's "short prep" overrun (03 §13: 3-10%) and for a
+// strong one near zero.
 // 'always' problems are in plain sight to anyone working the front (a budget
 // that does not add up, a build that cannot finish), so they get a further
 // alwaysBonus; subtle ones need the work and the skill (04 §5.2, §10).
 export const PREP_FIND_SHARE = { atSkill0: 0.35, atSkill100: 0.95, severityBonus: 0.1, reliabilityBonus: 0.08, alwaysBonus: 0.2, familiarityBonus: 6 } as const;
 
+/** Schedule shares are judgement from 04 §6.4 (sets are scheduled in build order, mid-shoot), §10 (big action and effects days sit mid-schedule, not week one) and 06 §2 (week one shoots what is ready - the cast, the look, the breakdown's errors). */
 /** Where in the shoot each front's problems surface, as a share of the schedule: the breakdown and the look bite in week one; action and effects land on their big days mid-shoot (04 §6.4, §10). */
 export const PREP_FRONT_SHOOT_SHARE: Record<PrepFront, [number, number]> = {
   breakdown: [0.02, 0.4],
@@ -345,7 +359,7 @@ export const PREP_ACTIVITY_DEFAULT_DEMAND = 0.25;
 /** How a shorter prep loses its revealing work: one activity per this much prep cut (04 §16 sacrifice order). */
 export const PREP_ACTIVITY_DROP_STEP = 0.125;
 
-/** Shoot-risk adjustments from prep (a bounded swing per dimension, as the old shared delta was). */
+/** Shoot-risk adjustments from prep (a bounded swing per dimension, as the old shared delta was; the old delta's +/-25 split four ways, rounded down to 15 because carried problems now also fire as their own incidents). */
 export const PREP_RISK = {
   /** Per carried problem, at full severity, on its front's dimension. */
   carriedPerSeverity: 6,
@@ -362,3 +376,22 @@ export const PREP_LENGTH_FACTORS = { short: 0.75, recommended: 1, long: 1.25 } a
 
 /** For the AI's judgement only: what one quality point on screen is worth, in shooting days. Never shown. */
 export const PREP_QUALITY_POINT_SHOOT_DAYS = 0.6;
+
+// --- Time costs (Phase 5; 04 §9.6 "What a start-date slip actually does") -----
+
+/**
+ * Share of a film's people booked elsewhere (in demand) who leave as its start
+ * slips, by how far it has slipped in all: a few days are absorbed; a week loses
+ * one or two with a hard out; 2-4 weeks and HODs start dropping, "and they are
+ * the good ones"; 6+ weeks is effectively a re-crew. Anyone whose next job now
+ * overlaps the film leaves whatever the slip (the hard clash).
+ */
+export const PREP_SLIP_LEAVE_SHARE: readonly { minDays: number; share: number }[] = [
+  { minDays: 42, share: 0.75 },
+  { minDays: 14, share: 0.35 },
+  { minDays: 7, share: 0.1 },
+  { minDays: 0, share: 0 },
+];
+
+/** Keeping someone whose next job now clashes, when no one can replace them: the production buys them out of it (the shoot's own severance rate). */
+export const PREP_SLIP_BUYOUT_RATE = 0.4;

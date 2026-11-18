@@ -7,6 +7,7 @@
 // file depending on its two domain types (BoxOfficeRun below) can never
 // become circular.
 import type { PrepActivity, PrepFixKind, PrepFront, PrepProblemKind } from '../data/prep';
+import type { CrewChange } from '../engine/prep/slips';
 import type { AudienceSimulationFixedState, AudienceSimulationWeekState } from '../engine/audienceSimulation';
 
 export type Genre =
@@ -1265,6 +1266,8 @@ export interface PrepCheckpoint {
   index: number;
   problemIds: string[];
 }
+
+export type { CrewChange };
 
 export interface PrepLogEntry {
   day: number;
@@ -2919,6 +2922,8 @@ export interface FilmDraft {
   productionTeamId?: string | null;
   /** The prep plan: length, revealing work, and whether the film's team decides prep's checkpoints. Absent = defaults. */
   prepPlan?: PrepPlan;
+  /** People who left (and their replacements) when the film's start slipped (engine/prep/slips.ts); unacknowledged ones are an Inbox notice. */
+  crewChanges?: CrewChange[];
   /** The price the player is currently targeting for each casting slot - filters GameState.talentPool (once mapped to the underlying TalentProfession) down to who's shown. Keyed by ProductionRole, not TalentProfession, since Lead Actor and Supporting Actor need independent target prices even though both hire from the same Actor pool. */
   talentTargetPriceByRole: Partial<Record<ProductionRole, number>>;
   /**

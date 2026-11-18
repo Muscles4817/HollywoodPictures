@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft, makePrep } from './testFixtures';
 import { playerDraftToProject, asPlayerDraft, findProject } from '../engine/project';
-import { computeDailyPrepBurn, draftNegativeCost } from '../engine/cost';
+import { draftDailyPrepBurn } from '../engine/prep/context';
 import type { GameState, GameAction } from './gameState';
 import type { FilmDraft, PendingEventChoice, PreProductionState } from '../types';
 
@@ -48,7 +48,7 @@ describe('RESOLVE_PREPRODUCTION_CHOICE — delay days are real prep days', () =>
     // The 3 delay days advance the prep phase toward its recommended length.
     expect(prep.daysElapsed).toBe(5 + DELAY);
     // ...and cost prep overhead (computeDailyPrepBurn × delay days), charged to cash.
-    const expectedBurn = computeDailyPrepBurn(draft.script!.scale, draftNegativeCost(draft)) * DELAY;
+    const expectedBurn = draftDailyPrepBurn(draft) * DELAY;
     expect(prep.runningCost).toBe(expectedBurn);
     expect(cashBefore - after.studio.cash).toBe(expectedBurn);
   });

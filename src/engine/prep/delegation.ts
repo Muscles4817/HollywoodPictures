@@ -14,7 +14,7 @@ import type { PrepProblem } from '../../types';
 import { PREP_QUALITY_POINT_SHOOT_DAYS, type PrepFixKind } from '../../data/prep';
 import type { PrepContext } from './context';
 import { carriedCost, fixOptions, type PricedFix } from './checkpoints';
-import { hashUnit } from '../random';
+import { keyedRoll } from './roll';
 
 /** Teams at or above this skill never take a fix out of the contingency in prep. */
 const KEEPS_CONTINGENCY_SKILL = 60;
@@ -55,7 +55,7 @@ export function decideProblem(problem: PrepProblem, ctx: PrepContext, atShare: n
   let bestCost = Infinity;
   for (const option of options) {
     const truth = optionCostInShootDays(problem, option, ctx);
-    const noise = 1 + MISJUDGEMENT * (1 - s) * (hashUnit(`${decider.seed}|${problem.id}|${option.kind}`) * 2 - 1);
+    const noise = 1 + MISJUDGEMENT * (1 - s) * (keyedRoll(`${decider.seed}|${problem.id}|${option.kind}`) * 2 - 1);
     // A weak team underrates what carrying will cost - it is the cheapest-looking option.
     const seen = option.kind === 'carry' ? truth * (CARRY_BLINDNESS + (1 - CARRY_BLINDNESS) * s) : truth * noise;
     if (seen < bestCost) {

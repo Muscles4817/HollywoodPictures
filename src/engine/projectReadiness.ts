@@ -7,6 +7,7 @@ import { getDirectorCareer } from './person';
 import { effectiveRoleCapacity } from './castRequirements';
 import { computeTalentCost, computeProductionBudgetCost } from './cost';
 import { applyPrepRiskDelta, computeStaticProductionRisk } from './production';
+import { estimatedPrepSpend } from './prepLength';
 import { deriveScriptExposure } from './scriptExposure';
 import { computePitchExecutionRiskDelta } from './directorPitch';
 import { hasUnresolvedBlockingDemand } from './creativeDemands';
@@ -174,7 +175,9 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
   // it used to omit the reserve the button's own commitment read includes.
   const shootingBudget = hasProductionPlan ? draft.productionChoices!.shootingBudgetAmount : 0;
   const contingencyReserve = hasProductionPlan ? (draft.productionChoices!.contingencyReserveAmount ?? 0) : 0;
-  const totalCommitment = talentCost + productionCost + shootingBudget + contingencyReserve;
+  // Prep is paid day by day, but the studio must be able to carry it (Phase 5).
+  const prepSpend = hasProductionPlan ? estimatedPrepSpend(draft) : 0;
+  const totalCommitment = talentCost + productionCost + shootingBudget + contingencyReserve + prepSpend;
   const cashAfter = studioCash - totalCommitment;
   const canAfford = cashAfter >= 0;
   if (!canAfford) blockers.push({ code: 'cannot-afford-greenlight', message: "The studio can't afford this commitment yet." });

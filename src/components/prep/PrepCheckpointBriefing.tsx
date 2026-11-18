@@ -29,7 +29,7 @@ function scopeWords(loss: number, impact: ShootImpact | undefined): string {
 function OptionCost({ fix, shootDaysLost, overrun }: { fix: PricedFix; shootDaysLost: number; overrun: number }) {
   const parts: React.ReactNode[] = [];
   if (fix.kind === 'carry') {
-    parts.push(shootDaysLost > 0 ? `risks about ${shootDaysLost} lost shooting day${shootDaysLost === 1 ? '' : 's'}` : 'risks the work on screen');
+    parts.push(shootDaysLost > 0 ? `about ${shootDaysLost} lost shooting day${shootDaysLost === 1 ? '' : 's'}` : 'costs the work on screen');
     if (overrun > 0) parts.push(<>and <Money amount={overrun} /> over</>);
   } else {
     if (fix.money > 0) parts.push(<Money amount={fix.money} />);
@@ -93,7 +93,7 @@ export function PrepCheckpointBriefing({ draft }: { draft: FilmDraft }) {
                 />
                 <span className="stack" style={{ gap: 2 }}>
                   <span>
-                    <strong>{fix.label}</strong> - {fix.kind === 'carry' ? `If it happens: ${fix.text.toLowerCase()}` : fix.text}
+                    <strong>{fix.label}</strong> - {fix.kind === 'carry' ? `On the shoot: ${fix.text.charAt(0).toLowerCase()}${fix.text.slice(1)}` : fix.text}
                   </span>
                   <OptionCost fix={fix} shootDaysLost={carried.delayDays} overrun={carried.overrunMoney} />
                 </span>
