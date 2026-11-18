@@ -10,7 +10,7 @@
 // The guiding principle (SIMULATION_PHILOSOPHY.md): the player and the AI differ
 // only in HOW the production history is generated, never in how the finished
 // film is evaluated. So this file generates history; it never computes quality.
-import type { Genre, PreProductionState, ProductionChoices, ProductionEvent, Person, Script, TalentAssignment, TalentProfession } from '../types';
+import type { Genre, PreProductionState, ProductionChoices, ProductionEvent, ProductionTeam, Person, Script, TalentAssignment, TalentProfession } from '../types';
 import {
   averageProductionRisk,
   computeRecommendedPreProductionDays,
@@ -63,6 +63,9 @@ export interface RivalExecutionInput {
   script: Script;
   productionChoices: ProductionChoices;
   genre: Genre;
+  /** Its production team, and its prep length as a share of the recommendation (Phase 6); absent = the studio office, recommended length. */
+  productionTeam?: ProductionTeam | null;
+  prepLengthFactor?: number;
 }
 
 export interface RivalPrepResult {
@@ -72,7 +75,7 @@ export interface RivalPrepResult {
   spend: number;
 }
 
-/** A rival's studio office runs its prep until Phase 6 gives rivals production teams. */
+/** A rival studio's money pressure in prep decisions: it has the film financed, but every studio watches its cash. */
 const RIVAL_PREP_CASH_PRESSURE = 0.3;
 
 /**
@@ -85,13 +88,15 @@ const RIVAL_PREP_CASH_PRESSURE = 0.3;
 export function synthesizeRivalPrep(production: RivalExecutionInput, rng: RandomFn): RivalPrepResult {
   const { talent, script, productionChoices, genre } = production;
   const seed = forkSeed(rng);
-  const prepDays = computeRecommendedPreProductionDays(talent, script, productionChoices);
+  const lengthFactor = production.prepLengthFactor ?? 1;
+  const team = production.productionTeam ?? null;
+  const prepDays = Math.max(1, Math.round(computeRecommendedPreProductionDays(talent, script, productionChoices) * lengthFactor));
   const shootDays = computeRecommendedShootDays(talent, script, productionChoices);
   const dailyShootBurn = computeDailyShootBurn(productionChoices.shootingBudgetAmount, shootDays);
   const ctx = buildPrepContext({
     talent,
     genre,
-    team: null,
+    team,
     dailyShootBurn,
     dailyPrepBurn: computeDailyPrepBurn(dailyShootBurn),
     shootDays,
@@ -102,14 +107,14 @@ export function synthesizeRivalPrep(production: RivalExecutionInput, rng: Random
   });
   const start = createPreProduction({
     demands: derivePrepDemands({ script, talent, choices: productionChoices }),
-    plan: undefined,
+    plan: { lengthFactor, activities: null, delegated: true },
     prepDays,
     seed,
-    team: null,
+    team,
     status: 'in-progress',
     difficultLead: talent.some((a) => a.role === 'Lead Actor' && deriveTraits(a.person).includes('DifficultToWorkWith')),
   });
-  const run = runPrepHeadless(start, ctx, { skill: NO_PRODUCTION_TEAM_SKILL, seed });
+  const run = runPrepHeadless(start, ctx, { skill: team?.skill ?? NO_PRODUCTION_TEAM_SKILL, seed });
   return { prep: run.prep, spend: run.cash + run.contingency };
 }
 

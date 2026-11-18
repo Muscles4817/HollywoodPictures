@@ -589,6 +589,7 @@ function runCalendarSettlement(
       rivalFilmsReleased: rivalAncillary.films,
       talentPool: state.talentPool,
       opportunities: opportunityWins.opportunities,
+      productionTeamPool: state.productionTeamPool,
     },
     opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
     totalDaysAfter,

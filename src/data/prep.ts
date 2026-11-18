@@ -395,3 +395,35 @@ export const PREP_SLIP_LEAVE_SHARE: readonly { minDays: number; share: number }[
 
 /** Keeping someone whose next job now clashes, when no one can replace them: the production buys them out of it (the shoot's own severance rate). */
 export const PREP_SLIP_BUYOUT_RATE = 0.4;
+
+// --- Rivals (Phase 6; design §5) ----------------------------------------------
+
+/**
+ * A rival's contingency reserve as a share of its shooting budget, by tier: a
+ * studio picture carries the standard 10% (03 §13, 11 §8 - "contingency is
+ * typically 10% of below-the-line"); a major, which self-insures across a slate,
+ * a little less; an indie, bonded, the guarantor's insisted-on 10%+.
+ */
+export const RIVAL_CONTINGENCY_SHARE: Record<'Indie' | 'Mid-Size' | 'Major', number> = { Indie: 0.1, 'Mid-Size': 0.1, Major: 0.08 };
+
+/** The most a rival pays its line producer & 1st AD, as a share of the film's negative (the team is a small above-the-line-adjacent line in 11 §2). */
+export const RIVAL_TEAM_FEE_SHARE = 0.02;
+
+/**
+ * A rival's memory of its own recent shoots: how many of its last films it
+ * reads, and how far it moves its next prep's length and contingency toward
+ * what would have prevented the days it lost to carried prep problems.
+ * Bounded both ways - a studio that keeps finishing clean learns to prep leaner.
+ */
+export const RIVAL_PREP_MEMORY = {
+  films: 5,
+  /** Prep length factor per unit of mean shoot-days-lost share (5% lost -> +0.15). */
+  lengthPerLost: 3,
+  lengthRange: [0.85, 1.25] as [number, number],
+  /** Contingency share added per unit of mean money-over share. */
+  contingencyPerOver: 1,
+  contingencyRange: [-0.03, 0.08] as [number, number],
+  /** Below this mean lost share, after at least `films` films, it trims prep. */
+  cleanBelow: 0.01,
+  leanStep: 0.1,
+} as const;

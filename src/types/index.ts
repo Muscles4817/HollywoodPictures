@@ -2431,6 +2431,14 @@ export interface RivalProductionInProgress {
   genreIdentity?: number;
   /** For a franchise sequel: the rival franchise (a RivalStudio.franchises id) this entry belongs to - carried onto the released Film so the flywheel can fold it back (engine/rivalFranchise.ts). Absent for an original. */
   franchiseId?: string;
+  // Prep on the player's model (docs/IMPLEMENTATION_PLAN_preproduction_realism.md Phase 6).
+  /** The line producer & 1st AD team it hired (null = its own production office). */
+  productionTeam?: ProductionTeam | null;
+  /** Its prep length as a share of the recommendation - set by its memory of recent shoots (engine/prep/rivalPrep.ts). */
+  prepLengthFactor?: number;
+  /** Prep days in its calendar, and what that prep's burn costs. */
+  prepDays?: number;
+  prepCost?: number;
 }
 
 // Architecture roadmap Phase 5: filmsReleased/productionsInProgress moved to
