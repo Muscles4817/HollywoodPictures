@@ -1,9 +1,10 @@
 import { unreadIndustryNoticeCount } from '../engine/careerTurnover';
-import type { AncillaryWindow, AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, StuntTeam, TalentAssignment, WizardStep } from '../types';
+import type { AncillaryWindow, AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, StuntTeam, ProductionTeam, TalentAssignment, WizardStep } from '../types';
 import { yearOf } from '../engine/calendar';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { stuntTeamById, stuntTeamFee } from '../engine/stuntTeams';
+import { productionTeamById, productionTeamFee } from '../engine/productionTeams';
 import { computeBoxOfficeBump, computeStudioAwardDeltas } from '../engine/awards';
 import { awardShow } from '../data/awardsShows';
 import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
@@ -70,7 +71,7 @@ export function deriveFocusedFilm(state: GameState): Film | null {
  * this preview's caller is about to subtract a second time from a cash
  * figure that's already down that amount.
  */
-export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Person[] = [], stuntTeamPool: StuntTeam[] = []): number {
+export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Person[] = [], stuntTeamPool: StuntTeam[] = [], productionTeamPool: ProductionTeam[] = []): number {
   if (!draft) return 0;
 
   let total = 0;
@@ -81,6 +82,7 @@ export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Per
   total += totalAttachedPerFilmFees(producerPool, draft.attachedProducerIds ?? []);
   // The attached Stunt Team's fee - same release-time-cost treatment as producers.
   total += stuntTeamFee(stuntTeamById(stuntTeamPool, draft.stuntTeamId));
+  total += productionTeamFee(productionTeamById(productionTeamPool, draft.productionTeamId));
   if (!draft.photography) {
     // Not charged yet - BEGIN_PHOTOGRAPHY is what actually deducts these,
     // so until then this is a pure "what would this cost" projection. Uses

@@ -194,6 +194,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       producerFees,
       stuntTeamSkill,
       stuntTeamFee: stuntFee,
+      productionTeamFee: draft.preProduction?.team?.typicalSalary ?? 0,
       pressTourMoment: { buzzDelta: tourMoments.buzzDelta, storyBeat: tourMoments.storyBeat },
       marketingRolloutMultiplier: rolloutMultiplier,
       marketingRunwayWeeks: runwayWeeks,

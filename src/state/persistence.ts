@@ -4,6 +4,7 @@ import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { generateStuntTeamPool } from '../engine/stuntTeams';
+import { generateProductionTeamPool } from '../engine/productionTeams';
 import { randomSeed, withRng } from '../engine/random';
 import { firstDayOfYear } from '../engine/calendar';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
@@ -626,6 +627,7 @@ function freshState(): GameState {
     rivalStudios: generateRivalStudios(rng),
     producerPool: generateProducerPool(rng),
     stuntTeamPool: generateStuntTeamPool(rng),
+    productionTeamPool: generateProductionTeamPool(rng),
   }));
   return {
     studio: { ...createInitialStudio(DEFAULT_STARTING_CASH), assets: TEST_SCRIPT_ASSETS },
@@ -640,6 +642,7 @@ function freshState(): GameState {
     rivalStudios: result.rivalStudios,
     producerPool: result.producerPool,
     stuntTeamPool: result.stuntTeamPool,
+    productionTeamPool: result.productionTeamPool,
     opportunities: [],
     nextOpportunityCheckDay: 1,
     collaborations: [],

@@ -70,6 +70,7 @@ import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { generateStuntTeamPool, stuntTeamById } from '../engine/stuntTeams';
+import { generateProductionTeamPool, productionTeamById } from '../engine/productionTeams';
 import {
   benchCapacity,
   benchProducerIds,
@@ -1684,6 +1685,14 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, attachedProducerIds: attached.filter((pid) => pid !== action.producerId) }) };
     }
 
+    case 'SET_PRODUCTION_TEAM': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      // Only a team that exists in the world roster (or null to clear) is valid.
+      if (action.productionTeamId !== null && !productionTeamById(state.productionTeamPool, action.productionTeamId)) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, productionTeamId: action.productionTeamId }) };
+    }
+
     case 'SET_STUNT_TEAM': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
@@ -2487,7 +2496,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         // deliberately - it is the promise cast, crew and facilities lock around,
         // so it must NOT track the real start as prep events push that about.
         committedStartDay: shootStartsOnDay + preProductionDays,
-        preProduction: { status: deferred ? 'scheduled' : 'in-progress', recommendedDays: preProductionDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
+        preProduction: { status: deferred ? 'scheduled' : 'in-progress', recommendedDays: preProductionDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null, team: productionTeamById(state.productionTeamPool, focusedDraft.productionTeamId) ?? null },
       };
 
       return {
@@ -3522,6 +3531,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         rivalStudios: generateRivalStudios(rng),
         producerPool: generateProducerPool(rng),
         stuntTeamPool: generateStuntTeamPool(rng),
+        productionTeamPool: generateProductionTeamPool(rng),
       }));
       return {
         studio: { ...createInitialStudio(action.startingCash, action.brand, action.prestige), assets: TEST_SCRIPT_ASSETS },
@@ -3536,6 +3546,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         rivalStudios: result.rivalStudios,
         producerPool: result.producerPool,
         stuntTeamPool: result.stuntTeamPool,
+        productionTeamPool: result.productionTeamPool,
         opportunities: [],
         nextOpportunityCheckDay: 1,
         collaborations: [],

@@ -21,9 +21,9 @@
 // This module holds state, which the rest of engine/ does not. It always did -
 // the counters just lived in three different files.
 
-type CounterKind = 'person' | 'stuntTeam' | 'castingCall' | 'unique';
+type CounterKind = 'person' | 'stuntTeam' | 'productionTeam' | 'castingCall' | 'unique';
 
-const freshCounters = (): Record<CounterKind, number> => ({ person: 1, stuntTeam: 1, castingCall: 1, unique: 1 });
+const freshCounters = (): Record<CounterKind, number> => ({ person: 1, stuntTeam: 1, productionTeam: 1, castingCall: 1, unique: 1 });
 
 let counters = freshCounters();
 let replayable = false;

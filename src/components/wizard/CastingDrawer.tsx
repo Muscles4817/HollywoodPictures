@@ -613,7 +613,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // same figure computeCommittedSpend charged for them - not their standard
   // quote, which would mis-state the budget whenever they were negotiated off it.
   const directorName = director?.identity.name;
-  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []);
+  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? [], state.productionTeamPool ?? []);
   const slotFreedSalary = castHereAssignment ? assignmentCost(castHereAssignment) : 0;
   const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
   // Reserve-aware budget read (engine/affordability.ts): a candidate is only

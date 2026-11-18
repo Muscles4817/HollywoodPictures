@@ -109,6 +109,8 @@ export interface ReleaseComputationInput {
   stuntTeamSkill?: number;
   /** The Stunt Team's per-film fee, folded into productionCost exactly like producerFees. Optional; defaults to 0. */
   stuntTeamFee?: number;
+  /** The production team's (line producer & 1st AD) per-film fee, folded into productionCost exactly like the stunt team's. Optional; defaults to 0. */
+  productionTeamFee?: number;
   /**
    * The net quality swing from creative demands the player accepted during
    * development (Phase 2b - engine/creativeDemands.ts), frozen onto the draft at
@@ -330,7 +332,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // price.
   const productionCost = Math.max(
     0,
-    talentCost + productionBudgetCost + (input.preProductionCost ?? 0) + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees + (input.stuntTeamFee ?? 0),
+    talentCost + productionBudgetCost + (input.preProductionCost ?? 0) + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees + (input.stuntTeamFee ?? 0) + (input.productionTeamFee ?? 0),
   );
   // The press tour is a promotional expense - folded into the reported
   // marketingCost (and therefore totalCost) so it reads as part of the campaign.

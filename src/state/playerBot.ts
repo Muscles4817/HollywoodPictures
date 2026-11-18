@@ -7,6 +7,7 @@ import { withReplayableIds } from '../engine/identity';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateStuntTeamPool } from '../engine/stuntTeams';
+import { generateProductionTeamPool } from '../engine/productionTeams';
 import { firstDayOfYear } from '../engine/calendar';
 import { asPlayerDraft, findProject, playerReleasedFilms, projectId, scheduledPlayerReleases } from '../engine/project';
 import { availableCandidatesForRole, getDirectorCareer, getTypicalSalaryForRole } from '../engine/person';
@@ -322,6 +323,8 @@ export function createBotStudio(seed: number, tier: DifficultyTier): GameState {
   const rivalStudios = generateRivalStudios(rng);
   const producerPool = generateProducerPool(rng);
   const stuntTeamPool = generateStuntTeamPool(rng);
+  // Its own stream (seeded from the bot's seed), so adding it shifts nothing generated before.
+  const productionTeamPool = generateProductionTeamPool(createRng(seed * 7919 + 17));
   return {
     studio: { ...createInitialStudio(tier.cash, tier.brand, tier.prestige), assets: [] },
     screen: 'dashboard',
@@ -335,6 +338,7 @@ export function createBotStudio(seed: number, tier: DifficultyTier): GameState {
     rivalStudios,
     producerPool,
     stuntTeamPool,
+    productionTeamPool,
     opportunities: [],
     nextOpportunityCheckDay: 1,
     collaborations: [],

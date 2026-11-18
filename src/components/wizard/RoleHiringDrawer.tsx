@@ -297,7 +297,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // the studio's operating reserve intact, not merely because the balance could
   // cover it. A single-slot role currently filled frees that salary on
   // replacement; already-hired people are no new outlay, so always comfortable.
-  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []);
+  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? [], state.productionTeamPool ?? []);
   const slotFreedSalary = capacity.max === 1 && hired[0] ? getTypicalSalaryForRole(hired[0], role) : 0;
   const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
   const budgetFor = (person: Person): AffordabilityTier =>

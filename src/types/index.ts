@@ -509,6 +509,26 @@ export interface ProducerCareer {
   typicalSalary: Money; // the per-film fee
 }
 
+// A Production Team - the line producer and 1st AD who run a film's prep
+// (docs/IMPLEMENTATION_PLAN_preproduction_realism.md Phase 3). They break the
+// script down, build the schedule and the budget, run the locations work and
+// the production meeting, and - when the studio delegates a film's prep - make
+// its prep decisions. Like a Stunt Team it is a contracted unit chosen per film,
+// not a Person: the pair are hired together, as in practice they are.
+export type ProductionTeamSpecialty = 'Locations' | 'PeriodAndBuild' | 'Action' | 'Effects' | 'Ensemble';
+export interface ProductionTeam {
+  id: string;
+  /** "<line producer> & <1st AD>" */
+  name: string;
+  /** 1-100: how early and how much they find, and how well they judge a fix. */
+  skill: number;
+  /** 1-100: reports bad news early rather than late. */
+  reliability: number;
+  specialties: ProductionTeamSpecialty[];
+  /** Per-film fee, charged at release like the stunt team's. */
+  typicalSalary: number;
+}
+
 // A Stunt Team — the head of the Practical Effects facet
 // (docs/DESIGN_REVIEW_production_redesign.md §5.2). Deliberately NOT a Person /
 // TalentProfession: it represents a contracted team/vendor chosen for a film, the
@@ -1183,6 +1203,8 @@ export interface PreProductionState {
   events: ProductionEvent[];
   runningCost: number;
   pendingChoice: PendingEventChoice | null;
+  /** The line producer & 1st AD team contracted for this film at greenlight (a frozen copy - the deal is struck then). Absent/null = the studio's own production office. */
+  team?: ProductionTeam | null;
 }
 
 // Development phase (docs/DESIGN_REVIEW_development_and_financing.md) - the
@@ -2811,6 +2833,8 @@ export interface FilmDraft {
   attachedProducerIds?: PersonId[];
   /** The Stunt Team attached to this film (docs/DESIGN_REVIEW_production_redesign.md §5.2), by id into GameState.stuntTeamPool - the Practical Effects facet's head. Its per-film fee is charged at RELEASE_FILM like every other production cost. null/absent = no team hired (the facet falls back to NO_STUNT_TEAM_SKILL). */
   stuntTeamId?: string | null;
+  /** The line producer & 1st AD team running this film's prep, by id into GameState.productionTeamPool. Absent/null = the studio's own production office. */
+  productionTeamId?: string | null;
   /** The price the player is currently targeting for each casting slot - filters GameState.talentPool (once mapped to the underlying TalentProfession) down to who's shown. Keyed by ProductionRole, not TalentProfession, since Lead Actor and Supporting Actor need independent target prices even though both hire from the same Actor pool. */
   talentTargetPriceByRole: Partial<Record<ProductionRole, number>>;
   /**

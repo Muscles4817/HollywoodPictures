@@ -2,6 +2,7 @@ import { createRng, forkSeed } from '../engine/random';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateStuntTeamPool } from '../engine/stuntTeams';
+import { generateProductionTeamPool } from '../engine/productionTeams';
 import { createInitialStudio } from './gameState';
 import { firstDayOfYear } from '../engine/calendar';
 import { playerDraftToProject } from '../engine/project';
@@ -54,6 +55,7 @@ function freshStudioState(seed: number): GameState {
   const rivalStudios = generateRivalStudios(rng);
   const producerPool = generateProducerPool(rng);
   const stuntTeamPool = generateStuntTeamPool(rng);
+  const productionTeamPool = generateProductionTeamPool(createRng(seed * 7919 + 17));
   const rngSeed = forkSeed(rng);
 
   return {
@@ -70,6 +72,7 @@ function freshStudioState(seed: number): GameState {
     rivalStudios,
     producerPool,
     stuntTeamPool,
+    productionTeamPool,
     opportunities: [],
     nextOpportunityCheckDay: 1,
     collaborations: [],
