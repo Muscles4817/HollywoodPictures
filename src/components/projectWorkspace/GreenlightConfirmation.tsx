@@ -27,7 +27,7 @@ export function GreenlightConfirmation({ onClose }: { onClose: () => void }) {
   const script = draft.script!;
   const productionChoices = draft.productionChoices!;
   const commitment = deriveGreenlightCommitment(draft, state.studio.cash);
-  const preProductionDays = effectivePreProductionDays(draft.talent, script, productionChoices);
+  const preProductionDays = effectivePreProductionDays(draft);
   const shootDays = computeRecommendedShootDays(draft.talent, script, productionChoices);
   // Deferred Start: if a cast member you waited for is still booked elsewhere,
   // the shoot can't begin until then - the film will be greenlit into a

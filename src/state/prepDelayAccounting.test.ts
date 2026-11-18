@@ -5,7 +5,7 @@
 // phase's own daysElapsed and overhead untouched (delay days were free).
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
-import { buildStateWithReadyDraft } from './testFixtures';
+import { buildStateWithReadyDraft, makePrep } from './testFixtures';
 import { playerDraftToProject, asPlayerDraft, findProject } from '../engine/project';
 import { computeDailyPrepBurn, draftNegativeCost } from '../engine/cost';
 import type { GameState, GameAction } from './gameState';
@@ -27,14 +27,7 @@ function midPrepAwaitingChoice(): GameState {
       { id: 'grant-the-time', label: 'Grant the time', description: 'x', costRange: [0, 0], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [DELAY, DELAY] },
     ],
   };
-  const preProduction: PreProductionState = {
-    status: 'awaiting-choice',
-    recommendedDays: 40,
-    daysElapsed: 5,
-    events: [],
-    runningCost: 0,
-    pendingChoice,
-  };
+  const preProduction: PreProductionState = makePrep({ status: 'awaiting-choice', recommendedDays: 40, daysElapsed: 5, pendingChoice });
   const prepping: FilmDraft = { ...draft, preProduction, photography: null, postProductionScreeningReadyDay: null };
   return { ...base, screen: 'production', projects: [playerDraftToProject(prepping)], focusedProjectId: prepping.id };
 }

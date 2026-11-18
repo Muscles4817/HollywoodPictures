@@ -2,7 +2,7 @@
 // (docs/IMPLEMENTATION_PLAN_preproduction_realism.md Phase 1).
 import { describe, it, expect } from 'vitest';
 import { studioReducer, expectedShootEndDay } from './studioReducer';
-import { buildStateWithReadyDraft } from './testFixtures';
+import { buildStateWithReadyDraft, makePrep } from './testFixtures';
 import { asPlayerDraft, deriveInboxItems, findProject, inboxBadgeCount, playerDraftToProject } from '../engine/project';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
@@ -10,16 +10,14 @@ import { computeRecommendedPreProductionDays, computeRecommendedShootDays } from
 import { effectivePreProductionDays } from '../engine/prepLength';
 import { deriveRequirementProfile } from '../engine/requirementProfile';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
-import { PREP_CORE_DAYS } from '../data/prep';
+import { designAskDays } from '../engine/prep/demands';
 import { generateTalentCandidates } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { professionForProductionRole } from '../data/helpers';
 import type { GameState } from './gameState';
 import type { FilmDraft, PendingEventChoice, PreProductionState, TalentAssignment } from '../types';
 
-const prep = (overrides: Partial<PreProductionState> = {}): PreProductionState => ({
-  status: 'in-progress', recommendedDays: 40, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null, ...overrides,
-});
+const prep = (overrides: Partial<PreProductionState> = {}): PreProductionState => makePrep({ recommendedDays: 40, ...overrides });
 
 /** One film in prep (not focused), plus the ready draft re-identified as a second film. */
 function twoFilmState(first: Partial<FilmDraft>, second?: Partial<FilmDraft>): GameState {
@@ -62,12 +60,16 @@ describe('prep decisions reach the Inbox', () => {
 });
 
 describe('one prep length everywhere', () => {
-  it('the shared helper honours a long design window, as the reducer does', () => {
+  it('the shared helper and the engine agree, and a granted design window never shortens prep below the ask', () => {
     const draft = asPlayerDraft(buildStateWithReadyDraft(2).projects[0])!;
-    const choices = { ...draft.productionChoices!, designPrepDays: 300 };
-    // The design window is the slowest chain, so prep is the core plus it.
-    expect(effectivePreProductionDays(draft.talent, draft.script!, choices)).toBe(PREP_CORE_DAYS + 300);
-    expect(computeRecommendedPreProductionDays(draft.talent, draft.script!, choices)).toBe(PREP_CORE_DAYS + 300);
+    const ask = designAskDays(draft.script!, draft.talent);
+    const asked = { ...draft.productionChoices!, designPrepDays: ask };
+    const unset = { ...draft.productionChoices!, designPrepDays: undefined };
+    // Granting exactly the designer's ask (what every slider edit writes) leaves prep as it was.
+    expect(computeRecommendedPreProductionDays(draft.talent, draft.script!, asked)).toBe(computeRecommendedPreProductionDays(draft.talent, draft.script!, unset));
+    const long = { ...draft.productionChoices!, designPrepDays: ask * 3 };
+    expect(effectivePreProductionDays(draft)).toBe(computeRecommendedPreProductionDays(draft.talent, draft.script!, draft.productionChoices!, draft.environmentStrategy));
+    expect(computeRecommendedPreProductionDays(draft.talent, draft.script!, long)).toBeGreaterThanOrEqual(computeRecommendedPreProductionDays(draft.talent, draft.script!, asked));
   });
 });
 
@@ -84,7 +86,7 @@ describe('the greenlight gate counts the contingency reserve', () => {
 });
 
 describe('cast size counts actors, not crew', () => {
-  it('hiring a production designer does not lengthen prep or the shoot, even on a fully crewed film', () => {
+  it('hiring a production designer does not lengthen the shoot, even on a fully crewed film', () => {
     const draft = asPlayerDraft(buildStateWithReadyDraft(4).projects[0])!;
     // A full package - well past the old count's baseline of six hires - so the
     // old talent.length reading would have charged the designer as a seventh.

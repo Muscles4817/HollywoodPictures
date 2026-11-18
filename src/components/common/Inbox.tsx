@@ -8,6 +8,7 @@ import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '
 import { wasPulledFromTheatres } from '../../engine/boxOfficeRun';
 import { brandNoticeText } from '../../engine/reputation';
 import { PREP_PAUSED_MESSAGE } from './decisionText';
+import { checkpointTitle } from '../../engine/prep/checkpoints';
 import { unseenApplicants } from '../../engine/castingCalls';
 import { derivePostProductionStatus, describePostProductionWait } from '../../engine/postProductionStatus';
 import { highestBid } from '../../engine/opportunities';
@@ -142,7 +143,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // which point at drawers that aren't on screen. The exact same derivation
   // Header.tsx's badge count reads (engine/project.ts:inboxBadgeCount), so the
   // two can never drift apart.
-  const { awaitingChoice, prepAwaitingChoice, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished, brandNotice } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays, state.studio?.brandNotice);
+  const { awaitingChoice, prepAwaitingChoice, prepCheckpoints, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished, brandNotice } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays, state.studio?.brandNotice);
   // Recently-resolved award ceremonies the player hasn't clicked through yet
   // (state/selectors.ts) - awards settle silently in the background tick, so
   // this is the Inbox's "Awards night" catch-up beat.
@@ -213,6 +214,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   const needsYouCount =
     awaitingChoice.length +
     prepAwaitingChoice.length +
+    prepCheckpoints.length +
     pressTourIncidents.length +
     wrapped.length +
     parked.length +
@@ -303,6 +305,32 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                   showChoiceCosts
                   onChoose={(choiceId) => dispatch({ type: 'RESOLVE_PREPRODUCTION_CHOICE', choiceId, productionId: production.id })}
                 />
+              </div>
+            ))}
+
+            {prepCheckpoints.map((production) => (
+              // A prep checkpoint: several problems, each with priced options -
+              // answered on the film's own prep screen (the briefing), which is
+              // where the card routes. Answering it there clears this card.
+              <div className="card stack" key={`${production.id}-prep-checkpoint`} style={{ gap: 6 }}>
+                <h4 style={{ margin: 0 }}>{production.title || 'Untitled Film'} · pre-production</h4>
+                <p style={{ margin: 0 }}>
+                  {checkpointTitle(production.preProduction!.pendingCheckpoint!.index)}: prep has found{' '}
+                  {production.preProduction!.pendingCheckpoint!.problemIds.length === 1 ? 'a problem' : `${production.preProduction!.pendingCheckpoint!.problemIds.length} problems`} and is
+                  waiting on your decisions.
+                </p>
+                {state.focusedProjectId === production.id ? (
+                  // Still the focused film (focus survives leaving the prep screen): go straight back to it.
+                  <div className="row">
+                    <Button variant="primary" onClick={routed(() => dispatch({ type: 'GO_TO_PREPRODUCTION' }))}>Open the briefing</Button>
+                  </div>
+                ) : state.focusedProjectId ? (
+                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>{BUSY_NOTE}</p>
+                ) : (
+                  <div className="row">
+                    <Button variant="primary" onClick={routed(() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id }))}>Open the briefing</Button>
+                  </div>
+                )}
               </div>
             ))}
 

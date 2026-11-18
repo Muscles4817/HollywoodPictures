@@ -21,6 +21,7 @@ const chamber: Script = {
   structure: 80,
   characters: 80,
   environmentStrategy: { studio: 0, location: 1, digital: 0 },
+  toneProfile: { ...base.toneProfile, action: 5, spectacle: 5, suspense: 20 },
   productionRequirements: { extras: 0, locations: 0.05, periodSetting: false, vehicles: false, animals: false, practicalEffects: 0, vfx: 0, stunts: 0, choreography: 0, crowdWork: 0 },
   cast: base.cast.slice(0, 2).map((c): ScriptCharacter => ({ ...c, traits: { ...c.traits, physicalDemand: 5, transformationDemand: 5 } })),
 };
@@ -51,9 +52,9 @@ describe('derivePrepDemands', () => {
   });
 
   it('a chamber drama has few live fronts and a short prep; a period war epic has nearly all and months', () => {
-    expect(live(demandsOf(chamber)).length).toBeLessThanOrEqual(4);
-    expect(days(chamber)).toBeLessThanOrEqual(42); // 04 §1: micro 3-5 weeks, indie 6-10
-    expect(live(demandsOf(epic)).length).toBeGreaterThanOrEqual(6);
+    expect(live(demandsOf(chamber)).length).toBeLessThanOrEqual(3);
+    expect(days(chamber)).toBeLessThanOrEqual(35); // 04 §1: micro 3-5 weeks
+    expect(live(demandsOf(epic)).length).toBeGreaterThanOrEqual(7);
     expect(days(epic)).toBeGreaterThanOrEqual(120); // 04 §1: period / heavy build 4-9 months
   });
 
@@ -62,6 +63,26 @@ describe('derivePrepDemands', () => {
     for (const front of ['design', 'costume', 'locations', 'action', 'breakdown']) expect(d(epic, front)).toBeGreaterThan(d(chamber, front));
     const unsound = { ...chamber, structure: 20, characters: 20 };
     expect(d(unsound, 'breakdown')).toBeGreaterThan(d(chamber, 'breakdown'));
+  });
+
+  it('each source raises its own front', () => {
+    const d = (script: Script, front: string, talent = draft.talent) => derivePrepDemands({ script, talent, choices: draft.productionChoices! }).find((x) => x.front === front)!.demand;
+    const bigCast = { ...chamber, cast: Array.from({ length: 20 }, (_, i) => ({ ...chamber.cast[0], name: `P${i}`, prominence: 'Minor' as const })) };
+    expect(d(bigCast, 'casting')).toBeGreaterThan(d(chamber, 'casting'));
+    const creature = { ...chamber, genre: 'Horror' as const, cast: [...chamber.cast, { ...chamber.cast[0], archetype: 'MonsterOrCreature' as const, traits: { ...chamber.cast[0].traits, transformationDemand: 95 } }] };
+    expect(d(creature, 'costume')).toBeGreaterThan(d(chamber, 'costume'));
+    const travelling = { ...chamber, primarySetting: 'HistoricalBattlefield' as const };
+    expect(d(travelling, 'locations')).toBeGreaterThan(d(chamber, 'locations'));
+    const stunts = { ...chamber, toneProfile: { ...chamber.toneProfile, action: 90 }, productionRequirements: { ...chamber.productionRequirements, stunts: 1 } };
+    expect(d(stunts, 'action')).toBeGreaterThan(d(chamber, 'action'));
+    const vfx = { ...chamber, productionRequirements: { ...chamber.productionRequirements, vfx: 1 }, toneProfile: { ...chamber.toneProfile, spectacle: 90 } };
+    expect(d(vfx, 'effects')).toBeGreaterThan(d(chamber, 'effects'));
+  });
+
+  it("a character's arc alone does not put prosthetics on a drama", () => {
+    const d = (script: Script) => demandsOf(script).find((x) => x.front === 'costume')!.demand;
+    const arc = { ...chamber, cast: chamber.cast.map((c) => ({ ...c, traits: { ...c.traits, transformationDemand: 90 } })) };
+    expect(d(arc)).toBe(d(chamber));
   });
 
   it('a decisive director lowers the visual front', () => {
@@ -75,28 +96,40 @@ describe('derivePrepDemands', () => {
 });
 
 describe('recommendedPrepDays', () => {
-  it('is the core plus the slowest chain', () => {
+  it('runs as long as its slowest department: only the slowest chain moves it', () => {
     const ds = demandsOf(epic);
-    const slowest = Math.max(...ds.map((d) => (d.front === 'design' ? Math.max(frontChainDays('design', d.demand), 0) : frontChainDays(d.front, d.demand))));
-    expect(recommendedPrepDays(ds, 0)).toBe(Math.round(PREP_CORE_DAYS + slowest)); // Medium: factor 1
+    const ranked = [...ds].sort((a, b) => frontChainDays(b.front, b.demand) - frontChainDays(a.front, a.demand));
+    const bump = (front: string, by: number) => ds.map((d) => (d.front === front ? { ...d, demand: Math.min(1, d.demand + by) } : d));
+    const lowered = ds.map((d) => (d.front === ranked[1].front ? { ...d, demand: 0 } : d));
+    expect(recommendedPrepDays(lowered, 0)).toBe(recommendedPrepDays(ds, 0));
+    const slowestDown = ds.map((d) => (d.front === ranked[0].front ? { ...d, demand: d.demand * 0.5 } : d));
+    expect(recommendedPrepDays(slowestDown, 0)).toBeLessThan(recommendedPrepDays(ds, 0));
+    void bump;
+    expect(recommendedPrepDays(ds, 0)).toBeGreaterThan(PREP_CORE_DAYS);
     expect(recommendedPrepDays(ds, 0, undefined, 'Epic')).toBeGreaterThan(recommendedPrepDays(ds, 0, undefined, 'Medium'));
   });
 
-  it('honours a granted design window, longer or shorter than the designer asked', () => {
-    const ds = demandsOf(chamber);
-    expect(recommendedPrepDays(ds, 20, 200)).toBe(PREP_CORE_DAYS + 200);
-    expect(recommendedPrepDays(ds, 200)).toBeGreaterThanOrEqual(PREP_CORE_DAYS + 200);
+  it('reads a granted design window as a share of the designer\'s ask', () => {
+    // A film whose design chain is its slowest, so the window shows.
+    const ds = demandsOf(epic).map((d) => (d.front === 'design' ? { ...d, demand: 1 } : { ...d, demand: Math.min(d.demand, 0.3) }));
+    const asked = recommendedPrepDays(ds, 20);
+    expect(recommendedPrepDays(ds, 20, 20)).toBe(asked); // granting the ask changes nothing
+    expect(recommendedPrepDays(ds, 20, 10)).toBeLessThan(asked); // a rushed window shortens the chain
+    expect(recommendedPrepDays(ds, 20, 40)).toBeGreaterThan(asked);
   });
 
-  it('lands generated films mostly in the reference ranges (median 8-12 weeks)', () => {
+  it('lands generated films in the reference ranges by scale (04 §1)', () => {
     const rng = createRng(11);
-    const all: number[] = [];
-    for (const genre of GENRES) for (let i = 0; i < 25; i++) all.push(days(generateScriptOptions(genre, rng, 1)[0]));
-    all.sort((a, b) => a - b);
-    const median = all[Math.floor(all.length / 2)];
-    expect(median).toBeGreaterThanOrEqual(56);
-    expect(median).toBeLessThanOrEqual(90);
-    expect(all[0]).toBeGreaterThanOrEqual(PREP_CORE_DAYS);
+    const byScale: Record<string, number[]> = {};
+    for (const genre of GENRES) for (const s of generateScriptOptions(genre, rng, 30)) (byScale[s.scale] ??= []).push(days(s));
+    const median = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)] / 7;
+    // indie 6-10 weeks; studio mid-budget 8-12 weeks; tentpole 4-12 months.
+    expect(median(byScale.Intimate)).toBeGreaterThanOrEqual(5);
+    expect(median(byScale.Intimate)).toBeLessThanOrEqual(10);
+    expect(median(byScale.Medium)).toBeGreaterThanOrEqual(8);
+    expect(median(byScale.Medium)).toBeLessThanOrEqual(13);
+    expect(median(byScale.Epic)).toBeGreaterThanOrEqual(17);
+    for (const v of Object.values(byScale)) expect(Math.min(...v)).toBeGreaterThanOrEqual(PREP_CORE_DAYS * 0.85);
   });
 });
 

@@ -40,35 +40,37 @@ describe('scripted player: a studio plays itself through the real reducer', () =
   });
 });
 
-describe('answering a prep decision with no project open', () => {
+describe('answering a prep checkpoint with no project open', () => {
   it('does not push a null draft into the slate', () => {
-    // The crash the bot found on its first run: RESOLVE_PREPRODUCTION_CHOICE
-    // for a backgrounded film while nothing was focused assembled the slate
-    // from [focusedDraft!, ...] - a null draft, which threw on the next action.
-    // Prep decisions are rolled, so try seeds until one produces a decision.
+    // The crash the bot once found on the old prep decision: resolving a
+    // backgrounded film's prep while nothing was focused assembled the slate
+    // from a null focused draft. The same shape for prep's checkpoints: a film
+    // whose prep is in the player's hands, paused, answered from outside it.
     let exercised = false;
     for (let seed = 1; seed <= 12 && !exercised; seed++) {
       let s = createBotStudio(seed, tier('midmajor'));
       for (let day = 0; day < 60 && s.projects.every((p) => p.kind !== 'player-in-progress'); day++) {
         s = botStartFilm(studioReducer(s, { type: 'ADVANCE_DAY' }), strategy('Steady'));
       }
-      for (let day = 0; day < 120 && !exercised; day++) {
-        const waiting = s.projects.flatMap((p) => (p.kind === 'player-in-progress' && p.draft.preProduction?.status === 'awaiting-choice' ? [p.draft] : []));
+      // Take the prep back into the player's hands.
+      for (const p of s.projects) {
+        if (p.kind === 'player-in-progress' && p.draft.preProduction && p.draft.preProduction.status !== 'finished') {
+          s = studioReducer(s, { type: 'SET_PREP_DELEGATION', productionId: p.draft.id, delegated: false });
+        }
+      }
+      for (let day = 0; day < 200 && !exercised; day++) {
+        const waiting = s.projects.flatMap((p) => (p.kind === 'player-in-progress' && p.draft.preProduction?.status === 'awaiting-checkpoint' ? [p.draft] : []));
         if (waiting.length === 0) {
           s = studioReducer(s, { type: 'ADVANCE_DAY' });
           continue;
         }
         expect(s.focusedProjectId).toBeNull();
-        s = studioReducer(s, {
-          type: 'RESOLVE_PREPRODUCTION_CHOICE',
-          choiceId: waiting[0].preProduction!.pendingChoice!.choices[0].id,
-          productionId: waiting[0].id,
-        });
+        s = studioReducer(s, { type: 'RESOLVE_PREP_CHECKPOINT', productionId: waiting[0].id, choices: {} });
         expect(s.projects.every((p) => p.kind !== 'player-in-progress' || p.draft !== null)).toBe(true);
         expect(() => studioReducer(s, { type: 'ADVANCE_DAY' })).not.toThrow();
         exercised = true;
       }
     }
-    expect(exercised, 'no prep decision arose in 12 seeds to exercise the path').toBe(true);
+    expect(exercised, 'no prep checkpoint arose in 12 seeds to exercise the path').toBe(true);
   });
 });

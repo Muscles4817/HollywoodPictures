@@ -8,21 +8,25 @@ import { buildStateWithReadyDraft } from '../state/testFixtures';
 import { asPlayerDraft } from './project';
 import { computeDailyPrepBurn, draftNegativeCost } from './cost';
 import type { FilmDraft, PreProductionState } from '../types';
+import { makePrep } from '../state/testFixtures';
+import { prepRunFor } from './prep/context';
+import type { PrepRunLookup } from './productionsInProgress';
 
-// 0.9 >= PREPROD_EVENT_CHANCE (0.18), so rollPreProductionDayEvent never fires -
-// the prep advances one clean day per calendar day, no interactive pauses.
-const noEventRng = () => 0.9;
+// A prep with no problems and none of the revealing work: one clean day of
+// overhead per calendar day, no checkpoints with anything on them.
+const runFor: PrepRunLookup = (d) => prepRunFor(d, { cash: 1e9 });
+const noActivities = { scouting: false, tests: false, rehearsal: false, previs: false };
 
 function preppingDraft(status: PreProductionState['status'], daysElapsed: number, recommendedDays: number): FilmDraft {
   const base = asPlayerDraft(buildStateWithReadyDraft(1).projects[0])!;
-  const preProduction: PreProductionState = { status, recommendedDays, daysElapsed, events: [], runningCost: 0, pendingChoice: null };
+  const preProduction: PreProductionState = makePrep({ status, recommendedDays, daysElapsed, activities: noActivities });
   return { ...base, preProduction, photography: null };
 }
 
 describe('settlePreProductionsInProgress', () => {
   it('advances an in-progress prep by the calendar and reports its overhead charge', () => {
     const draft = preppingDraft('in-progress', 0, 40);
-    const { drafts, charges } = settlePreProductionsInProgress([draft], 1, noEventRng);
+    const { drafts, charges } = settlePreProductionsInProgress([draft], 1, runFor);
 
     expect(drafts[0].preProduction!.daysElapsed).toBe(1);
     expect(drafts[0].preProduction!.status).toBe('in-progress');
@@ -33,7 +37,7 @@ describe('settlePreProductionsInProgress', () => {
 
   it('finishes prep and opens Principal Photography once it reaches its recommended days', () => {
     const draft = preppingDraft('in-progress', 0, 3);
-    const { drafts } = settlePreProductionsInProgress([draft], 3, noEventRng);
+    const { drafts } = settlePreProductionsInProgress([draft], 3, runFor);
 
     expect(drafts[0].preProduction!.status).toBe('finished');
     expect(drafts[0].photography?.status).toBe('in-progress');
@@ -41,9 +45,9 @@ describe('settlePreProductionsInProgress', () => {
   });
 
   it('leaves scheduled / awaiting-choice / finished preps untouched and uncharged', () => {
-    for (const status of ['scheduled', 'awaiting-choice', 'finished'] as const) {
+    for (const status of ['scheduled', 'awaiting-choice', 'awaiting-checkpoint', 'finished'] as const) {
       const draft = preppingDraft(status, 5, 40);
-      const { drafts, charges } = settlePreProductionsInProgress([draft], 5, noEventRng);
+      const { drafts, charges } = settlePreProductionsInProgress([draft], 5, runFor);
       expect(drafts[0].preProduction!.daysElapsed).toBe(5);
       expect(drafts[0].photography).toBeNull();
       expect(charges).toHaveLength(0);
@@ -52,7 +56,7 @@ describe('settlePreProductionsInProgress', () => {
 
   it('is a no-op for a non-positive day span', () => {
     const draft = preppingDraft('in-progress', 4, 40);
-    const { drafts, charges } = settlePreProductionsInProgress([draft], 0, noEventRng);
+    const { drafts, charges } = settlePreProductionsInProgress([draft], 0, runFor);
     expect(drafts[0]).toBe(draft);
     expect(charges).toHaveLength(0);
   });

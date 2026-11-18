@@ -123,9 +123,9 @@ export function Dashboard() {
   const preProductionDrafts = backgroundedDrafts.filter(
     (production) =>
       !production.photography &&
-      (production.preProduction?.status === 'in-progress' || production.preProduction?.status === 'awaiting-choice'),
+      (production.preProduction?.status === 'in-progress' || production.preProduction?.status === 'awaiting-choice' || production.preProduction?.status === 'awaiting-checkpoint'),
   );
-  const prepDecisionDrafts = preProductionDrafts.filter((production) => production.preProduction?.status === 'awaiting-choice');
+  const prepDecisionDrafts = preProductionDrafts.filter((production) => production.preProduction?.status === 'awaiting-choice' || production.preProduction?.status === 'awaiting-checkpoint');
 
   // A backgrounded draft the player has started staffing (a hire, a
   // casting call, or a production plan) but hasn't greenlit yet - these
@@ -904,7 +904,7 @@ function StaffingProjectRow({ production, onOpen }: { production: FilmDraft; onO
 function PreProductionRow({ production, onOpen }: { production: FilmDraft; onOpen: () => void }) {
   const prep = production.preProduction!;
   const pct = prep.recommendedDays > 0 ? Math.min(100, Math.round((prep.daysElapsed / prep.recommendedDays) * 100)) : 0;
-  const awaiting = prep.status === 'awaiting-choice';
+  const awaiting = prep.status === 'awaiting-choice' || prep.status === 'awaiting-checkpoint';
   return (
     <article className="dashboard-project-row">
       <div className="dashboard-project-main">

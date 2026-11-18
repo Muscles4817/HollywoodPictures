@@ -39,6 +39,7 @@ import { stuntTeamById, stuntTeamEffectiveSkill, stuntTeamFitsGenre } from '../.
 import { STUNT_SPECIALTY_LABEL } from '../../data/stuntTeams';
 import { DistributionEditor } from '../common/DistributionEditor';
 import { PrepOutlook } from '../common/PrepOutlook';
+import { PrepPlanControls } from '../prep/PrepPlanControls';
 import { productionTeamById } from '../../engine/productionTeams';
 import { PRODUCTION_TEAM_SPECIALTY_LABEL } from '../../data/productionTeams';
 import { effectivePreProductionDays } from '../../engine/prepLength';
@@ -578,7 +579,7 @@ export function ProductionPlanning() {
         <div className="card stack">
           <div className="row-between">
             <h3 style={{ margin: 0 }}>Pre-production</h3>
-            <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>About {Math.round(effectivePreProductionDays(draft.talent, script, draft.productionChoices) / 7)} weeks</span>
+            <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>About {Math.round(effectivePreProductionDays(draft) / 7)} weeks</span>
           </div>
           <PrepOutlook script={script} talent={draft.talent} choices={draft.productionChoices} />
           <p style={{ margin: 0 }}>
@@ -605,6 +606,7 @@ export function ProductionPlanning() {
               Known for: {productionTeam.specialties.map((s) => PRODUCTION_TEAM_SPECIALTY_LABEL[s]).join(', ')}. Fee <Money amount={productionTeam.typicalSalary} /> (charged at release).
             </p>
           )}
+          <PrepPlanControls draft={draft} />
         </div>
       )}
 

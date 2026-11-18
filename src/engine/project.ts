@@ -133,6 +133,8 @@ export interface InboxItems {
   boxOfficeFinished: Film[];
   /** Backgrounded productions whose PRE-PRODUCTION is paused on a decision (PreProductionState.pendingChoice) - the prep twin of `awaitingChoice`, which only ever covered the shoot and the test screening. Resolved in place from the Inbox via RESOLVE_PREPRODUCTION_CHOICE (it takes a productionId), so like awaitingChoice it needs no read state: the project is its record. */
   prepAwaitingChoice: FilmDraft[];
+  /** Films whose prep is paused at a checkpoint the player must answer (PreProductionState.pendingCheckpoint, engine/prep/run.ts). One card per film; it routes to that film's prep briefing, where answering it clears the card. Includes the focused film: focus survives leaving the prep screen, and a paused prep the player cannot see must still reach them. */
+  prepCheckpoints: FilmDraft[];
   /** The studio's name fading or recovering through drift (Studio.brandNotice, docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3) while the studio overview has not yet shown it; null otherwise. Only present when the caller passes the studio's notice. */
   brandNotice: BrandNotice | null;
 }
@@ -182,6 +184,7 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null, 
     // whichever of the two a given production actually has pending.
     awaitingChoice: productions.filter((p) => p.photography?.status === 'awaiting-choice' || p.testScreeningPendingChoice),
     prepAwaitingChoice: productions.filter((p) => p.preProduction?.status === 'awaiting-choice' && !!p.preProduction.pendingChoice),
+    prepCheckpoints: backgroundedPlayerDrafts(projects, null).filter((p) => p.preProduction?.status === 'awaiting-checkpoint' && !!p.preProduction.pendingCheckpoint),
     wrapped: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && !p.postProductionChoices),
     parked: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && p.postProductionChoices),
     casting: castingDrafts
@@ -228,6 +231,7 @@ export function inboxBadgeCount(projects: Project[], excludeId: string | null, t
   return (
     items.awaitingChoice.length +
     items.prepAwaitingChoice.length +
+    items.prepCheckpoints.length +
     items.wrapped.length +
     items.parked.filter(isParkedActionable).length +
     // One badge point per casting CALL, not per production - each is its own

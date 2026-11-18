@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { prepDailyBurnWith } from '../engine/prep/run';
+import { prepContingencyUsed } from '../engine/prep/checkpoints';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices, conformActorGenderToSlot, shootThroughToFinish, prepThroughToShoot } from './testFixtures';
 import { createInitialStudio } from './gameState';
@@ -912,18 +914,19 @@ describe('GREENLIGHT_PROJECT - enters the live pre-production phase', () => {
     expect(findProject(after.projects, scheduledState.focusedProjectId!)?.kind).toBe('released');
   });
 
-  it('records prep events whose accumulated cost stays consistent, then opens photography', () => {
+  it('accounts every prep cost - burn and fixes - then opens photography', () => {
     const greenlit = studioReducer(stateReadyToGreenlight(240), { type: 'GREENLIGHT_PROJECT' });
     const shooting = prepThroughToShoot(greenlit);
     const draft = asPlayerDraft(findProject(shooting.projects, shooting.focusedProjectId))!;
     expect(draft.preProduction?.status).toBe('finished');
     expect(draft.photography?.status).toBe('in-progress');
     expect(draft.preProduction!.daysElapsed).toBeGreaterThanOrEqual(draft.preProduction!.recommendedDays);
-    // runningCost = the daily prep-overhead burn over every elapsed prep day,
-    // plus any prep event cost swings (Production Redesign, cost-of-time model).
-    const eventCostSum = draft.preProduction!.events.reduce((sum, e) => sum + e.costDelta, 0);
-    const expectedBurn = computeDailyPrepBurn(draft.script!.scale, draftNegativeCost(draft)) * draft.preProduction!.daysElapsed;
-    expect(draft.preProduction!.runningCost).toBe(expectedBurn + eventCostSum);
+    // runningCost = the daily prep burn (with its revealing work running) over
+    // every elapsed prep day, plus what the checkpoints' fixes cost - in cash or
+    // from the contingency (engine/prep/run.ts, engine/prep/checkpoints.ts).
+    const prep = draft.preProduction!;
+    const expectedBurn = prepDailyBurnWith(computeDailyPrepBurn(draft.script!.scale, draftNegativeCost(draft)), prep.activities) * prep.daysElapsed;
+    expect(prep.runningCost).toBe(expectedBurn + prep.fixSpend + prepContingencyUsed(prep));
   });
 
   it('is blocked by the readiness gate even when fully affordable - e.g. a still-missing crew role', () => {

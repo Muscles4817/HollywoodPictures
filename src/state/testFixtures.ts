@@ -9,7 +9,7 @@
 // already exercised elsewhere; this milestone's tests are about box office
 // settlement, not wizard-flow correctness, so a draft assembled directly is
 // both faster and more focused than driving 20+ reducer actions per test.
-import type { Asset, CharacterAgeBand, FilmDraft, MarketingChoices, PhotographyState, Person, ProductionChoices, ProductionRole, Script } from '../types';
+import type { Asset, CharacterAgeBand, FilmDraft, MarketingChoices, PhotographyState, Person, PreProductionState, ProductionChoices, ProductionRole, Script, TalentAssignment } from '../types';
 import { createDraftFromAsset, createInitialStudio, type GameState } from './gameState';
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { generateTalentCandidates, generateTalentPool } from '../engine/talentGenerator';
@@ -17,7 +17,10 @@ import { createRng, forkRng, forkSeed, type RandomFn } from '../engine/random';
 import { asPlayerDraft, findProject, playerDraftToProject } from '../engine/project';
 import { footageLowerBound } from '../engine/production';
 import { studioReducer } from './studioReducer';
-import { characterForRoleSlot } from '../engine/castRequirements';
+import { characterForRoleSlot, effectiveRoleCapacity } from '../engine/castRequirements';
+import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
+import { professionForProductionRole } from '../data/helpers';
+import { getTypicalSalaryForRole } from '../engine/person';
 import { DEFAULT_POST_PRODUCTION_CHOICES } from '../data/postProduction';
 
 /** A whole-year age comfortably inside each written age band, so a conformed actor clears the hire-time age gate. */
@@ -204,6 +207,11 @@ export function prepThroughToShoot(state: GameState, productionId?: string): Gam
       s = studioReducer(s, { type: 'RESOLVE_PREPRODUCTION_CHOICE', choiceId: prep.pendingChoice.choices[0].id, productionId: id });
       continue;
     }
+    if (prep.status === 'awaiting-checkpoint') {
+      // A checkpoint left unanswered carries every problem on it.
+      s = studioReducer(s, { type: 'RESOLVE_PREP_CHECKPOINT', productionId: id, choices: {} });
+      continue;
+    }
     s = studioReducer(s, { type: 'ADVANCE_PREPRODUCTION_DAY' });
   }
   return s;
@@ -230,4 +238,68 @@ export function shootThroughToFinish(state: GameState, productionId?: string): G
     s = studioReducer(s, { type: 'ADVANCE_SHOOTING_DAY' });
   }
   return s;
+}
+
+
+/** A PreProductionState with no problems and nothing done - for tests that only need prep's shape. */
+export function makePrep(overrides: Partial<PreProductionState> = {}): PreProductionState {
+  return {
+    status: 'in-progress',
+    recommendedDays: 30,
+    daysElapsed: 0,
+    events: [],
+    runningCost: 0,
+    pendingChoice: null,
+    team: null,
+    problems: [],
+    seed: 1,
+    checkpointDays: [8, 17, 24, 29],
+    nextCheckpoint: 0,
+    pendingCheckpoint: null,
+    delegated: true,
+    activities: { scouting: true, tests: true, rehearsal: true, previs: true },
+    lengthFactor: 1,
+    log: [],
+    daysAdded: 0,
+    fixSpend: 0,
+    ...overrides,
+  };
+}
+
+/**
+ * A focused draft fully staffed and planned but not yet greenlit - so tests can
+ * dispatch GREENLIGHT_PROJECT and exercise the real prep it starts. Built from
+ * buildStateWithReadyDraft's film, wound back to before greenlight, its crew
+ * filled from the pool by the cheapest who fit (as wizardRunThrough.test does).
+ */
+export function buildStateReadyToGreenlight(seed: number): GameState {
+  const base = buildStateWithReadyDraft(seed);
+  const ready = asPlayerDraft(base.projects[0])!;
+  const script = ready.script!;
+  const talent: TalentAssignment[] = [];
+  const used = new Set<string>();
+  for (const role of MANDATORY_TALENT_ROLES) {
+    const profession = professionForProductionRole(role);
+    const need = Math.max(1, effectiveRoleCapacity(role, script).min);
+    const cheapest = [...(base.talentPool[profession] ?? [])]
+      .filter((p) => !used.has(p.id))
+      .sort((a, b) => getTypicalSalaryForRole(a, role) - getTypicalSalaryForRole(b, role));
+    for (let i = 0; i < need; i++) {
+      const person = conformActorGenderToSlot(cheapest[i], script, role, i);
+      used.add(person.id);
+      talent.push({ role, person });
+    }
+  }
+  const draft: FilmDraft = {
+    ...ready,
+    talent,
+    greenlitOnDay: null,
+    preProduction: null,
+    photography: null,
+    postProductionScreeningReadyDay: null,
+    postProductionFinalReadyDay: null,
+    testScreeningResolved: false,
+    postProductionChoices: null,
+  };
+  return { ...base, screen: 'workspace', projects: [playerDraftToProject(draft)], focusedProjectId: draft.id };
 }

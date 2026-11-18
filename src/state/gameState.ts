@@ -1,5 +1,7 @@
+import type { PrepFixKind } from '../data/prep';
 import type { IndustryNotice } from '../engine/careerTurnover';
 import type {
+  PrepPlan,
   TalentDatabase,
   Asset,
   AwardsState,
@@ -357,6 +359,10 @@ export type GameAction =
   | { type: 'SET_STUNT_TEAM'; stuntTeamId: string | null }
   // One production team (line producer & 1st AD) per film; null = the studio's own production office. Fee charged at release.
   | { type: 'SET_PRODUCTION_TEAM'; productionTeamId: string | null }
+  // Pre-production (docs/IMPLEMENTATION_PLAN_preproduction_realism.md Phase 4).
+  | { type: 'SET_PREP_PLAN'; plan: PrepPlan }
+  | { type: 'RESOLVE_PREP_CHECKPOINT'; productionId: string; choices: Record<string, PrepFixKind> }
+  | { type: 'SET_PREP_DELEGATION'; productionId: string; delegated: boolean }
   // Workstream II, Layer 2 - set the producer's Execution Strategy method(s) for
   // the focused film. Merges the patch into FilmDraft.executionStrategy (partial;
   // unset axes follow the script's lean-derived default). Re-routes requirements

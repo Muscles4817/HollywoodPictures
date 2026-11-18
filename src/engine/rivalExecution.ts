@@ -10,11 +10,9 @@
 // The guiding principle (SIMULATION_PHILOSOPHY.md): the player and the AI differ
 // only in HOW the production history is generated, never in how the finished
 // film is evaluated. So this file generates history; it never computes quality.
-import type { Genre, PendingEventChoice, PreProductionState, ProductionChoices, ProductionEvent, Person, Script, TalentAssignment, TalentProfession } from '../types';
+import type { Genre, PreProductionState, ProductionChoices, ProductionEvent, Person, Script, TalentAssignment, TalentProfession } from '../types';
 import {
-  applyPrepRiskDelta,
   averageProductionRisk,
-  computePrepRiskDelta,
   computeRecommendedPreProductionDays,
   computeRecommendedShootDays,
   computeShootEscalation,
@@ -23,9 +21,15 @@ import {
   pickShootEvent,
   prepQualityEvents,
   resolveEventChoice,
-  rollPreProductionDayEvent,
   type FullProductionRisk,
 } from './production';
+import { buildPrepContext } from './prep/context';
+import { derivePrepDemands } from './prep/demands';
+import { applyPrepRiskAdjustments, createPreProduction, prepRiskAdjustments, runPrepHeadless } from './prep/run';
+import { carriedIncidentsFor, incidentEvent } from './prep/handoff';
+import { computeDailyPrepBurn, computeDailyShootBurn, draftNegativeCost } from './cost';
+import { deriveTraits } from './personTraits';
+import { NO_PRODUCTION_TEAM_SKILL } from '../data/productionTeams';
 import { computeExecutionResilience } from './productionExecution';
 import { clamp, createRng, forkSeed, pick, randFloat, type RandomFn } from './random';
 
@@ -61,55 +65,52 @@ export interface RivalExecutionInput {
   genre: Genre;
 }
 
-/** How often a rival takes the option a competent producer would (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 2). Otherwise it takes any option at random, the best included. */
-export const RIVAL_SENSIBLE_CHOICE = 0.7;
-
-const midpoint = ([lo, hi]: [number, number]) => (lo + hi) / 2;
-
-/**
- * The option with the best expected quality (midpoint of qualityRange), ties
- * to the lower expected cost; taken RIVAL_SENSIBLE_CHOICE of the time,
- * otherwise any option at random. Returns the option's id.
- */
-export function chooseRivalOption(choices: PendingEventChoice['choices'], rng: RandomFn): string {
-  const best = [...choices].sort(
-    (a, b) => midpoint(b.qualityRange) - midpoint(a.qualityRange) || midpoint(a.costRange) - midpoint(b.costRange),
-  )[0];
-  if (rng() < RIVAL_SENSIBLE_CHOICE) return best.id;
-  return pick(rng, choices).id;
-}
-
 export interface RivalPrepResult {
-  /** Every event the prep produced, decisions resolved. */
-  events: ProductionEvent[];
-  /** The shoot's starting-risk adjustment, summed and clamped exactly as a player's prep (engine/production.ts:computePrepRiskDelta). */
-  riskDelta: number;
+  /** The finished prep: its problems, what was found and done about each, its cuts. */
+  prep: PreProductionState;
+  /** Money its fixes and burn cost (reported; a rival's cash is settled elsewhere). */
+  spend: number;
 }
 
+/** A rival's studio office runs its prep until Phase 6 gives rivals production teams. */
+const RIVAL_PREP_CASH_PRESSURE = 0.3;
+
 /**
- * The pre-production a rival's film went through: the same daily rolls a
- * player's prep makes (engine/production.ts:rollPreProductionDayEvent), over
- * the same recommended number of days, with each decision answered as a
- * competent studio would (chooseRivalOption). Deterministic given `rng`.
+ * The pre-production a rival's film went through: the same engine as a
+ * player's (engine/prep/run.ts), run headless over the film's recommended prep -
+ * the same problems from the same demands, found by the same people, each
+ * checkpoint decided by the same rule a delegated player film uses
+ * (engine/prep/delegation.ts). Deterministic given `rng` (one draw seeds it).
  */
 export function synthesizeRivalPrep(production: RivalExecutionInput, rng: RandomFn): RivalPrepResult {
-  const { talent, script, productionChoices } = production;
-  const days = computeRecommendedPreProductionDays(talent, script, productionChoices);
-  const events: ProductionEvent[] = [];
-  const usedIds = new Set<string>();
-  for (let day = 0; day < days; day++) {
-    const rolled = rollPreProductionDayEvent(talent, script, usedIds, rng);
-    if (!rolled) continue;
-    const event = 'event' in rolled ? rolled.event : resolveEventChoice(rolled.pendingChoice, chooseRivalOption(rolled.pendingChoice.choices, rng), rng);
-    events.push(event);
-    usedIds.add(event.id);
-  }
-  return { events, riskDelta: computePrepRiskDelta(finishedPrep(events, days)) };
-}
-
-/** A finished prep holding these events - the shape the player's prep readers take. */
-function finishedPrep(events: ProductionEvent[], days: number): PreProductionState {
-  return { status: 'finished', recommendedDays: days, daysElapsed: days, events, runningCost: 0, pendingChoice: null };
+  const { talent, script, productionChoices, genre } = production;
+  const seed = forkSeed(rng);
+  const prepDays = computeRecommendedPreProductionDays(talent, script, productionChoices);
+  const shootDays = computeRecommendedShootDays(talent, script, productionChoices);
+  const negative = draftNegativeCost({ talent, productionChoices });
+  const ctx = buildPrepContext({
+    talent,
+    genre,
+    team: null,
+    dailyShootBurn: computeDailyShootBurn(productionChoices.shootingBudgetAmount, shootDays),
+    dailyPrepBurn: computeDailyPrepBurn(script.scale, negative),
+    shootDays,
+    contingencyAvailable: productionChoices.contingencyReserveAmount ?? 0,
+    cashPressure: RIVAL_PREP_CASH_PRESSURE,
+    // A rival has announced its date before it shoots.
+    datedRelease: true,
+  });
+  const start = createPreProduction({
+    demands: derivePrepDemands({ script, talent, choices: productionChoices }),
+    plan: undefined,
+    prepDays,
+    seed,
+    team: null,
+    status: 'in-progress',
+    difficultLead: talent.some((a) => a.role === 'Lead Actor' && deriveTraits(a.person).includes('DifficultToWorkWith')),
+  });
+  const run = runPrepHeadless(start, ctx, { skill: NO_PRODUCTION_TEAM_SKILL, seed });
+  return { prep: run.prep, spend: run.cash + run.contingency };
 }
 
 /**
@@ -142,9 +143,13 @@ export function resolveRivalExecution(production: RivalExecutionInput, rng: Rand
   const { talent, script, productionChoices, genre } = production;
   // A rival's shoot is preceded by a pre-production from the player's own prep
   // table; how it went moves the shoot's starting risk and joins the history.
-  const prep = synthesizeRivalPrep(production, rivalPrepRng(rng));
-  const staticRisk = applyPrepRiskDelta(computeStaticProductionRisk(talent, script, productionChoices, genre), prep.riskDelta);
+  const { prep } = synthesizeRivalPrep(production, rivalPrepRng(rng));
+  const staticRisk = applyPrepRiskAdjustments(computeStaticProductionRisk(talent, script, productionChoices, genre), prepRiskAdjustments(prep));
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
+  // What prep left standing happens on the shoot, as it does on a player's
+  // (engine/prep/handoff.ts) - recorded first, its lost days counted.
+  const dailyShootBurn = computeDailyShootBurn(productionChoices.shootingBudgetAmount, recommendedDays);
+  const incidents = carriedIncidentsFor(prep, recommendedDays).map((i) => incidentEvent(i, dailyShootBurn));
   const resilience = computeExecutionResilience(talent, productionChoices);
 
   const fullRisk: FullProductionRisk = { schedulePressure: RIVAL_SCHEDULE_PRESSURE, ...staticRisk };
@@ -155,9 +160,9 @@ export function resolveRivalExecution(production: RivalExecutionInput, rng: Rand
   const expected = recommendedDays * dailyEventChance(baseAvgRisk);
   const baseCount = Math.max(0, Math.round(expected * randFloat(rng, 1 - COUNT_JITTER, 1 + COUNT_JITTER)));
 
-  const events: ProductionEvent[] = [];
-  const usedIds = new Set<string>();
-  let extraDays = 0;
+  const events: ProductionEvent[] = [...incidents];
+  const usedIds = new Set<string>(incidents.map((e) => e.id));
+  let extraDays = incidents.reduce((sum, e) => sum + e.delayDaysDelta, 0);
 
   const rollOne = (): boolean => {
     const escalation = computeShootEscalation(events, resilience);
@@ -194,18 +199,18 @@ export function resolveRivalExecution(production: RivalExecutionInput, rng: Rand
     }
   };
 
-  drawUntil(baseCount);
+  drawUntil(incidents.length + baseCount);
 
   // Failure begets failure: if the history it built carries real escalation, a
   // few more (now negatively-skewed) incidents pile on - bounded, and dampened
   // by resilience, exactly like the player's chains.
   const finalEscalation = computeShootEscalation(events, resilience);
   const bonusEvents = Math.round((finalEscalation / 22) * MAX_ESCALATION_BONUS_EVENTS);
-  drawUntil(baseCount + bonusEvents);
+  drawUntil(incidents.length + baseCount + bonusEvents);
 
   const planningVariance = randFloat(rng, 0.9, 1.08);
   const shootingRatio = clamp((recommendedDays * planningVariance + extraDays) / recommendedDays, 0.5, 2);
 
-  const prepEvents = prepQualityEvents(finishedPrep(prep.events, prep.events.length));
+  const prepEvents = prepQualityEvents(prep);
   return { events: [...prepEvents, ...events], shootingRatio };
 }

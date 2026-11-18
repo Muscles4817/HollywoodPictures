@@ -12,7 +12,10 @@
 // Pure and derived (SIMULATION_PHILOSOPHY Principle 8): nothing here is stored.
 // It reads only data the game already has - the requirement profile, the
 // setting archetype, the cast and the plan.
-import type { Person, ProductionChoices, Script, TalentAssignment } from '../../types';
+import type { Distribution, EnvironmentMethodKey, Person, ProductionChoices, Script, TalentAssignment } from '../../types';
+import { computeVfxAmbition } from '../vfxFacet';
+import { computePracticalAmbition } from '../practicalFacet';
+import { deriveTraits } from '../personTraits';
 import { SETTING_ARCHETYPE_PROFILES } from '../../data/settings';
 import { deriveRequirementProfile, type RequirementLeafKey } from '../requirementProfile';
 import { computeSetsAmbition, defaultDesignPrepDays, NO_DESIGNER_SKILL } from '../setsFacet';
@@ -35,6 +38,8 @@ export interface PrepDemandInput {
   script: Script;
   talent: TalentAssignment[];
   choices: ProductionChoices;
+  /** The plan's environment strategy (FilmDraft.environmentStrategy); absent/null = the screenplay's own lean. */
+  environmentStrategy?: Distribution<EnvironmentMethodKey> | null;
 }
 
 /** A leaf's weight in a front: how much of the film it is, raised by how hard it is to do. */
@@ -65,28 +70,29 @@ function findPerson(talent: TalentAssignment[], role: TalentAssignment['role']):
  * costliest director habit is "staying open": every department's lead time waits
  * on a decision, and an undecided director's departments "default to the most
  * expensive interpretation" (04 §13.4). Read from professionalism and handling of
- * pressure, steadied by experience in the chair.
+ * pressure, a director who keeps adapting (and so keeps options open), and
+ * experience in the chair. (The plan named productionStyle too; that field holds
+ * only environment and effects methods, nothing about deciding.)
  */
 export function directorDecisiveness(director: Person | undefined): number {
   if (!director) return 0.5;
   const career = director.careers.director;
-  const experience = clamp((career?.experience ?? 0) / 15, 0, 1);
+  const experience = clamp((career?.experience ?? 0) / 100, 0, 1);
   const p = director.personality;
-  return clamp(0.4 * (p.professionalism / 100) + 0.4 * (p.pressureHandling / 100) + 0.2 * experience, 0, 1);
+  return clamp(0.35 * (p.professionalism / 100) + 0.25 * (p.pressureHandling / 100) + 0.2 * (1 - p.adaptability / 100) + 0.2 * experience, 0, 1);
 }
 
 /** Every front's demand for this film, in PREP_FRONTS order. */
-export function derivePrepDemands({ script, talent, choices }: PrepDemandInput): FrontDemand[] {
+export function derivePrepDemands({ script, talent, choices, environmentStrategy }: PrepDemandInput): FrontDemand[] {
   const setting = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
   const profile = deriveRequirementProfile(script);
   const present = new Map(profile.map((leaf) => [leaf.key, leaf]));
   const load = (key: RequirementLeafKey) => leafLoad(present, key);
   const speaking = script.cast.length;
   const leads = script.cast.filter((c) => c.prominence === 'Lead').length;
-  const maxTransformation = Math.max(0, ...script.cast.map((c) => c.traits.transformationDemand)) / 100;
   const leadPhysical = Math.max(0, ...script.cast.filter((c) => c.prominence === 'Lead').map((c) => c.traits.physicalDemand)) / 100;
   const scriptSoundness = (script.structure + script.characters) / 200;
-  const strategy = script.environmentStrategy;
+  const strategy = environmentStrategy ?? script.environmentStrategy;
 
   const fronts: Record<PrepFront, { demand: number; reasons: string[] }> = {
     breakdown: { demand: 0, reasons: [] },
@@ -116,8 +122,13 @@ export function derivePrepDemands({ script, talent, choices }: PrepDemandInput):
   else if (fronts.design.demand > 0.45) fronts.design.reasons.push('Sets that have to be designed and built before anyone can shoot on them.');
 
   // Costume, hair and makeup - blocked on casting; prosthetics and period are
-  // the long chains (04 §7.2).
-  fronts.costume.demand = combine([load('periodCostume'), load('prostheticsMakeup'), load('creatureEmbodiment') * 0.8, maxTransformation * 0.35, clamp((speaking - 4) / 30, 0, 0.4)]);
+  // the long chains (04 §7.2). Prosthetic lead time is read only where the film
+  // really has makeup effects - a creature or a horror film. The profile's
+  // prostheticsMakeup leaf is driven by characters' transformationDemand, which
+  // is an ACTING trait (an arc to play); read alone it put prosthetics on 86% of
+  // generated films (docs/DESIGN_REVIEW_preproduction_realism.md, As built).
+  const makeupFx = script.genre === 'Horror' || script.cast.some((c) => c.archetype === 'MonsterOrCreature');
+  fronts.costume.demand = combine([load('periodCostume'), makeupFx ? load('prostheticsMakeup') : 0, load('creatureEmbodiment') * 0.8, clamp((speaking - 4) / 30, 0, 0.4)]);
   if (load('prostheticsMakeup') > 0.3 || load('creatureEmbodiment') > 0.3) fronts.costume.reasons.push('Prosthetics or creature work that takes months to make.');
   else if (load('periodCostume') > 0.3) fronts.costume.reasons.push('A period wardrobe, much of it made rather than bought.');
 
@@ -129,17 +140,19 @@ export function derivePrepDemands({ script, talent, choices }: PrepDemandInput):
 
   // Casting - the speaking parts below the leads, and the pairings that only a
   // read can test (04 §8).
-  fronts.casting.demand = combine([clamp((speaking - 3) / 20, 0, 0.6), leads >= 2 ? 0.25 : 0, script.genre === 'Romance' ? 0.25 : 0]);
+  const difficultLead = talent.some((a) => a.role === 'Lead Actor' && deriveTraits(a.person).includes('DifficultToWorkWith'));
+  fronts.casting.demand = combine([clamp((speaking - 3) / 20, 0, 0.6), leads >= 2 ? 0.25 : 0, script.genre === 'Romance' ? 0.25 : 0, difficultLead ? 0.3 : 0]);
+  if (difficultLead) fronts.casting.reasons.push('A lead known to be hard to work with.');
   if (speaking > 12) fronts.casting.reasons.push('A large speaking cast to find and fit.');
   if (leads >= 2 || script.genre === 'Romance') fronts.casting.reasons.push('The film lives on a central pairing that has to work together.');
 
   // Action - designed, rehearsed and rigged in prep, never on the day (04 §10.5).
-  fronts.action.demand = combine([load('combatStunts'), load('vehicleAction'), load('practicalDestruction'), load('danceChoreography') * 0.7, leadPhysical * 0.3]);
+  fronts.action.demand = combine([load('combatStunts'), load('vehicleAction'), load('practicalDestruction'), load('danceChoreography') * 0.7, leadPhysical * 0.3, (computePracticalAmbition(script.genre, script) / 100) * 0.4]);
   if (fronts.action.demand > 0.4) fronts.action.reasons.push('Action that has to be designed, rehearsed and made safe before the shoot.');
 
   // Effects - methodology and previs; on an effects-led film the design IS the
   // VFX design (04 §1.1, §10.4).
-  fronts.effects.demand = combine([load('digitalEnvironments'), load('creatureAnimation'), load('compositingVfx'), load('digitalDoubles') * 0.8]);
+  fronts.effects.demand = combine([load('digitalEnvironments'), load('creatureAnimation'), load('compositingVfx'), load('digitalDoubles') * 0.8, (computeVfxAmbition(script.genre, script) / 100) * 0.4]);
   if (fronts.effects.demand > 0.4) fronts.effects.reasons.push('Effects work whose method has to be settled shot by shot.');
 
   // The visual plan - director, DP and designer seeing the same film (04 §13.1,
@@ -150,6 +163,10 @@ export function derivePrepDemands({ script, talent, choices }: PrepDemandInput):
   if (tension > 0.4) fronts.visual.reasons.push('Key creatives who do not see the same film.');
   if (decisiveness < 0.4) fronts.visual.reasons.push('A director who keeps options open, so departments wait on decisions.');
 
+  // The plan's money is deliberately not read: the game has no norm for what a
+  // film's work "should" cost to compare a budget against, so a budget gap is
+  // a problem the breakdown finds (data/prep.ts:PREP_PROBLEMS['budget-gap']),
+  // not a demand. `choices` stays in the input for the design window.
   void choices;
   return PREP_FRONTS.map((front) => ({ front, demand: fronts[front].demand, reasons: fronts[front].reasons }));
 }
@@ -175,9 +192,13 @@ export function recommendedPrepDays(demands: FrontDemand[], designAskDays: numbe
   const factor = PREP_SCALE_FACTOR[scale];
   const chains = demands.map((d) => {
     if (d.front !== 'design') return frontChainDays(d.front, d.demand) * factor;
-    // A design window the player granted is taken as given, in days.
-    if (grantedDesignDays !== undefined) return grantedDesignDays;
-    return Math.max(frontChainDays('design', d.demand) * factor, designAskDays);
+    const chain = frontChainDays('design', d.demand) * factor;
+    // The design window the player granted is read as a share of the
+    // designer's own ask (the Sets facet's units - its timeRatio), applied to
+    // the design chain: granting the ask leaves the chain as it is, half the ask
+    // halves it - and the Sets facet pays for the rush.
+    if (grantedDesignDays !== undefined && designAskDays > 0) return chain * clamp(grantedDesignDays / designAskDays, 0.25, 3);
+    return chain;
   });
   return Math.round(PREP_CORE_DAYS * factor + Math.max(0, ...chains));
 }

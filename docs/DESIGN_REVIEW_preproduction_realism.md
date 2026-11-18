@@ -666,3 +666,169 @@ Each step leaves the game playable, tested and measurable.
    for genuinely random trouble. The shoot itself (overtime, coverage choices,
    catching up — 06 §7, §16) deserves the same treatment as prep; it is the
    natural next note.
+
+---
+
+## 10. As built
+
+Implemented from `docs/IMPLEMENTATION_PLAN_preproduction_realism.md`. Each
+phase was checked by an independent reviewer agent; what it found and what was
+done about it is recorded here, along with what still looks wrong.
+
+### 10.1 Phase 1 — fixes
+
+As planned: a paused prep reaches the Inbox; one prep length everywhere
+(`engine/prepLength.ts`); the greenlight gate counts the contingency; cast size
+counts actors; one period flag; a backgrounded prep is advanced by the days the
+calendar moves (`withPrepCalendar`); bookings follow a film whose dates move
+(`withBookingsFollowFilms`). The reviewer found that a held film was credited
+prep days from before it started, and that one cast-size test passed for the
+wrong reason. Both were fixed, and tests were added for a long calendar jump,
+for advancing to the shoot start, and for bookings when a shoot overruns.
+
+### 10.2 Phase 2 — the breakdown
+
+`engine/prep/demands.ts` gives each film a demand on each of eight fronts,
+taken from data the game already has. Recommended prep = the core plus the
+slowest chain. The reviewer found:
+
+- **A units bug in the design window (fixed).** Every planning edit writes the
+  designer's ask (6–40 days, in the Sets facet's units) into
+  `designPrepDays`. That number then *replaced* a design chain measured in
+  different units, so any slider edit could quietly cut prep by up to 85 days.
+  The window granted is now read as a share of the ask and applied to the
+  chain: granting the ask changes nothing, half the ask halves the chain, and
+  the Sets facet pays for the rush.
+- **Director decisiveness read experience on the wrong scale (fixed).** It
+  divided a 0–100 stat by 15. It now reads professionalism, handling of
+  pressure, low adaptability (a director who keeps options open) and experience.
+  The plan named `productionStyle`, but that field holds only environment and
+  effects methods, so it has nothing to say about deciding.
+- **The plan's own inputs were not read (fixed where they exist).**
+  - The player's environment strategy now overrides the screenplay's lean.
+  - VFX and practical ambition now feed effects and action.
+  - A lead who is hard to work with now feeds casting.
+  - Shooting budget against the work is *not* read: the game has no norm for
+    what a film's work should cost. A budget gap is instead a problem the
+    breakdown can find.
+- **Costume dominated almost every film — investigated, cause found.**
+  - The requirement profile's `prostheticsMakeup` leaf is driven by
+    characters' `transformationDemand`. That is an *acting* trait (an arc to
+    play), and it averages 58 in generated casts, so the leaf put prosthetic
+    makeup on 86% of generated films, ordinary dramas included.
+  - Prep now reads prosthetic lead time only where the film really has makeup
+    effects: a creature, or a horror film.
+  - **The profile itself is unchanged, and still wrong in the same way for the
+    Prosthetics facet's ambition. That needs its own fix and a re-measure of the
+    facet model; it is outside this plan.**
+- **Grounding after the fixes** (generated scripts, 60 per genre). Medians are
+  close to the reference (04 §1):
+
+  | Film type | Median prep | p10 | p90 | Reference |
+  |---|---|---|---|---|
+  | Intimate | 8 weeks | 5 weeks | 14 weeks | indie 6–10 weeks |
+  | Medium | 11.6 weeks | 6 weeks | 22 weeks | studio mid-budget 8–12 weeks |
+  | Epic | 25 weeks | 14 weeks | 45 weeks | tentpole 4–12 months |
+  | Period | 16 weeks (about 3.7 months) | — | — | heavy-build period 4–9 months, so slightly short |
+
+  The tails are long: about one Medium film in five preps for over five months.
+  The live threshold (0.15) also counts many fronts as "light" on a small film
+  (6.3 live on average), which the outlook shows honestly as light.
+- **Tests tightened.**
+  - The chamber drama is now really a chamber drama (low-action tone): 3 live
+    fronts at most, and 5 weeks.
+  - Each source is tested to raise its own front.
+  - The core-plus-slowest test now checks behaviour instead of copying the
+    formula.
+  - Medians are checked by scale.
+
+### 10.3 Phase 3 — the production team
+
+As planned: a world roster of line producer & 1st AD teams, chosen on the
+planning screen, frozen at greenlight, with the fee charged once, at release.
+The reviewer found no fee bug. Fixed from its findings:
+
+- the team can no longer be swapped after greenlight;
+- the committed spend reads the contracted team;
+- the save version was bumped (to 109, together with Phase 4);
+- tests were added for greenlight with no team, the frozen snapshot, and a
+  proper "clears it" check.
+
+### 10.4 Phase 4 — problems, finding them, checkpoints, delegation, the shoot
+
+**Engine** (`src/engine/prep/`):
+
+- **`problems.ts`** draws each film's problems once, from its own seed. There
+  are fourteen kinds, catalogued in `data/prep.ts` with the reference's sizes.
+  - Count and severity scale with the front's demand.
+  - A shorter prep worsens long-lead problems and a longer one eases them.
+  - A difficult lead brings the casting problem that the old bank's clash stood
+    for.
+- **`discovery.ts`** finds problems during their window.
+  - A problem that only scouting, tests, rehearsal or previs reveals is never
+    found without that work.
+  - The owner's skill, the team's reliability, severity and obviousness raise
+    the chance; so does a director who has worked with that owner before.
+  - Rolls are hashes of the film's seed, so nothing is taken from a shared
+    stream and prep replays.
+- **`checkpoints.ts`** handles four checkpoints, at 25%, 55%, 80% and 95% of
+  prep.
+  - Each fix is priced in the film's own units: shooting days of money, prep
+    days, a typed scope cut, or the contingency.
+  - Deadlines close a rush order late in prep.
+  - Carrying a problem is always an option.
+- **`delegation.ts`**: one rule for teams, rivals and the bot. Each option is
+  costed in shooting days.
+  - A strong team keeps the contingency for the shoot.
+  - A weak team misjudges, and underrates what carrying a problem costs.
+  - Tested: a better team pays less, in true cost, for the same problems.
+- **`handoff.ts`** schedules every problem still standing onto a shoot day.
+  Carried incidents fire as that day's event before the random roll, on the
+  focused shoot, the backgrounded shoot and the rival synthesiser alike.
+- **`run.ts`** holds one day of prep, the headless run, and the starting-risk
+  adjustments per dimension, which replace the old uniform delta.
+
+**Game:**
+
+- **Greenlight** builds the prep from the plan set before greenlight (length,
+  revealing work, delegated by default).
+- **The day tick** is one function for the focused screen, the background and
+  rivals.
+- **Actions:** `RESOLVE_PREP_CHECKPOINT`, `SET_PREP_DELEGATION` (handing over a
+  paused checkpoint lets the team answer it at once), and `SET_PREP_PLAN`.
+- **Contingency** drawn in prep is a cost of the film and comes off the refund
+  at wrap.
+- **Removed:** the 13-card prep bank, `rollPreProductionDayEvent`,
+  `computePrepRiskDelta`, and `chooseRivalOption`, which had been used only for
+  prep.
+- **Left in place, now unreachable:** the `awaiting-choice` prep path (and its
+  Inbox card). Nothing generates a prep `pendingChoice` any more.
+
+**UI:**
+
+- **Planning screen:** prep length (shorter / as recommended / longer), naming
+  what a short prep drops in the reference's sacrifice order; the activities,
+  each with its purpose; and the delegation switch.
+- **Prep screen:** a readiness checklist, the prep log, and the checkpoint
+  briefing. Each found problem is described in words with every open option and
+  what it costs in money, days, or "costs the sets noticeably". The screen also
+  has a hand-over button.
+
+**Notification contract** (`docs/DESIGN_notification_contract.md`):
+
+- **Find out:** a paused checkpoint is an Inbox card (`prepCheckpoints`) and is
+  counted in the badge. It includes the focused film, because focus survives
+  leaving the prep screen. The Dashboard row reads "Decision required".
+- **Act in one click:** the card goes to the film's prep screen, where the
+  briefing is shown (`GO_TO_PREPRODUCTION` if focused, `RESUME_PROJECT`
+  otherwise).
+- **The message stops:** answering, or handing over, clears it.
+- **Delegated checkpoints** are logged ("what your production team decided")
+  rather than notified, because there is nothing to act on.
+
+**Rivals** run the same engine headless with the studio office and recommended
+prep. Phase 6 gives them teams, contingency, prep time in the calendar, and
+memory.
+
+**Not yet measured:** what the problems do to the market and to careers. That
+is Phase 7.

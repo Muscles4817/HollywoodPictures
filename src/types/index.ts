@@ -6,6 +6,7 @@
 // it imports nothing from here or anywhere else in the live game, so this
 // file depending on its two domain types (BoxOfficeRun below) can never
 // become circular.
+import type { PrepActivity, PrepFixKind, PrepFront, PrepProblemKind } from '../data/prep';
 import type { AudienceSimulationFixedState, AudienceSimulationWeekState } from '../engine/audienceSimulation';
 
 export type Genre =
@@ -1179,6 +1180,8 @@ export interface PhotographyState {
   events: ProductionEvent[];
   runningCost: number;
   pendingChoice: PendingEventChoice | null;
+  /** Prep problems carried into the shoot, each firing on its day before that day's own roll (engine/prep/handoff.ts). */
+  carriedIncidents?: CarriedIncident[];
 }
 
 // Pre-Production run - a real day-by-day phase between Greenlight and Principal
@@ -1197,14 +1200,93 @@ export interface PreProductionState {
   // 'scheduled' (Deferred Start): greenlit but held in development until the cast
   // waited-for is free - the shoot start is FilmDraft.shootStartsOnDay, prep hasn't
   // begun yet (daysElapsed 0). Advancing to that day flips it to 'in-progress'.
-  status: 'scheduled' | 'in-progress' | 'awaiting-choice' | 'finished';
+  // 'awaiting-checkpoint': paused at one of prep's four decision points
+  // (engine/prep/checkpoints.ts) until the player answers pendingCheckpoint.
+  status: 'scheduled' | 'in-progress' | 'awaiting-choice' | 'awaiting-checkpoint' | 'finished';
   recommendedDays: number;
   daysElapsed: number;
+  /** Typed events prep left on the film: today only the scope cuts its decisions made (a cut is a smaller, chosen loss in a named department). Folded into the film at release (engine/production.ts:prepQualityEvents). */
   events: ProductionEvent[];
   runningCost: number;
   pendingChoice: PendingEventChoice | null;
   /** The line producer & 1st AD team contracted for this film at greenlight (a frozen copy - the deal is struck then). Absent/null = the studio's own production office. */
   team?: ProductionTeam | null;
+  // --- Problems, finding them, and the checkpoints (docs/DESIGN_REVIEW_preproduction_realism.md §4.2-§4.4) ---
+  /** The film's real prep problems, drawn once at greenlight from its demands. Hidden until found. */
+  problems: PrepProblem[];
+  /** Seed for every roll prep makes (discovery, shoot timing) - drawn once, so prep replays. */
+  seed: number;
+  /** Prep day each of the four checkpoints falls on; recomputed when prep grows. */
+  checkpointDays: number[];
+  /** Index of the next checkpoint not yet reached (4 = all past). */
+  nextCheckpoint: number;
+  /** Set while paused at a checkpoint the player must answer. */
+  pendingCheckpoint: PrepCheckpoint | null;
+  /** The film's production team (or the studio's office) decides each checkpoint itself. */
+  delegated: boolean;
+  /** Which of prep's revealing work this film is doing. */
+  activities: Record<PrepActivity, boolean>;
+  /** The prep length chosen, as a share of the recommendation (0.75 / 1 / 1.25). */
+  lengthFactor: number;
+  /** What happened in prep, in plain words, newest last. */
+  log: PrepLogEntry[];
+  /** Prep days added by fixes (time taken), already inside recommendedDays. */
+  daysAdded: number;
+  /** Money paid for fixes in prep, already charged to cash (inside runningCost too). */
+  fixSpend: number;
+}
+
+/** One real prep problem (docs/DESIGN_REVIEW_preproduction_realism.md §1.3). */
+export interface PrepProblem {
+  id: string;
+  kind: PrepProblemKind;
+  front: PrepFront;
+  /** 0..1, how bad it is if nothing is done. Falls when a fix partly solves it. */
+  severity: number;
+  /** Prep day it was found, or null while still hidden. */
+  foundOnDay: number | null;
+  resolution: PrepResolution | null;
+}
+
+export interface PrepResolution {
+  option: PrepFixKind;
+  /** Prep day it was decided. */
+  day: number;
+  costPaid: number;
+  daysAdded: number;
+  /** Drawn from the contingency reserve rather than cash. */
+  contingencyUsed: number;
+  /** Who decided: the player, or the production team on delegation. */
+  decidedBy: 'player' | 'team';
+}
+
+/** A decision point and the found, unresolved problems on its table. */
+export interface PrepCheckpoint {
+  index: number;
+  problemIds: string[];
+}
+
+export interface PrepLogEntry {
+  day: number;
+  text: string;
+  kind: 'found' | 'decided' | 'checkpoint' | 'note';
+}
+
+/** The prep plan set on the planning screen before greenlight. Absent = recommended length, activities by demand, delegated. */
+export interface PrepPlan {
+  lengthFactor: number;
+  /** null = defaulted by the film's demands. */
+  activities: Record<PrepActivity, boolean> | null;
+  delegated: boolean;
+}
+
+/** A prep problem never dealt with, due to fire on this shoot day. */
+export interface CarriedIncident {
+  /** Shoot day (1-based) it fires on. */
+  day: number;
+  problemId: string;
+  kind: PrepProblemKind;
+  severity: number;
 }
 
 // Development phase (docs/DESIGN_REVIEW_development_and_financing.md) - the
@@ -2835,6 +2917,8 @@ export interface FilmDraft {
   stuntTeamId?: string | null;
   /** The line producer & 1st AD team running this film's prep, by id into GameState.productionTeamPool. Absent/null = the studio's own production office. */
   productionTeamId?: string | null;
+  /** The prep plan: length, revealing work, and whether the film's team decides prep's checkpoints. Absent = defaults. */
+  prepPlan?: PrepPlan;
   /** The price the player is currently targeting for each casting slot - filters GameState.talentPool (once mapped to the underlying TalentProfession) down to who's shown. Keyed by ProductionRole, not TalentProfession, since Lead Actor and Supporting Actor need independent target prices even though both hire from the same Actor pool. */
   talentTargetPriceByRole: Partial<Record<ProductionRole, number>>;
   /**

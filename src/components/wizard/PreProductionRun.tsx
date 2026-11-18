@@ -1,16 +1,18 @@
 import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { computePrepRiskDelta } from '../../engine/production';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { StatTile } from '../common/StatTile';
 import { ScoreBar } from '../common/ScoreBar';
-import { SeverityBadge } from '../common/SeverityBadge';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { PREP_PAUSED_MESSAGE } from '../common/decisionText';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { asPlayerDraft, findProject } from '../../engine/project';
 import { formatGameDateWithMonth } from '../../engine/calendar';
+import { derivePrepDemands } from '../../engine/prep/demands';
+import { readinessChecklist } from '../../engine/prep/handoff';
+import { PREP_ACTIVITIES, PREP_ACTIVITY_LABEL, PREP_FRONT_LIVE_THRESHOLD } from '../../data/prep';
+import { PrepCheckpointBriefing } from '../prep/PrepCheckpointBriefing';
 
 const TICK_INTERVAL_MS = 500;
 
@@ -73,11 +75,15 @@ export function PreProductionRun() {
 
   const pctElapsed = prep.recommendedDays > 0 ? Math.min(100, (prep.daysElapsed / prep.recommendedDays) * 100) : 0;
   const daysLeft = Math.max(0, prep.recommendedDays - prep.daysElapsed);
-  // Negative prep-risk delta = prep has lowered the shoot's starting risk. Kept
-  // qualitative for the player (the sim's own presentation rule), read live.
-  const prepDelta = computePrepRiskDelta(prep);
-  const readiness = prepDelta <= -6 ? 'Ahead of the game' : prepDelta >= 6 ? 'Behind and scrambling' : 'On track';
-  const readinessColor = prepDelta <= -6 ? 'var(--green)' : prepDelta >= 6 ? 'var(--danger)' : 'var(--text-muted)';
+  const liveFronts = draft.script && draft.productionChoices
+    ? derivePrepDemands({ script: draft.script, talent: draft.talent, choices: draft.productionChoices, environmentStrategy: draft.environmentStrategy })
+        .filter((d) => d.demand >= PREP_FRONT_LIVE_THRESHOLD)
+        .map((d) => d.front)
+    : [];
+  const checklist = readinessChecklist(prep, liveFronts);
+  const stateWord = { ready: 'Ready', open: 'Open problems', unchecked: 'Not checked' } as const;
+  const stateColor = { ready: 'var(--green)', open: 'var(--danger)', unchecked: 'var(--amber)' } as const;
+  const skipped = PREP_ACTIVITIES.filter((a) => !prep.activities[a]);
 
   function handleFastForward() {
     for (let i = 0; i < daysLeft; i++) dispatch({ type: 'ADVANCE_PREPRODUCTION_DAY' });
@@ -90,15 +96,45 @@ export function PreProductionRun() {
 
       <div className="stack">
         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-          Locking deals, scouting and building, rehearsing - the weeks before a frame is shot. How prep goes sets the
-          footing the shoot starts on, and the odd creative win here can carry all the way to the finished film.
+          Breaking the script down, building, scouting, testing, rehearsing - the weeks before a frame is shot. Prep
+          cannot make the film better than its people and its money allow; it finds what would go wrong on the shoot
+          while it is still cheap to fix.
         </p>
         <div className="row">
           <StatTile label="Prep Day" value={`${prep.daysElapsed} of ~${prep.recommendedDays}`} />
           <StatTile label="Prep Spend" value={<Money amount={prep.runningCost} />} />
-          <StatTile label="Readiness" value={<span style={{ color: readinessColor }}>{readiness}</span>} />
+          <StatTile label="Decisions" value={prep.delegated ? 'Production team' : 'You'} />
         </div>
         <ScoreBar label="Pre-Production Progress" value={pctElapsed} />
+
+        {prep.status === 'awaiting-checkpoint' && prep.pendingCheckpoint && <PrepCheckpointBriefing draft={draft} />}
+
+        <div className="card stack">
+          <div className="row-between">
+            <h2 style={{ margin: 0 }}>Readiness</h2>
+            <label className="row" style={{ gap: 6, fontSize: '0.9em' }}>
+              <input
+                type="checkbox"
+                checked={prep.delegated}
+                disabled={prep.status === 'finished'}
+                onChange={(e) => dispatch({ type: 'SET_PREP_DELEGATION', productionId: draft.id, delegated: e.target.checked })}
+              />
+              The production team makes prep's decisions
+            </label>
+          </div>
+          {checklist.map((row) => (
+            <div key={row.front} className="row-between" style={{ fontSize: '0.9em' }}>
+              <span>{row.label}</span>
+              <span style={{ color: stateColor[row.state] }}>{stateWord[row.state]}</span>
+            </div>
+          ))}
+          {skipped.length > 0 && (
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+              Not being done on this prep: {skipped.map((a) => PREP_ACTIVITY_LABEL[a].toLowerCase()).join('; ')}. What only
+              that work would find, the shoot will find instead.
+            </p>
+          )}
+        </div>
 
         {prep.status === 'awaiting-choice' && prep.pendingChoice && (
           <OnSetDecisionCard
@@ -114,23 +150,12 @@ export function PreProductionRun() {
         )}
 
         <div className="card stack">
-          <h2>Pre-Production Events</h2>
-          {prep.events.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)' }}>Nothing notable yet.</p>}
-          {prep.events.map((event, i) => (
-            <div
-              key={`${event.id}-${i}`}
-              className="row-between event-reveal"
-              style={{ borderBottom: '1px solid var(--border)', paddingBottom: 8 }}
-            >
-              <span className="row" style={{ gap: 8 }}>
-                <SeverityBadge severity={event.severity} />
-                <span>{event.description}</span>
-              </span>
-              <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                {event.costDelta !== 0 ? <>Cost <Money amount={event.costDelta} signColor invertColor showSign /></> : null}
-                {event.qualityDelta !== 0 ? <> &middot; Quality {event.qualityDelta >= 0 ? '+' : ''}{event.qualityDelta.toFixed(1)}</> : null}
-                {event.delayDaysDelta > 0 ? <> &middot; +{event.delayDaysDelta}d</> : null}
-              </span>
+          <h2>Prep Log</h2>
+          {prep.log.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)' }}>Nothing found yet.</p>}
+          {prep.log.map((entry, i) => (
+            <div key={i} className="row event-reveal" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 6, gap: 8, fontSize: '0.9em' }}>
+              <span style={{ color: 'var(--text-muted)', minWidth: 56 }}>Day {entry.day}</span>
+              <span style={{ fontWeight: entry.kind === 'checkpoint' ? 600 : undefined }}>{entry.text}</span>
             </div>
           ))}
           {prep.status === 'in-progress' && (
@@ -144,8 +169,8 @@ export function PreProductionRun() {
               </div>
             </div>
           )}
-          {prep.status === 'awaiting-choice' && (
-            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Waiting on your decision above...</p>
+          {(prep.status === 'awaiting-choice' || prep.status === 'awaiting-checkpoint') && (
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Waiting on your decisions above...</p>
           )}
         </div>
       </div>

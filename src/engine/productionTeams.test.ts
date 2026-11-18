@@ -5,9 +5,10 @@ import { createRng } from './random';
 import { withReplayableIds } from './identity';
 import { NO_PRODUCTION_TEAM_SKILL, PRODUCTION_TEAM_POOL_SIZE, PRODUCTION_TEAM_SPECIALTY_BONUS } from '../data/productionTeams';
 import { studioReducer } from '../state/studioReducer';
-import { buildStateWithReadyDraft } from '../state/testFixtures';
+import { buildStateReadyToGreenlight, buildStateWithReadyDraft } from '../state/testFixtures';
 import { asPlayerDraft } from './project';
 import { computeCommittedSpend } from '../state/selectors';
+import { deriveProjectReadiness } from './projectReadiness';
 
 describe('the production team roster', () => {
   it('is deterministic for a seed and spans cheap to expensive, weak to strong', () => {
@@ -33,7 +34,7 @@ describe('the production team roster', () => {
 
 describe('hiring a production team', () => {
   const state = () => {
-    const s = buildStateWithReadyDraft(6);
+    const s = buildStateReadyToGreenlight(6);
     return { ...s, productionTeamPool: generateProductionTeamPool(createRng(6)) };
   };
 
@@ -42,7 +43,7 @@ describe('hiring a production team', () => {
     const team = s.productionTeamPool[3];
     const hired = studioReducer(s, { type: 'SET_PRODUCTION_TEAM', productionTeamId: team.id });
     expect(asPlayerDraft(hired.projects[0])!.productionTeamId).toBe(team.id);
-    expect(studioReducer(hired, { type: 'SET_PRODUCTION_TEAM', productionTeamId: null }).projects[0]).not.toBe(hired.projects[0]);
+    expect(asPlayerDraft(studioReducer(hired, { type: 'SET_PRODUCTION_TEAM', productionTeamId: null }).projects[0])!.productionTeamId).toBeNull();
     expect(studioReducer(s, { type: 'SET_PRODUCTION_TEAM', productionTeamId: 'nobody' })).toBe(s);
     expect(productionTeamById(s.productionTeamPool, team.id)).toBe(team);
   });
@@ -53,6 +54,31 @@ describe('hiring a production team', () => {
     const hired = studioReducer(s, { type: 'SET_PRODUCTION_TEAM', productionTeamId: team.id });
     const draft = asPlayerDraft(hired.projects[0])!;
     expect(computeCommittedSpend(draft, [], [], hired.productionTeamPool) - computeCommittedSpend(draft, [], [], [])).toBe(team.typicalSalary);
+  });
+});
+
+describe('the deal at greenlight', () => {
+  const state = () => ({ ...buildStateReadyToGreenlight(8), productionTeamPool: generateProductionTeamPool(createRng(8)) });
+
+  it('is not required: a film greenlights with the studio office', () => {
+    const s = state();
+    expect(deriveProjectReadiness(asPlayerDraft(s.projects[0])!, s.studio.cash).ready).toBe(true);
+    const lit = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
+    const d = asPlayerDraft(lit.projects[0])!;
+    expect(d.preProduction).not.toBeNull();
+    expect(d.preProduction!.team).toBeNull();
+  });
+
+  it('freezes the team chosen, which can no longer be swapped', () => {
+    const s = state();
+    const team = s.productionTeamPool[12];
+    const lit = studioReducer(studioReducer(s, { type: 'SET_PRODUCTION_TEAM', productionTeamId: team.id }), { type: 'GREENLIGHT_PROJECT' });
+    const d = asPlayerDraft(lit.projects[0])!;
+    expect(d.preProduction!.team).toEqual(team);
+    const swapped = studioReducer(lit, { type: 'SET_PRODUCTION_TEAM', productionTeamId: s.productionTeamPool[0].id });
+    expect(swapped).toBe(lit);
+    // The committed spend reads the contracted team, not the roster.
+    expect(computeCommittedSpend(d, [], [], []) - computeCommittedSpend({ ...d, preProduction: { ...d.preProduction!, team: null } }, [], [], [])).toBe(team.typicalSalary);
   });
 });
 

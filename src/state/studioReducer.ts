@@ -4,7 +4,7 @@ import { AWARD_CATEGORY_WEIGHT } from '../data/awards';
 import { applyAwardsToCareers, applyFilmResultsToCareers, crossedStandingFade, fadeStanding } from '../engine/careerProgress';
 import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, CastCrewFocus, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
-import { clamp, randomSeed, withRng, type RandomFn } from '../engine/random';
+import { clamp, forkSeed, randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole, findAssignedPerson, filterAssignedPeople } from '../data/helpers';
@@ -12,7 +12,7 @@ import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequi
 import { splitCastBudgetByImportance } from '../engine/castBudget';
 import { appendStaffingEvent } from './staffingBoard';
 import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge } from '../engine/casting';
-import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
+import { beginPhotographyFromPrep, computeRecommendedPostProductionDays, computeRecommendedShootDays, computeShootEscalation, footageLowerBound, footageUpperBound, rollDayEvent, resolveEventChoice, shootStartingRisk } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { RESHOOT_REQUIREMENTS, reshootSurcharge } from '../engine/reshootAvailability';
@@ -31,7 +31,6 @@ import { computeRewriteOutcome, draftAtAssetHead, estimateRewriteDuration, makeP
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
 import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta, directorWouldWalk } from '../engine/creativeDemands';
 import { openDirectorPitches, tickDirectorPitches } from '../engine/directorPitches';
-import { computePitchExecutionRiskDelta } from '../engine/directorPitch';
 import {
   momentPolarity,
   resolvePressTourIncident,
@@ -58,7 +57,15 @@ import { settleTheatricalMarket } from '../engine/marketSettlement';
 import { computeRelationship, recordPlayerFilmCollaborations, PLAYER_STUDIO_ID } from '../engine/relationships';
 import { recordPlayerFilmPairings } from '../engine/pairHistory';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
-import { settlePreProductionsInProgress, settleProductionsInProgress, type PreProductionCharge } from '../engine/productionsInProgress';
+import { settlePreProductionsInProgress, settleProductionsInProgress, type PreProductionCharge, type PrepRunLookup } from '../engine/productionsInProgress';
+import { prepRunFor } from '../engine/prep/context';
+import { prepContingencyUsed } from '../engine/prep/checkpoints';
+import { advancePrepDay, createPreProduction, resolvePrepCheckpoint } from '../engine/prep/run';
+import { decideCheckpoint } from '../engine/prep/delegation';
+import { checkpointShare } from '../engine/prep/checkpoints';
+import { derivePrepDemands } from '../engine/prep/demands';
+import { fireCarriedIncidents } from '../engine/prep/handoff';
+import { deriveTraits } from '../engine/personTraits';
 import { playerCalendarPresence, type ScheduledRelease } from '../engine/scheduledReleases';
 import { deriveReleaseWindowFromDay, DAYS_PER_YEAR, firstDayOfYear, yearOf } from '../engine/calendar';
 import { accrueMomentum, computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
@@ -256,7 +263,8 @@ function wrapPhotography(draft: FilmDraft, wrapDay: number): { draft: FilmDraft;
   const photography = draft.photography!;
   const productionChoices = draft.productionChoices!;
   const committed = productionChoices.shootingBudgetAmount + (productionChoices.contingencyReserveAmount ?? 0);
-  const contingencySettlement = committed - photography.runningCost;
+  // Contingency a prep fix drew (engine/prep/checkpoints.ts) was spent in prep and does not come back.
+  const contingencySettlement = committed - prepContingencyUsed(draft.preProduction) - photography.runningCost;
   const postProductionScreeningReadyDay = wrapDay + computeRecommendedPostProductionDays(draft.talent, draft.script!, productionChoices);
   return {
     draft: {
@@ -1163,10 +1171,9 @@ function withPrepCalendar(before: GameState, after: GameState): GameState {
     return [{ draft: s, days: ownDays }];
   });
   if (!needsStart && toAdvance.length === 0) return after;
-  const { result, nextSeed } = withRng(after.rngSeed, (rng) => {
-    const settled = toAdvance.map(({ draft, days: n }) => settlePreProductionsInProgress([draft], n, rng));
-    return { drafts: settled.flatMap((r) => r.drafts), charges: settled.flatMap((r) => r.charges) };
-  });
+  const runFor = prepRunLookup(after);
+  const settled = toAdvance.map(({ draft, days: n }) => settlePreProductionsInProgress([draft], n, runFor));
+  const result = { drafts: settled.flatMap((r) => r.drafts), charges: settled.flatMap((r) => r.charges) };
   const advanced = new Map(result.drafts.map((d) => [d.id, d]));
   const projects = after.projects.map((p) => {
     const d = asPlayerDraft(p);
@@ -1174,7 +1181,12 @@ function withPrepCalendar(before: GameState, after: GameState): GameState {
     const next = advanced.get(d.id) ?? started(d);
     return next === d ? p : playerDraftToProject(next);
   });
-  return { ...after, rngSeed: nextSeed, projects, studio: chargePreProduction(after.studio, after.totalDays, result.charges) };
+  return { ...after, projects, studio: chargePreProduction(after.studio, after.totalDays, result.charges) };
+}
+
+/** How the reducer runs a player draft's prep: its context from the world, its team as the decider (engine/prep/context.ts:prepRunFor). */
+function prepRunLookup(state: GameState): PrepRunLookup {
+  return (d) => prepRunFor(d, { stuntTeamPool: state.stuntTeamPool, talentPairings: state.talentPairings, cash: state.studio.cash });
 }
 
 function applyGameAction(state: GameState, action: GameAction): GameState {
@@ -1255,7 +1267,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         const prepSettled = settlePreProductionsInProgress(
           [...(tickedFocusedDraft ? [tickedFocusedDraft] : []), ...tickedProductionsInProgress],
           1,
-          rng,
+          prepRunLookup(state),
         );
         return { settlement, awardsResult, playerDrafts: prepSettled.drafts, prepCharges: prepSettled.charges, scheduledWithIncidents };
       });
@@ -1687,7 +1699,8 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
 
     case 'SET_PRODUCTION_TEAM': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
-      if (!focusedDraft) return state;
+      // The deal is struck at greenlight (PreProductionState.team); after that the team cannot be swapped.
+      if (!focusedDraft || focusedDraft.greenlitOnDay != null) return state;
       // Only a team that exists in the world roster (or null to clear) is valid.
       if (action.productionTeamId !== null && !productionTeamById(state.productionTeamPool, action.productionTeamId)) return state;
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, productionTeamId: action.productionTeamId }) };
@@ -2443,7 +2456,9 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // is the dominant prep activity, so the phase runs at least as long as the
       // granted design days (falling back to the designer's own recommendation),
       // with the legacy scope-based estimate as a floor.
-      const preProductionDays = effectivePreProductionDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
+      const preProductionDays = effectivePreProductionDays(focusedDraft);
+      // One draw from the shared stream seeds every roll this prep will make.
+      const { result: prepSeed, nextSeed: seedAfterPrep } = withRng(state.rngSeed, (rng) => forkSeed(rng));
       // Commit the full Shooting Budget AND the Contingency Reserve up front;
       // the reserve is reconciled at wrap (wrapPhotography), coming back in full
       // if the shoot stayed on schedule (docs/DESIGN_REVIEW_production_redesign.md §8).
@@ -2496,11 +2511,23 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         // deliberately - it is the promise cast, crew and facilities lock around,
         // so it must NOT track the real start as prep events push that about.
         committedStartDay: shootStartsOnDay + preProductionDays,
-        preProduction: { status: deferred ? 'scheduled' : 'in-progress', recommendedDays: preProductionDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null, team: productionTeamById(state.productionTeamPool, focusedDraft.productionTeamId) ?? null },
+        // The prep itself (engine/prep/run.ts): the film's real problems, drawn
+        // once from its demands and its own seed, its checkpoints, its revealing
+        // work and who decides - all from the plan set before greenlight.
+        preProduction: createPreProduction({
+          demands: derivePrepDemands({ script: focusedDraft.script, talent: focusedDraft.talent, choices: focusedDraft.productionChoices, environmentStrategy: focusedDraft.environmentStrategy }),
+          plan: focusedDraft.prepPlan,
+          prepDays: preProductionDays,
+          seed: prepSeed,
+          team: productionTeamById(state.productionTeamPool, focusedDraft.productionTeamId) ?? null,
+          status: deferred ? 'scheduled' : 'in-progress',
+          difficultLead: focusedDraft.talent.some((a) => a.role === 'Lead Actor' && deriveTraits(a.person).includes('DifficultToWorkWith')),
+        }),
       };
 
       return {
         ...state,
+        rngSeed: seedAfterPrep,
         screen: 'pre-production',
         talentPool,
         ...clearTransientView(),
@@ -2564,75 +2591,24 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
     case 'ADVANCE_PREPRODUCTION_DAY': {
       const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!d?.preProduction || d.preProduction.status !== 'in-progress' || !d.script) return state;
-      const usedIds = new Set(d.preProduction.events.map((e) => e.id));
+      const run = prepRunLookup(state)(d);
+      if (!run) return state;
       const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
-
-      const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
-        const rolled = rollPreProductionDayEvent(d.talent, d.script, usedIds, rng);
-        if (rolled && 'pendingChoice' in rolled) {
-          const totalDaysAfter = state.totalDays + 1;
-          const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
-          const productionsInProgress = settleProductionsInProgress(backgrounded, 1, state.talentPool, rng)
-            .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
-          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, productionsInProgress };
-        }
-        const event = rolled?.event ?? null;
-        const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
-        const totalDaysAfter = state.totalDays + daysAdvanced;
+      // One prep day (engine/prep/run.ts): its burn, what is found today, and any
+      // checkpoint it reaches - decided by the team if delegated, else paused.
+      const step = advancePrepDay(d.preProduction, run.ctx, run.decider);
+      const totalDaysAfter = state.totalDays + 1;
+      const { result: settled, nextSeed } = withRng(state.rngSeed, (rng) => {
         const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
-        const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng)
+        const productionsInProgress = settleProductionsInProgress(backgrounded, 1, state.talentPool, rng)
           .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
-        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress };
+        return { settlement, productionsInProgress };
       });
-
-      if (result.kind === 'pendingChoice') {
-        // The situation still consumes its prep day, which still burns overhead.
-        const dayBurn = computeDailyPrepBurn(d.script.scale, draftNegativeCost(d));
-        const updatedFocused: FilmDraft = {
-          ...d,
-          preProduction: { ...d.preProduction, status: 'awaiting-choice', daysElapsed: d.preProduction.daysElapsed + 1, runningCost: d.preProduction.runningCost + dayBurn, pendingChoice: result.pendingChoice },
-        };
-        return {
-          ...state,
-          rngSeed: nextSeed,
-          totalDays: result.totalDaysAfter,
-          rivalStudios: result.settlement.rivalStudios,
-          talentPool: result.settlement.talentPool,
-          opportunities: result.settlement.opportunities,
-          nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
-          usedSynopses: result.settlement.usedSynopses,
-          bidNotifications: result.settlement.bidNotifications,
-          collaborations: result.settlement.collaborations,
-          talentPairings: result.settlement.talentPairings,
-          studio: recordCashChange(result.settlement.studio, result.totalDaysAfter, -dayBurn, 'production', `Pre-production on "${d.title}"`),
-          projects: assembleProjects({
-            playerDrafts: [updatedFocused, ...result.productionsInProgress],
-            scheduled: result.settlement.stillScheduled,
-            rivalProductions: result.settlement.rivalProductionsInProgress,
-            playerFilms: result.settlement.playerFilms,
-            rivalFilms: result.settlement.rivalFilms,
-          }),
-        };
-      }
-
-      const { event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress } = result;
-      // Prep cost = the day-by-day overhead burn (the production office, the
-      // design build in progress - scaled by the film's scale) plus any event
-      // cost swing. This is what makes granting the designer more prep days a
-      // real, felt cost (docs/DESIGN_REVIEW_production_redesign.md, cost-of-time).
-      const prepCost = computeDailyPrepBurn(d.script.scale, draftNegativeCost(d)) * daysAdvanced + (event?.costDelta ?? 0);
-      const advancedPrep = {
-        ...d.preProduction,
-        daysElapsed: d.preProduction.daysElapsed + daysAdvanced,
-        events: event ? [...d.preProduction.events, event] : d.preProduction.events,
-        runningCost: d.preProduction.runningCost + prepCost,
-      };
-      const finished = advancedPrep.daysElapsed >= advancedPrep.recommendedDays;
-      const updatedFocused: FilmDraft = finished
-        ? beginPhotographyFromPrep({ ...d, preProduction: { ...advancedPrep, status: 'finished' as const } })
-        : { ...d, preProduction: advancedPrep };
-      const studioAfterCost = prepCost !== 0
-        ? recordCashChange(settlement.studio, totalDaysAfter, -prepCost, 'production', `Pre-production on "${d.title}"`)
+      const { settlement, productionsInProgress } = settled;
+      const finished = step.prep.status === 'finished';
+      const updatedFocused: FilmDraft = finished ? beginPhotographyFromPrep({ ...d, preProduction: step.prep }) : { ...d, preProduction: step.prep };
+      const studioAfterCost = step.cash !== 0
+        ? recordCashChange(settlement.studio, totalDaysAfter, -step.cash, 'production', `Pre-production on "${d.title}"`)
         : settlement.studio;
       return {
         ...state,
@@ -2656,6 +2632,62 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
           rivalFilms: settlement.rivalFilms,
         }),
       };
+    }
+
+    // Answer a prep checkpoint (engine/prep/run.ts:resolvePrepCheckpoint): each
+    // found problem gets the fix the player chose (unanswered = carried), the
+    // money is charged now, prep days lengthen prep, and prep resumes. Names the
+    // productionId so it can be answered for any film, from the Inbox's route too.
+    case 'RESOLVE_PREP_CHECKPOINT': {
+      const target = asPlayerDraft(findProject(state.projects, action.productionId));
+      if (!target?.preProduction || target.preProduction.status !== 'awaiting-checkpoint') return state;
+      const run = prepRunLookup(state)(target);
+      if (!run) return state;
+      const step = resolvePrepCheckpoint(target.preProduction, action.choices, run.ctx, run.decider);
+      const finished = step.prep.status === 'finished';
+      const updated: FilmDraft = finished ? beginPhotographyFromPrep({ ...target, preProduction: step.prep }) : { ...target, preProduction: step.prep };
+      return {
+        ...state,
+        screen: finished && state.focusedProjectId === target.id && state.screen === 'pre-production' ? 'production' : state.screen,
+        studio: step.cash !== 0 ? recordCashChange(state.studio, state.totalDays, -step.cash, 'production', `Pre-production fixes on "${target.title}"`) : state.studio,
+        projects: replaceDraft(state.projects, updated),
+      };
+    }
+
+    // Hand a film's prep to its production team (or take it back), any time in prep.
+    // Handing it over while paused lets the team answer the open checkpoint at once.
+    case 'SET_PREP_DELEGATION': {
+      const target = asPlayerDraft(findProject(state.projects, action.productionId));
+      const prep = target?.preProduction;
+      if (!target || !prep || prep.status === 'finished') return state;
+      const delegatedPrep = { ...prep, delegated: action.delegated };
+      if (action.delegated && prep.status === 'awaiting-checkpoint' && prep.pendingCheckpoint) {
+        const run = prepRunLookup(state)(target);
+        if (!run) return state;
+        const choices = decideCheckpoint(
+          prep.problems.filter((p) => prep.pendingCheckpoint!.problemIds.includes(p.id)),
+          run.ctx,
+          checkpointShare(prep.pendingCheckpoint.index),
+          run.decider,
+        );
+        const step = resolvePrepCheckpoint(delegatedPrep, choices, run.ctx, run.decider, 'team');
+        const teamPrep = step.prep;
+        const finished = teamPrep.status === 'finished';
+        const updated: FilmDraft = finished ? beginPhotographyFromPrep({ ...target, preProduction: teamPrep }) : { ...target, preProduction: teamPrep };
+        return {
+          ...state,
+          studio: step.cash !== 0 ? recordCashChange(state.studio, state.totalDays, -step.cash, 'production', `Pre-production fixes on "${target.title}"`) : state.studio,
+          projects: replaceDraft(state.projects, updated),
+        };
+      }
+      return { ...state, projects: replaceDraft(state.projects, { ...target, preProduction: delegatedPrep }) };
+    }
+
+    // The prep plan, set before greenlight: length, revealing work, delegation.
+    case 'SET_PREP_PLAN': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft || focusedDraft.greenlitOnDay != null) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, prepPlan: action.plan }) };
     }
 
     // Resolve a paused pre-production decision (RESOLVE_EVENT_CHOICE's prep
@@ -2758,15 +2790,14 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       if (!d?.photography || d.photography.status !== 'in-progress' || !d.script || !d.productionChoices || !d.genre) {
         return state;
       }
-      // Pre-production sets the shoot's STARTING risk: good prep lowers every
-      // dimension, bad prep raises it (engine/production.ts:computePrepRiskDelta).
-      // A bold director pitch raises it too (Phase B3b) - the ambitious creative
-      // bet makes the shoot riskier, widening the outcome distribution through the
-      // event pipeline. 0 for a direct hire or a faithful pitch.
-      const staticRisk = applyPrepRiskDelta(
-        computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre),
-        computePrepRiskDelta(d.preProduction) + computePitchExecutionRiskDelta(d.selectedDirectorPitch),
-      );
+      // Pre-production sets the shoot's STARTING risk, per dimension: what it
+      // left standing raises its own, the work it did lowers its own
+      // (engine/prep/run.ts:prepRiskAdjustments). A bold director pitch raises it
+      // too (Phase B3b). One reading shared with the backgrounded shoot.
+      const staticRisk = shootStartingRisk(d);
+      const dailyBurn = computeDailyShootBurn(d.productionChoices.shootingBudgetAmount, d.photography.recommendedDays);
+      // A problem prep carried, due today, IS today's event (engine/prep/handoff.ts) - no roll.
+      const fired = fireCarriedIncidents(d.photography, dailyBurn);
       const usedIds = new Set(d.photography.events.map((e) => e.id));
       const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
       // Bounded failure chains: prior major setbacks raise today's risk,
@@ -2777,6 +2808,14 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       );
 
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
+        if (fired) {
+          const daysAdvanced = fired.daysElapsed - d.photography!.daysElapsed;
+          const totalDaysAfter = state.totalDays + daysAdvanced;
+          const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
+          const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng)
+            .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
+          return { kind: 'event' as const, event: null, daysAdvanced, totalDaysAfter, settlement, productionsInProgress };
+        }
         const rolled = rollDayEvent(
           staticRisk,
           d.photography!.daysElapsed + 1,
@@ -2805,8 +2844,6 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
           .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
         return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress };
       });
-
-      const dailyBurn = computeDailyShootBurn(d.productionChoices.shootingBudgetAmount, d.photography.recommendedDays);
 
       if (result.kind === 'pendingChoice') {
         const updatedFocused: FilmDraft = {
@@ -2843,7 +2880,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       }
 
       const { event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress } = result;
-      const shotFocused: FilmDraft = {
+      const shotFocused: FilmDraft = fired ? { ...d, photography: fired } : {
         ...d,
         photography: {
           ...d.photography,

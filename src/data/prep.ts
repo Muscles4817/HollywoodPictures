@@ -319,7 +319,40 @@ export const PREP_CHECKPOINTS: readonly { at: number; title: string }[] = [
 ];
 
 /** Discovery: the share of a problem's window in which a skill-0 and a skill-100 owner find it, if the work that reveals it is done. */
-export const PREP_FIND_SHARE = { atSkill0: 0.35, atSkill100: 0.95, severityBonus: 0.1, reliabilityBonus: 0.08 } as const;
+// 'always' problems are in plain sight to anyone working the front (a budget
+// that does not add up, a build that cannot finish), so they get a further
+// alwaysBonus; subtle ones need the work and the skill (04 §5.2, §10).
+export const PREP_FIND_SHARE = { atSkill0: 0.35, atSkill100: 0.95, severityBonus: 0.1, reliabilityBonus: 0.08, alwaysBonus: 0.2, familiarityBonus: 6 } as const;
+
+/** Where in the shoot each front's problems surface, as a share of the schedule: the breakdown and the look bite in week one; action and effects land on their big days mid-shoot (04 §6.4, §10). */
+export const PREP_FRONT_SHOOT_SHARE: Record<PrepFront, [number, number]> = {
+  breakdown: [0.02, 0.4],
+  design: [0.1, 0.7],
+  costume: [0.02, 0.35],
+  locations: [0.05, 0.85],
+  casting: [0.02, 0.3],
+  action: [0.25, 0.85],
+  effects: [0.25, 0.85],
+  visual: [0.02, 0.3],
+};
+
+/** A problem left at or under this severity after a fix is solved. */
+export const PREP_SOLVED_SEVERITY = 0.05;
+
+/** A front is checked by its activity when its demand is at least this (the activity defaults on). */
+export const PREP_ACTIVITY_DEFAULT_DEMAND = 0.25;
+
+/** How a shorter prep loses its revealing work: one activity per this much prep cut (04 §16 sacrifice order). */
+export const PREP_ACTIVITY_DROP_STEP = 0.125;
+
+/** Shoot-risk adjustments from prep (a bounded swing per dimension, as the old shared delta was). */
+export const PREP_RISK = {
+  /** Per carried problem, at full severity, on its front's dimension. */
+  carriedPerSeverity: 6,
+  /** Lowered on its dimension by each activity done. */
+  activityRelief: 3,
+  maxSwing: 15,
+} as const;
 
 /** A prep shorter than recommended worsens long-lead problems by this much per unit of shortfall (a chain cannot be compressed - 04 §1.3). */
 export const PREP_SHORTFALL_SEVERITY = 1.2;

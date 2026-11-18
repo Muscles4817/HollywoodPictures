@@ -4,6 +4,7 @@
 // just-greenlit film (still "focused" after navigating to the Dashboard, since
 // navigation doesn't clear focusedProjectId) froze until re-opened.
 import { describe, it, expect } from 'vitest';
+import { makePrep } from './testFixtures';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
 import { playerDraftToProject, asPlayerDraft, findProject } from '../engine/project';
@@ -15,7 +16,7 @@ import type { FilmDraft, PreProductionState } from '../types';
 function backgroundedPrepState(): GameState {
   const base = buildStateWithReadyDraft(1);
   const draft = asPlayerDraft(base.projects[0])!;
-  const preProduction: PreProductionState = { status: 'in-progress', recommendedDays: 40, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null };
+  const preProduction: PreProductionState = makePrep({ status: 'in-progress', recommendedDays: 40, daysElapsed: 0 });
   const prepping: FilmDraft = { ...draft, preProduction, photography: null, postProductionScreeningReadyDay: null };
   return { ...base, screen: 'dashboard', projects: [playerDraftToProject(prepping)], focusedProjectId: prepping.id };
 }

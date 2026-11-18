@@ -1,7 +1,10 @@
 import type { FilmDraft, Person, TalentProfession } from '../types';
-import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeStaticProductionRisk, rollDayEvent, rollPreProductionDayEvent } from './production';
-import { computePitchExecutionRiskDelta } from './directorPitch';
-import { computeDailyPrepBurn, computeDailyShootBurn, draftNegativeCost } from './cost';
+import { beginPhotographyFromPrep, rollDayEvent, shootStartingRisk } from './production';
+import { advancePrepDay } from './prep/run';
+import { fireCarriedIncidents } from './prep/handoff';
+import type { PrepContext } from './prep/context';
+import type { Decider } from './prep/delegation';
+import { computeDailyShootBurn } from './cost';
 import type { RandomFn } from './random';
 
 /**
@@ -38,12 +41,17 @@ function advanceOne(d: FilmDraft, daysToAdvance: number, talentPool: Record<Tale
 
   let photography = d.photography;
   const dailyBurn = computeDailyShootBurn(d.productionChoices.shootingBudgetAmount, photography.recommendedDays);
-  // Same starting-risk adjustment the focused shoot gets (studioReducer:ADVANCE_SHOOTING_DAY):
-  // prep plus a bold director pitch's execution-risk delta (Phase B3b).
-  const prepRiskDelta = computePrepRiskDelta(d.preProduction) + computePitchExecutionRiskDelta(d.selectedDirectorPitch);
+  // Same starting risk the focused shoot gets (studioReducer:ADVANCE_SHOOTING_DAY):
+  // what prep left standing, plus a bold director pitch's execution-risk delta (Phase B3b).
+  const staticRisk = shootStartingRisk(d);
 
   for (let i = 0; i < daysToAdvance; i++) {
-    const staticRisk = applyPrepRiskDelta(computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre), prepRiskDelta);
+    // A problem prep carried, due today, is today's event (engine/prep/handoff.ts).
+    const fired = fireCarriedIncidents(photography, dailyBurn);
+    if (fired) {
+      photography = fired;
+      continue;
+    }
     const usedIds = new Set(photography.events.map((e) => e.id));
     const rolled = rollDayEvent(
       staticRisk,
@@ -89,87 +97,54 @@ export interface PreProductionCharge {
 
 export interface PreProductionSettlementResult {
   drafts: FilmDraft[];
-  /** Prep overhead accrued this pass, per advanced draft, for the caller to charge to cash and the ledger. */
+  /** Prep spend accrued this pass (burn and fixes), per advanced draft, for the caller to charge to cash and the ledger. */
   charges: PreProductionCharge[];
 }
 
+/** What a prep needs to run a draft's day: its context and who decides delegated checkpoints (engine/prep/context.ts:prepRunFor). */
+export type PrepRunLookup = (draft: FilmDraft) => { ctx: PrepContext; decider: Decider } | null;
+
 /**
  * Advances every in-progress pre-production (FilmDraft.preProduction) by up to
- * `daysToAdvance` days - the prep mirror of settleProductionsInProgress, and the
- * day-by-day counterpart of state/studioReducer.ts:ADVANCE_PREPRODUCTION_DAY.
- * This is what makes prep progress as a side effect of the calendar advancing
- * (the global ADVANCE_DAY tick) rather than only while the player sits on the
- * Pre-Production screen watching its local ticker - previously a backgrounded (or
- * simply un-watched) prep was frozen until re-focused.
+ * `daysToAdvance` days - the same day the focused screen runs
+ * (engine/prep/run.ts:advancePrepDay), so prep progresses as a side effect of
+ * the calendar rather than only while the player watches it.
  *
- * A prep hitting an interactive event flips to 'awaiting-choice' and stops
- * advancing until the player resolves it (surfaced on the Dashboard / Inbox),
- * exactly like a backgrounded shoot. A prep that reaches its recommended days
- * finishes and hands off to Principal Photography (beginPhotographyFromPrep).
- * Anything not 'in-progress' ('scheduled' Deferred-Start holds, 'awaiting-choice',
- * 'finished') is left untouched.
+ * A prep reaching a checkpoint the player must answer flips to
+ * 'awaiting-checkpoint' and stops (surfaced in the Inbox); a delegated one is
+ * decided by the film's production team and carries on. A prep that reaches
+ * its length hands off to Principal Photography (beginPhotographyFromPrep).
+ * Anything not 'in-progress' is left untouched.
  *
- * Prep overhead is charged to cash as it is incurred (like the focused ticker),
- * so it can't touch the studio here (this stays pure) - each advanced draft's
- * accrued cost for this pass is returned in `charges` for the reducer to apply
- * via recordCashChange.
+ * Prep spend is returned in `charges` for the reducer to apply - this stays pure.
+ * Prep's rolls are hashes of the film's own seed, so nothing here draws from a
+ * shared stream.
  */
-export function settlePreProductionsInProgress(
-  productions: FilmDraft[],
-  daysToAdvance: number,
-  rng: RandomFn,
-): PreProductionSettlementResult {
+export function settlePreProductionsInProgress(productions: FilmDraft[], daysToAdvance: number, runFor: PrepRunLookup): PreProductionSettlementResult {
   if (daysToAdvance <= 0) return { drafts: productions, charges: [] };
   const charges: PreProductionCharge[] = [];
   const drafts = productions.map((d) => {
-    const { draft, charge } = advancePrepOne(d, daysToAdvance, rng);
+    const { draft, charge } = advancePrepOne(d, daysToAdvance, runFor);
     if (charge !== 0) charges.push({ title: d.title || 'Untitled Film', amount: charge });
     return draft;
   });
   return { drafts, charges };
 }
 
-function advancePrepOne(d: FilmDraft, daysToAdvance: number, rng: RandomFn): { draft: FilmDraft; charge: number } {
+function advancePrepOne(d: FilmDraft, daysToAdvance: number, runFor: PrepRunLookup): { draft: FilmDraft; charge: number } {
   const prep = d.preProduction;
   if (!prep || prep.status !== 'in-progress' || !d.script) return { draft: d, charge: 0 };
-
-  const dailyBurn = computeDailyPrepBurn(d.script.scale, draftNegativeCost(d));
+  const run = runFor(d);
+  if (!run) return { draft: d, charge: 0 };
   let working = prep;
   let charge = 0;
-
-  for (let i = 0; i < daysToAdvance; i++) {
-    const usedIds = new Set(working.events.map((e) => e.id));
-    const rolled = rollPreProductionDayEvent(d.talent, d.script, usedIds, rng);
-
-    if (rolled && 'pendingChoice' in rolled) {
-      // The situation still consumes its prep day (and its overhead), then pauses.
-      working = {
-        ...working,
-        status: 'awaiting-choice',
-        daysElapsed: working.daysElapsed + 1,
-        runningCost: working.runningCost + dailyBurn,
-        pendingChoice: rolled.pendingChoice,
-      };
-      charge += dailyBurn;
-      break; // paused - the rest of daysToAdvance is left unconsumed for this prep
-    }
-
-    const event = rolled?.event ?? null;
-    const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
-    const prepCost = dailyBurn * daysAdvanced + (event?.costDelta ?? 0);
-    working = {
-      ...working,
-      daysElapsed: working.daysElapsed + daysAdvanced,
-      events: event ? [...working.events, event] : working.events,
-      runningCost: working.runningCost + prepCost,
-    };
-    charge += prepCost;
-
-    if (working.daysElapsed >= working.recommendedDays) {
-      // Prep is over - open Principal Photography, same handoff the focused ticker makes.
-      return { draft: beginPhotographyFromPrep({ ...d, preProduction: { ...working, status: 'finished' as const } }), charge };
-    }
+  let contingency = 0;
+  for (let i = 0; i < daysToAdvance && working.status === 'in-progress'; i++) {
+    const step = advancePrepDay(working, { ...run.ctx, contingencyAvailable: run.ctx.contingencyAvailable - contingency }, run.decider);
+    working = step.prep;
+    charge += step.cash;
+    contingency += step.contingency;
   }
-
+  if (working.status === 'finished') return { draft: beginPhotographyFromPrep({ ...d, preProduction: working }), charge };
   return { draft: { ...d, preProduction: working }, charge };
 }

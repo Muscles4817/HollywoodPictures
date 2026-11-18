@@ -82,7 +82,8 @@ export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Per
   total += totalAttachedPerFilmFees(producerPool, draft.attachedProducerIds ?? []);
   // The attached Stunt Team's fee - same release-time-cost treatment as producers.
   total += stuntTeamFee(stuntTeamById(stuntTeamPool, draft.stuntTeamId));
-  total += productionTeamFee(productionTeamById(productionTeamPool, draft.productionTeamId));
+  // Once greenlit, the team contracted then (the fee release charges); before, the one chosen.
+  total += productionTeamFee(draft.preProduction ? (draft.preProduction.team ?? undefined) : productionTeamById(productionTeamPool, draft.productionTeamId));
   if (!draft.photography) {
     // Not charged yet - BEGIN_PHOTOGRAPHY is what actually deducts these,
     // so until then this is a pure "what would this cost" projection. Uses
