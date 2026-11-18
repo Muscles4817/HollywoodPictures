@@ -393,6 +393,9 @@ export const PREP_SLIP_LEAVE_SHARE: readonly { minDays: number; share: number }[
   { minDays: 0, share: 0 },
 ];
 
+/** Each further booking elsewhere makes someone this much likelier to take the confirmed job ("the good ones" go first, 04 §9.6). */
+export const PREP_SLIP_BOOKED_WEIGHT = 0.3;
+
 /** Keeping someone whose next job now clashes, when no one can replace them: the production buys them out of it (the shoot's own severance rate). */
 export const PREP_SLIP_BUYOUT_RATE = 0.4;
 

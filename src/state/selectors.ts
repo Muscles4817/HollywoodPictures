@@ -2,7 +2,7 @@ import { unreadIndustryNoticeCount } from '../engine/careerTurnover';
 import type { AncillaryWindow, AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, StuntTeam, ProductionTeam, TalentAssignment, WizardStep } from '../types';
 import { yearOf } from '../engine/calendar';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
-import { estimatedPrepSpend } from '../engine/prepLength';
+import { estimatedPrepSpend, remainingPrepSpend } from '../engine/prepLength';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { stuntTeamById, stuntTeamFee } from '../engine/stuntTeams';
 import { productionTeamById, productionTeamFee } from '../engine/productionTeams';
@@ -94,6 +94,9 @@ export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Per
     // directly, so this stays consistent with what the player can already
     // see on screen.
     total += computeTalentCost(draft.talent);
+    // Prep's burn, before greenlight an estimate (engine/prepLength.ts); once
+    // prepping it is charged day by day, so only what is left of it.
+    total += draft.preProduction ? remainingPrepSpend(draft) : estimatedPrepSpend(draft);
     if (draft.productionChoices) {
       total += computeProductionBudgetCost(draft.productionChoices);
       total += draft.productionChoices.shootingBudgetAmount + (draft.productionChoices.contingencyReserveAmount ?? 0);
@@ -1001,10 +1004,13 @@ export function deriveGreenlightCommitment(draft: FilmDraft, studioCash: number)
     : 0;
   // Prep's burn, spent over prep rather than at greenlight, but counted: the
   // studio has to carry it (engine/prepLength.ts:estimatedPrepSpend).
+  // Not part of what leaves cash at greenlight (totalCommitment / cashAfter),
+  // but the studio must be able to carry it too, so it is in canAfford - the
+  // same read the readiness gate makes.
   const prepCost = estimatedPrepSpend(draft);
-  const totalCommitment = talentCost + productionCost + contingency + prepCost;
+  const totalCommitment = talentCost + productionCost + contingency;
   const cashAfter = studioCash - totalCommitment;
-  return { talentCost, productionCost, contingency, prepCost, totalCommitment, cashAfter, canAfford: cashAfter >= 0 };
+  return { talentCost, productionCost, contingency, prepCost, totalCommitment, cashAfter, canAfford: cashAfter - prepCost >= 0 };
 }
 
 /**

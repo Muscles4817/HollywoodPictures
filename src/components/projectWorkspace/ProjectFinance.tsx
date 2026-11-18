@@ -90,12 +90,16 @@ export function ProjectFinance() {
           <span>Studio Cash (after Greenlight)</span>
           <Money amount={commitment.cashAfter} signColor />
         </div>
+        <div className="row-between" style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>
+          <span>Then pre-production, paid day by day as it runs</span>
+          <Money amount={commitment.prepCost} />
+        </div>
       </div>
 
       {!commitment.canAfford && (
         <p style={{ color: 'var(--red)' }}>
-          The studio can't afford this commitment right now - trim the production plan, hire more cheaply, or wait
-          until you have more cash on hand.
+          The studio can't afford this commitment and the pre-production after it right now - trim the production
+          plan, hire more cheaply, or wait until you have more cash on hand.
         </p>
       )}
     </div>

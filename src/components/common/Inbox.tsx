@@ -342,11 +342,18 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
               // them - informational; read here, cleared by acknowledging.
               <div className="card stack" key={`${production.id}-crew-changes`} style={{ gap: 6 }}>
                 <h4 style={{ margin: 0 }}>{production.title || 'Untitled Film'} · the start slipped</h4>
-                {production.crewChanges!.filter((c) => !c.acknowledged).map((c, i) => (
+                {production.crewChanges!.filter((c) => !c.acknowledged).slice(0, 3).map((c, i) => (
                   <p key={i} style={{ margin: 0 }}>
-                    {crewChangeText(c)} {c.cost !== 0 && <span style={{ color: 'var(--text-muted)' }}>(<Money amount={c.cost} signColor invertColor showSign />)</span>}
+                    {crewChangeText(c)}{' '}
+                    {c.cost > 0 && <span style={{ color: 'var(--text-muted)' }}>(cost <Money amount={c.cost} />)</span>}
+                    {c.cost < 0 && <span style={{ color: 'var(--text-muted)' }}>(<Money amount={-c.cost} /> back)</span>}
                   </p>
                 ))}
+                {production.crewChanges!.filter((c) => !c.acknowledged).length > 3 && (
+                  <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                    ...and {production.crewChanges!.filter((c) => !c.acknowledged).length - 3} more - see the film's prep log.
+                  </p>
+                )}
                 <div className="row">
                   <Button onClick={() => dispatch({ type: 'ACKNOWLEDGE_CREW_CHANGES', productionId: production.id })}>Noted</Button>
                 </div>

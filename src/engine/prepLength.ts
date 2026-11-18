@@ -36,3 +36,11 @@ export function estimatedPrepSpend(draft: PrepLengthDraft): number {
   const activities = effectiveActivities(plan?.activities ?? defaultActivities(demands), plan?.lengthFactor ?? 1);
   return prepDailyBurnWith(draftDailyPrepBurn(draft), activities) * effectivePreProductionDays(draft);
 }
+
+/** What is left of a prepping film's burn: its remaining days at today's rate. 0 before or after prep. */
+export function remainingPrepSpend(draft: PrepLengthDraft & Pick<FilmDraft, 'preProduction'>): number {
+  const prep = draft.preProduction;
+  if (!prep || prep.status === 'finished') return 0;
+  const days = prep.status === 'scheduled' ? prep.recommendedDays : Math.max(0, prep.recommendedDays - prep.daysElapsed);
+  return prepDailyBurnWith(draftDailyPrepBurn(draft), prep.activities) * days;
+}

@@ -91,7 +91,7 @@ describe.skipIf(!RUN)('pre-production shape', () => {
       }
       console.log(`\n=== owners' skill ${skill}, prep length x${LENGTH}, ${population.length} films ===`);
       for (const [scale, w] of Object.entries(byScale)) console.log(`prep weeks ${scale.padEnd(8)} n=${w.length} p10 ${q(w, 0.1).toFixed(1)} p50 ${q(w, 0.5).toFixed(1)} p90 ${q(w, 0.9).toFixed(1)}`);
-      console.log('front        generated/film  found  fixed  carried  shoot-days-lost/film');
+      console.log('front        generated/film  found  answered(not carry)  carried(any residual)  shoot-days-lost/film');
       for (const f of PREP_FRONTS) {
         const g = gen[f] ?? 0;
         console.log(`${f.padEnd(12)} ${(g / population.length).toFixed(2).padStart(6)}       ${pct((found[f] ?? 0) / Math.max(1, g)).padStart(6)} ${pct((fixed[f] ?? 0) / Math.max(1, g)).padStart(6)} ${pct((carried[f] ?? 0) / Math.max(1, g)).padStart(6)}   ${((lostByFront[f] ?? 0) / population.length).toFixed(2)}`);

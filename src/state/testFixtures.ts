@@ -287,7 +287,8 @@ export function buildStateReadyToGreenlight(seed: number): GameState {
     for (let i = 0; i < need; i++) {
       const person = conformActorGenderToSlot(cheapest[i], script, role, i);
       used.add(person.id);
-      talent.push({ role, person });
+      const character = characterForRoleSlot(script, role, i);
+      talent.push(character ? { role, person, characterId: character.id } : { role, person });
     }
   }
   const draft: FilmDraft = {

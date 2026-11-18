@@ -1104,7 +1104,9 @@ export function expectedShootEndDay(draft: FilmDraft, today: number): number | n
  * nobody is released early.
  */
 function withBookingsFollowFilms(before: GameState, after: GameState): GameState {
-  if (after.totalDays <= before.totalDays || before.talentDatabaseId !== after.talentDatabaseId) return after;
+  if (before.talentDatabaseId !== after.talentDatabaseId) return after;
+  // The calendar moved, or a film's prep grew without it (a time fix answered at a checkpoint).
+  if (after.totalDays <= before.totalDays && !prepGrew(before, after)) return after;
   let talentPool = after.talentPool;
   let changed = false;
   for (const project of after.projects) {
@@ -1127,6 +1129,18 @@ function withBookingsFollowFilms(before: GameState, after: GameState): GameState
     }
   }
   return changed ? { ...after, talentPool } : after;
+}
+
+/** Whether any player film's prep grew between two states. */
+function prepGrew(before: GameState, after: GameState): boolean {
+  const added = new Map(before.projects.flatMap((p) => {
+    const d = asPlayerDraft(p);
+    return d?.preProduction ? [[d.id, d.preProduction.daysAdded] as const] : [];
+  }));
+  return after.projects.some((p) => {
+    const d = asPlayerDraft(p);
+    return !!d?.preProduction && d.preProduction.daysAdded > (added.get(d.id) ?? d.preProduction.daysAdded);
+  });
 }
 
 /**
@@ -1175,7 +1189,12 @@ function withSlipsMovePeopleImpl(before: GameState, after: GameState): GameState
     if (slip.changes.length === 0) continue;
     const logged: FilmDraft = {
       ...slip.draft,
-      preProduction: { ...prep, log: [...prep.log, ...slip.changes.map((c) => ({ day: prep.daysElapsed, kind: 'note' as const, text: crewChangeText(c) }))] },
+      preProduction: {
+        ...prep,
+        // What the slip cost beyond the fees the talent list now shows is the film's own cost (its books).
+        runningCost: prep.runningCost + slip.booksCost,
+        log: [...prep.log, ...slip.changes.map((c) => ({ day: prep.daysElapsed, kind: 'note' as const, text: crewChangeText(c) }))],
+      },
     };
     state = {
       ...state,

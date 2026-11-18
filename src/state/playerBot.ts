@@ -1,4 +1,6 @@
 import type { GameState } from './gameState';
+import { chooseRivalProductionTeam } from '../engine/prep/rivalPrep';
+import { draftNegativeCost } from '../engine/cost';
 import { yearlyRunningCost } from '../engine/runningCosts';
 import { createInitialStudio } from './gameState';
 import { studioReducer } from './studioReducer';
@@ -88,6 +90,14 @@ export interface BotStrategy {
    * through prep - which is how cash ends up below zero.
    */
   budgetsForOverhead: boolean;
+  /**
+   * Whether it hires a line producer & 1st AD (docs/IMPLEMENTATION_PLAN_preproduction_realism.md
+   * Phase 7): 'best' = the most skilled team whose fee fits 2% of the film's
+   * negative (the rule rivals use, engine/prep/rivalPrep.ts); 'none' = the
+   * studio's own production office. Every strategy hands prep's decisions to
+   * whoever runs it - the bot runs a studio, it does not produce up close.
+   */
+  productionTeam: 'best' | 'none';
 }
 
 export const BOT_STRATEGIES: BotStrategy[] = [
@@ -104,6 +114,7 @@ export const BOT_STRATEGIES: BotStrategy[] = [
     wideAbove: 15_000_000,
     upgradeShare: 0.1,
     budgetsForOverhead: true,
+    productionTeam: 'best',
   },
   {
     // Talent model §6: the strategy untying ability from fee is meant to reward,
@@ -121,6 +132,7 @@ export const BOT_STRATEGIES: BotStrategy[] = [
     wideAbove: 15_000_000,
     upgradeShare: 0.1,
     budgetsForOverhead: true,
+    productionTeam: 'none',
   },
   {
     name: 'Steady',
@@ -135,6 +147,7 @@ export const BOT_STRATEGIES: BotStrategy[] = [
     wideAbove: 15_000_000,
     upgradeShare: 0.15,
     budgetsForOverhead: true,
+    productionTeam: 'best',
   },
   {
     name: 'Swing big',
@@ -149,6 +162,7 @@ export const BOT_STRATEGIES: BotStrategy[] = [
     wideAbove: 0,
     upgradeShare: 0.1,
     budgetsForOverhead: true,
+    productionTeam: 'none',
   },
   {
     name: 'Careless',
@@ -163,6 +177,7 @@ export const BOT_STRATEGIES: BotStrategy[] = [
     wideAbove: 15_000_000,
     upgradeShare: null,
     budgetsForOverhead: false,
+    productionTeam: 'none',
   },
 ];
 
@@ -632,6 +647,11 @@ function mountFilm(state: GameState, strategy: BotStrategy, run: BotRun, script:
   const trustsDirector = !!directorCareer && !!director && expectedAbility(deriveTalentKnowledge(director, 'Director', buildCreditIndex(s.projects))) >= 60;
   for (const demand of focusedDraft().development?.demands ?? []) {
     if (!demand.resolution) s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: trustsDirector });
+  }
+
+  if (strategy.productionTeam === 'best') {
+    const team = chooseRivalProductionTeam(s.productionTeamPool, draftNegativeCost(focusedDraft()));
+    if (team) s = studioReducer(s, { type: 'SET_PRODUCTION_TEAM', productionTeamId: team.id });
   }
 
   // The plan's real cost (sets, effects) is only known once it is set. If the

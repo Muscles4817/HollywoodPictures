@@ -939,3 +939,73 @@ is Phase 7.
   - Bookings extend for those who stay.
 - **Not modelled:** a held start (a film waiting on its cast) does not trigger
   departures. It is already the cast's own booking that holds it.
+
+**What the Phase 5 reviewer found, and what was done:**
+
+- **Departures compounded with every later slip (fixed).** The leave share was
+  applied afresh on each slip, so a 14-day slip followed by four 1-day slips
+  replaced everyone. Now each person has one fixed roll for the film, scaled
+  by how booked they are, against the share for the total slip. The share
+  leaving rises to the table's figure and never past it. Tested.
+- **A buyout repeated, and left the person double-booked (fixed).** Buying
+  someone out now releases the clashing job, so it is paid once. Someone who
+  only "moves on" with no clash stays if nobody can replace them. Tested.
+- **Replacements skipped the casting gates (fixed).**
+  - A replacement actor must meet the character's gender and age, and gets an
+    age at casting.
+  - The writer no longer "leaves" mid-prep, because their work is done.
+  - Tested.
+- **The film's books missed what a slip cost (fixed).** What the departed is
+  still owed (all of it for pay-or-play; the worked share for crew), plus any
+  buyout, is now added to prep's running cost. The film's total cost then
+  agrees with the cash.
+- **Bookings did not follow a time fix until the next day (fixed).**
+  `withBookingsFollowFilms` now also runs when a film's prep grew with no day
+  passing. A test goes through a real checkpoint answer.
+- **The greenlight figures disagreed (fixed).**
+  - The total commitment and the cash after greenlight are what leaves cash
+    at greenlight.
+  - Pre-production is a separate line, "paid day by day as it runs", on the
+    confirmation and Finance screens.
+  - Affordability counts both.
+  - The committed spend includes the prep estimate before greenlight, and
+    what is left of prep while prepping.
+- **The Inbox card is now capped at three changes**, and it says "cost $X"
+  rather than showing a signed amount.
+- **Save version 110.**
+- **The diagnostic's "fixed" column** is renamed "answered (not carry)". A
+  fix can leave some severity behind, which is then also counted as carried.
+
+### 10.6 Phase 6 — rivals on the same model
+
+- **Contingency.** A rival's productions now carry a contingency reserve: 10%
+  of the shooting budget for an indie or mid-size studio, 8% for a major
+  (`RIVAL_CONTINGENCY_SHARE`). The reserve counts in its affordability check,
+  and it feeds the same risk and resilience reads a player's reserve does.
+- **Production team.** A rival hires from the same roster: the most skilled
+  team whose fee fits 2% of the negative. The fee is in its books.
+- **Calendar and books.** Prep is in the calendar: release day = today + prep
+  + shoot + post + marketing lead, with the campaign start moved to match.
+  Prep's expected burn is in its cost and its film's books.
+- **Same engine.** `synthesizeRivalPrep` runs the player's engine headless with
+  the rival's team, its prep length, its contingency, a fixed money pressure
+  (0.3) and a dated release.
+- **Memory** (`engine/prep/rivalPrep.ts:rivalPrepPolicy`).
+  - From its last five released films, a rival reads the shoot days lost and
+    money over to carried prep problems.
+  - After losses it preps longer (+0.15 of the recommendation per 5% of shoot
+    days lost) and holds more contingency.
+  - After five clean films (under 1% lost) it preps leaner (×0.9).
+  - Prep length is bounded to 0.85–1.25. Contingency is bounded to −3 to +8
+    points of the tier's share.
+  - It also reads which front cost it most.
+  - **Deviation:** the plan said "stored on RivalStudio". It is derived from
+    the rival's own released films' events instead, so it can never drift from
+    what happened and needs no bookkeeping.
+- **Tests** (`src/engine/prep/rivalPrep.test.ts`):
+  - **Parity:** a rival prep and a hand-built player prep with the same parts,
+    seed and decider give identical problems, findings, decisions and cuts.
+  - A rival with a strong team carries less.
+  - Memory moves the right way and stays bounded both ways.
+  - A rival reads only its own and its latest films.
+  - The team choice is the best that fits.
