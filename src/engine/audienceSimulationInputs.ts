@@ -98,6 +98,8 @@ export interface ReleaseSimulationInputs {
   leadFame: number;
   /** Studio.brand (Brand Recognition, engine/reputation.ts), 0-100 verbatim - sizes marketingEfficiency (how far a marketing pound actually goes). A brand-new studio's marketing dollar buys less attention than an established one's; this is what makes marketing effectiveness itself a genuine mid/late-game progression mechanic rather than a flat multiplier available from day one. Deliberately reads Brand, never Prestige - how far a marketing pound reaches is a commercial-recognition question, not a critical-esteem one. */
   studioBrand: number;
+  /** 0-1: how far exhibitors trust the releasing studio (releaseFilm.ts passes Brand / 100). Optional; absent means none, so direct-simulation callers are unchanged. */
+  exhibitorStanding?: number;
   /**
    * Studio identity in THIS film's genre (engine/studioIdentity.ts), 0-100 -
    * how known the studio is for this kind of film. On-brand releases get a
@@ -223,7 +225,7 @@ export interface ReleaseSimulationInputs {
 // purpose - RECEPTION_PIVOT was swept first and moved nothing beyond the gate's
 // own ~1-point noise, and the new mechanisms are each calibrated against the
 // domain reference, so they are not the place to take the level back out.
-const BASE_ADDRESSABLE_POPULATION = 190_000_000;
+const BASE_ADDRESSABLE_POPULATION = 188_000_000;
 
 // Franchise/IP marketability expands the *eligible* pool - the audience already
 // pre-disposed to want this - which is the calibration doc's §1.1 "franchise
@@ -522,32 +524,27 @@ function computeCrossoverCapacityFraction(
 // --- Marketing efficiency ---------------------------------------------------
 //
 // "How efficiently marketing spend converts into Awareness - pitch clarity,
-// not pool size" (AudienceSimulationFixedState.marketingEfficiency,
-// Milestone 1). Milestone 11 (docs/DESIGN.md - "release-input separation of
-// concerns") moved this off script accessibility/originality entirely -
-// "does this studio's marketing dollar reach people" is a studio-side
-// question, not a screenplay-side one (a script being easy to explain
-// doesn't make a press release more likely to run, and a script being
-// original doesn't make a media buy less effective - those were both real
-// coupling bugs found via that milestone's diagnostic sweep, see its
-// DESIGN.md note for the numbers). `studioBrand` (Brand Recognition,
-// engine/reputation.ts - was the single Studio.reputation stat until a
-// later milestone split it from Prestige) is what actually drives this
-// now: a studio with strong commercial name-recognition sees its marketing
-// spend go further - press pays more attention, distributors give better
-// placement, a trailer from a studio with a track record gets watched -
-// than an unproven newcomer's identical spend. Deliberately Brand, never
-// Prestige: how far a marketing pound reaches is a commercial-recognition
-// question, a critically-respected-but-commercially-unknown studio (an
-// A24-shaped one) doesn't get an efficiency boost here just for being
-// well-reviewed. This is also what makes marketing effectiveness itself a
-// genuine progression mechanic (docs/DESIGN.md Milestone 11's "marketing
-// as a progression mechanic" goal): Brand climbs from real commercial
-// outcomes (engine/reputation.ts), starting at 20 (state/gameState.ts) for
-// a brand-new studio, so the exact same spend buys meaningfully more
-// awareness once a studio has a few hits behind it.
-const MARKETING_EFFICIENCY_FLOOR = 0.3;
-const MARKETING_EFFICIENCY_CEILING = 1.0;
+// not pool size" (AudienceSimulationFixedState.marketingEfficiency). A
+// studio-side question, not a screenplay-side one, so it reads Brand (never
+// Prestige: how far a marketing pound reaches is a matter of commercial
+// recognition - a critically respected but commercially unknown studio gets no
+// boost here for being well reviewed). A known name gets its trailer watched
+// and its press release run, so the same spend goes somewhat further.
+//
+// Somewhat, not three times: this range used to run 0.3 to 1.0, so the top of
+// the Brand scale bought 3.3 times the awareness of the bottom and Brand fed
+// the next film's reach with nothing pulling it back - studios ran away or
+// spiralled (docs/REVIEW_market_realism.md §2.5). It is no longer the mid-game
+// progression it was described as. The range was narrowed so the top is worth
+// about 1.5 times the bottom, centred on the market so its level holds: at the
+// release-weighted mean Brand of rival wide releases (B = 63, measured in
+// docs/IMPLEMENTATION_PLAN_market_realism.md Phase 0) it gives what the old
+// range gave there (0.739 against 0.741). floor = (0.3 + 0.7 B/100) - 0.30 B/100,
+// ceiling = floor + 0.30, rounded to two places. Brand still sets Wide screen
+// count and Buzz through their own weights (RELEASE_STRENGTH_BRAND_WEIGHT,
+// BRAND_BUZZ_WEIGHT), untouched.
+const MARKETING_EFFICIENCY_FLOOR = 0.55;
+const MARKETING_EFFICIENCY_CEILING = 0.85;
 
 function computeMarketingEfficiency(studioBrand: number): number {
   return clamp(MARKETING_EFFICIENCY_FLOOR + (MARKETING_EFFICIENCY_CEILING - MARKETING_EFFICIENCY_FLOOR) * (studioBrand / 100), 0, 1);
@@ -578,9 +575,9 @@ function computeEffectiveMarketingEfficiency(marketingEfficiency: number, studio
  * tools that need "what was Brand on this film's actual release day"
  * (components/dev/OutcomeInspector.tsx) without a dedicated stored field.
  * Exact, not an approximation: for any studioBrand in the real 0-100
- * range, 0.3 + 0.7*(studioBrand/100) already sits inside [0, 1], so
- * computeMarketingEfficiency's own outer clamp never actually engages -
- * this is a plain affine inverse, not a lossy one.
+ * range, FLOOR + (CEILING - FLOOR)*(studioBrand/100) already sits inside
+ * [0, 1], so computeMarketingEfficiency's own outer clamp never actually
+ * engages - this is a plain affine inverse, not a lossy one.
  */
 export function inferStudioBrandFromMarketingEfficiency(marketingEfficiency: number): number {
   return ((marketingEfficiency - MARKETING_EFFICIENCY_FLOOR) / (MARKETING_EFFICIENCY_CEILING - MARKETING_EFFICIENCY_FLOOR)) * 100;
@@ -1027,6 +1024,7 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     totalAddressableAudience,
     baseInterestFraction,
     marketingEfficiency,
+    ...(inputs.exhibitorStanding !== undefined ? { exhibitorStanding: inputs.exhibitorStanding } : {}),
     crossoverCapacityFraction,
     conversionPacingBaseline,
     externalWeeklyAwarenessRate: clamp(externalWeeklyAwarenessRate * computeReviewAwarenessMultiplier(inputs, eventScale), 0, 1),

@@ -263,3 +263,58 @@ describe('Inbox - director bake-off', () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe('Inbox - the studio name fading or recovering (market realism Phase 3)', () => {
+  const withNotice = (notice: { day: number; direction: 'fading' | 'recovering'; acknowledged?: boolean }, focusedProjectId: string | null = null) =>
+    ({
+      projects: [],
+      focusedProjectId,
+      totalDays: 400,
+      talentPool: {},
+      opportunities: [],
+      bidNotifications: [],
+      studio: { brandNotice: notice },
+    }) as unknown as GameState;
+
+  it('says the name is fading, routes to the studio overview, and closes the Inbox', () => {
+    dispatch.mockClear();
+    mockState = withNotice({ day: 364, direction: 'fading' });
+    const onClose = vi.fn();
+    render(<Inbox open onClose={onClose} />);
+    expect(screen.getByText("Your studio's name is fading. It has been a while since a release of yours was widely seen.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'See your studio' }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'RETURN_TO_DASHBOARD' });
+    expect(onClose).toHaveBeenCalled();
+    // Opening the Inbox is not reading it: only the overview acknowledges.
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'ACKNOWLEDGE_BRAND_NOTICE' });
+  });
+
+  it('shows nothing once the overview has shown it', () => {
+    mockState = withNotice({ day: 364, direction: 'recovering', acknowledged: true });
+    render(<Inbox open onClose={() => {}} />);
+    expect(screen.queryByText(/name is recovering/)).not.toBeInTheDocument();
+  });
+
+  it('offers a note instead of the button while a project is open', () => {
+    mockState = withNotice({ day: 364, direction: 'recovering' }, 'some-project');
+    render(<Inbox open onClose={() => {}} />);
+    expect(screen.getByText("Your studio's name is recovering as your recent releases reach more people.")).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'See your studio' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Inbox - a won auction (market realism Phase 5)', () => {
+  it('routes to the Asset Library in one click and closes the Inbox', () => {
+    dispatch.mockClear();
+    mockState = {
+      projects: [], focusedProjectId: null, totalDays: 10, talentPool: {}, opportunities: [],
+      bidNotifications: [{ id: 'bid-won-x-7', kind: 'won', opportunityId: 'x', scriptTitle: 'The Hot One', amount: 400_000, day: 7, read: false }],
+    } as unknown as GameState;
+    const onClose = vi.fn();
+    render(<Inbox open onClose={onClose} />);
+    expect(screen.getByText(/You won the rights/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Asset Library' }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'VIEW_ASSET_LIBRARY' });
+    expect(onClose).toHaveBeenCalled();
+  });
+});

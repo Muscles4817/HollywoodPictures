@@ -1,9 +1,10 @@
 // Coverage-unification cutover (docs/DESIGN_production_requirements_model.md).
 // The facet math is covered in cinematographyFacet/scoreFacet/editFacet tests;
 // this file covers the SCORING WIRING: person-driven Cinematography/Score/Edit
-// quality reaches productionScore/postProductionScore for player films
-// (personDrivenCraft true), does NOT for rivals/base model (false), and is
-// zero when the heads aren't attached (so an unstaffed film is byte-identical).
+// quality reaches productionScore/postProductionScore for every film (player's
+// and rival's - one scoring model since docs/IMPLEMENTATION_PLAN_market_realism.md
+// Phase 2), and is zero when the heads aren't attached (so an unstaffed film
+// scores what the old flat model gave it).
 import { describe, it, expect } from 'vitest';
 import { computeQualityBreakdown } from './scoring';
 import { buildReadyDraft } from '../state/testFixtures';
@@ -27,7 +28,7 @@ const craftHeads = (skill: number): TalentAssignment[] => [
   head('Editor', 12, skill),
 ];
 
-function breakdown(talent: TalentAssignment[], personDrivenCraft: boolean) {
+function breakdown(talent: TalentAssignment[]) {
   return computeQualityBreakdown(
     draft.script!,
     talent,
@@ -39,38 +40,31 @@ function breakdown(talent: TalentAssignment[], personDrivenCraft: boolean) {
     0, // no producer bonus
     undefined, // execution derived
     undefined, // stunt fallback
-    personDrivenCraft,
   );
 }
 
 describe('person-driven craft cutover — the scoring wiring', () => {
   it('a strong DP/Composer/Editor lifts productionScore and postProductionScore (player path)', () => {
-    const none = breakdown(base, true);
-    const strong = breakdown([...base, ...craftHeads(95)], true);
+    const none = breakdown(base);
+    const strong = breakdown([...base, ...craftHeads(95)]);
     // Cinematography flows into productionScore; Score+Edit into postProductionScore.
     expect(strong.productionScore).toBeGreaterThan(none.productionScore);
     expect(strong.postProductionScore).toBeGreaterThan(none.postProductionScore);
   });
 
   it('is monotonic in craft skill (a stronger craft team never scores lower)', () => {
-    const weak = breakdown([...base, ...craftHeads(25)], true);
-    const strong = breakdown([...base, ...craftHeads(95)], true);
+    const weak = breakdown([...base, ...craftHeads(25)]);
+    const strong = breakdown([...base, ...craftHeads(95)]);
     expect(strong.productionScore).toBeGreaterThanOrEqual(weak.productionScore);
     expect(strong.postProductionScore).toBeGreaterThan(weak.postProductionScore);
   });
 
-  it('rivals / base model (personDrivenCraft false) ignore craft heads entirely', () => {
-    const none = breakdown(base, false);
-    const strong = breakdown([...base, ...craftHeads(95)], false);
-    expect(strong.productionScore).toBe(none.productionScore);
-    expect(strong.postProductionScore).toBe(none.postProductionScore);
-  });
-
-  it('an unstaffed player film is byte-identical whether the flag is on or off (deviation is zero at no-head)', () => {
-    const off = breakdown(base, false);
-    const on = breakdown(base, true);
-    expect(on.productionScore).toBe(off.productionScore);
-    expect(on.postProductionScore).toBe(off.postProductionScore);
-    expect(on.qualityScore).toBe(off.qualityScore);
+  it('an unstaffed film scores exactly what the old flat model gave it (deviation is zero at no-head)', () => {
+    // Pinned from the flat model (personDrivenCraft false) before the flag was
+    // deleted: the no-head deviation is zero, so nothing moved.
+    const none = breakdown(base);
+    expect(none.productionScore).toBe(53.20531577634462);
+    expect(none.postProductionScore).toBe(65);
+    expect(none.qualityScore).toBe(40.49055511048697);
   });
 });

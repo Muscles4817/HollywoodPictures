@@ -1,11 +1,13 @@
 import { useStudio } from '../../state/StudioContext';
 import { deriveFocusedDraft, deriveGreenlightCommitment } from '../../state/selectors';
-import { computeRecommendedPreProductionDays, computeRecommendedShootDays } from '../../engine/production';
+import { computeRecommendedShootDays } from '../../engine/production';
+import { effectivePreProductionDays } from '../../engine/prepLength';
 import { professionForProductionRole } from '../../data/helpers';
 import { latestCastBookingEnd } from '../../engine/person';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
+import { PrepOutlook } from '../common/PrepOutlook';
 
 /**
  * The last explicit confirmation before the studio actually commits -
@@ -25,7 +27,7 @@ export function GreenlightConfirmation({ onClose }: { onClose: () => void }) {
   const script = draft.script!;
   const productionChoices = draft.productionChoices!;
   const commitment = deriveGreenlightCommitment(draft, state.studio.cash);
-  const preProductionDays = computeRecommendedPreProductionDays(draft.talent, script, productionChoices);
+  const preProductionDays = effectivePreProductionDays(draft);
   const shootDays = computeRecommendedShootDays(draft.talent, script, productionChoices);
   // Deferred Start: if a cast member you waited for is still booked elsewhere,
   // the shoot can't begin until then - the film will be greenlit into a
@@ -45,7 +47,8 @@ export function GreenlightConfirmation({ onClose }: { onClose: () => void }) {
         <h2 style={{ margin: 0 }}>Greenlight {draft.title || script.title}?</h2>
         <p style={{ margin: 0 }}>
           Talent salary, the production budget, and the full contingency reserve all leave Studio Cash the instant
-          you confirm, and your cast's schedules are locked in for the shoot.
+          you confirm, and your cast's schedules are locked in for the shoot. Pre-production is paid as it runs, after
+          this; the studio has to be able to carry it as well, so you can only confirm if both fit.
         </p>
 
         <div className="row">
@@ -59,7 +62,13 @@ export function GreenlightConfirmation({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
+        <PrepOutlook script={script} talent={draft.talent} choices={productionChoices} />
+
         <div className="row-between"><span>Total Commitment</span><Money amount={commitment.totalCommitment} /></div>
+        <div className="row-between" style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>
+          <span>Plus pre-production, paid day by day as it runs</span>
+          <Money amount={commitment.prepCost} />
+        </div>
         <div className="row-between"><span>Studio Cash (now)</span><Money amount={state.studio.cash} /></div>
         <div className="row-between" style={{ fontWeight: 600 }}>
           <span>Studio Cash (after Greenlight)</span>

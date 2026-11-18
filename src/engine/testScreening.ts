@@ -266,7 +266,6 @@ export function generateTestScreeningPendingChoice(draft: FilmDraft, rng: Random
     0, // postProductionScoreBonus (default)
     undefined, // executionProfile (derived from events)
     undefined, // stuntTeamSkill (→ fallback)
-    true, // player film: person-driven DP/Composer/Editor craft, matching the eventual release
   );
 
   const lastQualityDelta = round > 0 && draft.postProductionEvents.length > 0

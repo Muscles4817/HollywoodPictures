@@ -454,6 +454,10 @@ export function ProjectOverview() {
           <span>Studio Cash (after Greenlight)</span>
           <Money amount={commitment.cashAfter} signColor />
         </div>
+        <div className="row-between" style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>
+          <span>Then pre-production, paid day by day as it runs</span>
+          <Money amount={commitment.prepCost} />
+        </div>
       </div>
 
       {director && pendingDemands.length > 0 && (

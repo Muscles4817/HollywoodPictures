@@ -6,7 +6,7 @@ import { buildStateWithReadyDraft } from './testFixtures';
 import type { GameState } from './gameState';
 import { asPlayerDraft, findProject, playerReleasedFilms } from '../engine/project';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
-import { computeDailyPrepBurn, PREP_DAILY_BURN_FLOOR } from '../engine/cost';
+import { computeDailyPrepBurn, PREP_DAILY_BURN_FLOOR, PREP_WEEK_IN_SHOOT_DAYS } from '../engine/cost';
 import { determineOutcome } from '../engine/outcome';
 import { computeBrandChange } from '../engine/reputation';
 
@@ -38,20 +38,16 @@ describe('an overdrawn studio can still release a finished film', () => {
 });
 
 describe('pre-production overhead follows the size of the film', () => {
-  it('a small film pays a small prep bill, not the bill of a fully-funded one', () => {
-    const micro = computeDailyPrepBurn('Intimate', 400_000);
-    const funded = computeDailyPrepBurn('Intimate', 20_000_000);
-    expect(micro).toBeLessThan(funded / 5);
-    // Over a 50-day prep it is around a fifth of the budget, as in the real business.
-    expect((micro * 50) / 400_000).toBeGreaterThan(0.1);
-    expect((micro * 50) / 400_000).toBeLessThan(0.3);
+  it("a prep week costs a fraction of the film's own shooting day (04 §1.4)", () => {
+    const shootDay = 300_000;
+    const week = computeDailyPrepBurn(shootDay) * 7;
+    expect(week / shootDay).toBeCloseTo(PREP_WEEK_IN_SHOOT_DAYS, 2);
+    // A small film pays a small prep bill, not the bill of a large one.
+    expect(computeDailyPrepBurn(20_000)).toBeLessThan(computeDailyPrepBurn(400_000) / 5);
   });
 
-  it('never drops below the floor and never exceeds the ceiling for the scale', () => {
-    expect(computeDailyPrepBurn('Intimate', 0)).toBe(PREP_DAILY_BURN_FLOOR);
-    expect(computeDailyPrepBurn('Epic', 10_000_000_000)).toBe(computeDailyPrepBurn('Epic', Infinity));
-    expect(computeDailyPrepBurn('Intimate', Infinity)).toBeLessThan(computeDailyPrepBurn('Medium', Infinity));
-    expect(computeDailyPrepBurn('Medium', Infinity)).toBeLessThan(computeDailyPrepBurn('Epic', Infinity));
+  it('never drops below the floor', () => {
+    expect(computeDailyPrepBurn(0)).toBe(PREP_DAILY_BURN_FLOOR);
   });
 });
 

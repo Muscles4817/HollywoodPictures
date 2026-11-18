@@ -9,6 +9,7 @@ import type {
   ProductionChoices,
   ProductionRole,
   ProductionScale,
+  ProductionTeam,
   RivalProductionInProgress,
   RivalStudio,
   Script,
@@ -21,12 +22,15 @@ import { MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talent
 import { professionForProductionRole } from '../data/helpers';
 import { isPersonAvailableOnDay, withCommitment } from './person';
 import { effectiveRoleCapacity, characterForRoleSlot } from './castRequirements';
-import { computeRecommendedShootDays, computeRecommendedPostProductionDays } from './production';
+import { computeRecommendedShootDays, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays } from './production';
+import { chooseRivalProductionTeam, rivalPrepPolicy } from './prep/rivalPrep';
+import { defaultActivities, effectiveActivities, prepDailyBurnWith } from './prep/run';
+import { derivePrepDemands } from './prep/demands';
 import { resolveRivalExecution } from './rivalExecution';
 import { computeReleaseResults } from './releaseFilm';
 import { internationalReachForRivalStudio } from './distribution';
-import { computeDailyShootBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
-import { highestBid, placeBid, reopenForfeitedOpportunity, type ResolvedBid } from './opportunities';
+import { computeDailyPrepBurn, computeDailyShootBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
+import { highestBid, marketHeat, placeBid, reopenForfeitedOpportunity, type ResolvedBid } from './opportunities';
 import { logAmount } from './interpolate';
 import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
@@ -853,6 +857,10 @@ export function startableScales(tier: StudioTier, current: RivalProductionInProg
 const SCRIPT_BUDGET_FRACTION = 0.15;
 /** How much above the floor (the current highest bid, or acquisitionCost if none) a rival is willing to open at. */
 const BID_OPENING_PREMIUM_RANGE: [number, number] = [0, 0.15];
+/** The same, for a contested script (one of a week's best, sold by bidding - docs/IMPLEMENTATION_PLAN_market_realism.md Phase 5): the trade knows it is wanted, so rivals open well above the asking price. */
+export const BID_OPENING_PREMIUM_RANGE_CONTESTED: [number, number] = [0.15, 0.5];
+/** What a contested script adds to a rival's read of it: being the script everyone is circling is itself a reason to want it. */
+export const CONTESTED_APPEAL = 8;
 /** How much above the current leader a rival raises to, when outbid on its own already-active bid. */
 const BID_RAISE_INCREMENT_FRACTION = 0.05;
 
@@ -874,14 +882,6 @@ function scriptBudget(rival: RivalStudio, scale: ProductionScale, rng: RandomFn)
  * in the pool fits its target genre/scale/budget at all.
  */
 
-function scriptCraftScore(script: Script): number {
-  return (
-    script.originality +
-    script.structure +
-    script.characters +
-    script.dialogue
-  ) / 4;
-}
 
 const GENRE_TIER_BIAS: Record<
   StudioTier,
@@ -930,14 +930,18 @@ function genreTierBias(tier: StudioTier, script: Script): number {
   return GENRE_TIER_BIAS[tier][script.genre] ?? 0;
 }
 
-function evaluateOpportunityForTier(
+/** @internal exported for tests. */
+export function evaluateOpportunityForTier(
   rival: RivalStudio,
   scale: ProductionScale,
   opportunity: Opportunity,
   budget: number,
 ): number {
   const script = opportunity.script;
-  const craft = scriptCraftScore(script);
+  // How much the trade wants it (engine/opportunities.ts:marketHeat): craft,
+  // plus the hook and emotional premise a rival reads as much as a player
+  // does. Originality also stays its own term below.
+  const craft = marketHeat(script);
   const originality = script.originality;
   
   const currentPrice =
@@ -983,10 +987,13 @@ function evaluateOpportunityForTier(
     score += genreBias * 0.50;
   }
 
+  if (opportunity.contested) score += CONTESTED_APPEAL;
+
   return score;
 }
 
-function considerBiddingOnOpportunity(
+/** @internal exported for tests. */
+export function considerBiddingOnOpportunity(
   rival: RivalStudio,
   scale: ProductionScale,
   opportunities: Opportunity[],
@@ -1042,7 +1049,7 @@ function considerBiddingOnOpportunity(
 
   const chosen = pick(rng, competitiveCandidates).opportunity;
   const floor = highestBid(chosen)?.amount ?? chosen.acquisitionCost;
-  const premium = 1 + randFloat(rng, ...BID_OPENING_PREMIUM_RANGE);
+  const premium = 1 + randFloat(rng, ...(chosen.contested ? BID_OPENING_PREMIUM_RANGE_CONTESTED : BID_OPENING_PREMIUM_RANGE));
   const amount = Math.min(budget, Math.round(floor * premium));
   if (amount < floor) return null; // budget too tight even to meet the floor
   return { opportunityId: chosen.id, amount };
@@ -1099,6 +1106,10 @@ function startRivalProductionFromWonScript(
   franchiseId?: string,
   // Everyone this rival has put in a released film: it knows them, not just of them.
   usedBefore?: ReadonlySet<string>,
+  // Every released film, for this rival's memory of its own recent shoots
+  // (engine/prep/rivalPrep.ts), and the roster of production teams it can hire.
+  pastFilms: Film[] = [],
+  productionTeamPool: ProductionTeam[] = [],
 ): { production: RivalProductionInProgress; talentPool: Record<TalentProfession, Person[]>; cost: number } | null {
   // Assigned up front (not just at the return, the way this used to build
   // its id) so it's available to tag each hire's own commitment with below.
@@ -1142,7 +1153,7 @@ function startRivalProductionFromWonScript(
     // Whoever it can afford with the best track record, by its own imperfect
     // read - not, as it used to be, a random draw among the nearest in price
     // (engine/rivalCasting.ts).
-    const picked = chooseRivalHires(available, role, targetPrice, capacity.max, rng, usedBefore);
+    const picked = chooseRivalHires(available, role, targetPrice, capacity.max, rng, usedBefore, script);
     if (picked.length < capacity.min) return null;
     for (const p of picked) bookedIds.add(p.id);
     // Bind each actor to the Character at its slot (characterForRoleSlot is
@@ -1178,13 +1189,26 @@ function startRivalProductionFromWonScript(
     runtimeIntensity: spendPlan.runtimeIntensity,
   };
 
+  // Prep on the player's model (Phase 6): a contingency reserve sized by the
+  // studio's tier and its memory of recent shoots, a production team it can
+  // afford, and prep time and cost in its plan.
+  const prepPolicy = rivalPrepPolicy(rival.name, rival.tier, pastFilms);
+  productionChoices.contingencyReserveAmount = Math.round(productionChoices.shootingBudgetAmount * prepPolicy.contingencyShare);
+  const negativeBeforeTeam = computeTalentCost(talent) + computeProductionBudgetCost(productionChoices) + productionChoices.shootingBudgetAmount;
+  const productionTeam = chooseRivalProductionTeam(productionTeamPool, negativeBeforeTeam);
+  const prepDays = Math.max(1, Math.round(computeRecommendedPreProductionDays(talent, script, productionChoices) * prepPolicy.lengthFactor));
+  const prepShootBurn = computeDailyShootBurn(productionChoices.shootingBudgetAmount, computeRecommendedShootDays(talent, script, productionChoices));
+  const prepActivities = effectiveActivities(defaultActivities(derivePrepDemands({ script, talent, choices: productionChoices })), prepPolicy.lengthFactor);
+  const prepCost = prepDailyBurnWith(computeDailyPrepBurn(prepShootBurn), prepActivities) * prepDays;
+
   // Computed before marketingChoices now (Phase 1 - release scheduling
   // competition) specifically so releaseWindow can be derived from the
   // real releaseDay it ends up on, instead of the two being picked
   // independently - see engine/calendar.ts:deriveReleaseWindowFromDay.
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
   const postProductionDays = computeRecommendedPostProductionDays(talent, script, productionChoices);
-  const naiveReleaseDay = totalDays + recommendedDays + postProductionDays + RIVAL_MARKETING_LEAD_DAYS;
+  // Prep comes first in its calendar, as it does in the player's.
+  const naiveReleaseDay = totalDays + prepDays + recommendedDays + postProductionDays + RIVAL_MARKETING_LEAD_DAYS;
   // Strength-aware scheduling (docs/DESIGN_box_office_calibration_targets.md §8):
   // this production's own pre-release strength (marketing + scale) decides
   // whether it contests a prime window or retreats to a quiet one - see
@@ -1223,7 +1247,7 @@ function startRivalProductionFromWonScript(
     // before it, the project is under wraps. Purely a reveal anchor - a rival's
     // box office never reads the rollout multiplier (resolveRivalProduction),
     // so its commercial calibration is unchanged.
-    campaignStartDay: totalDays + recommendedDays + postProductionDays,
+    campaignStartDay: totalDays + prepDays + recommendedDays + postProductionDays,
   };
 
   // The picture's full cost, then the studio's own share of it: a co-financier
@@ -1236,9 +1260,13 @@ function startRivalProductionFromWonScript(
     computeTalentCost(talent) +
     computeProductionBudgetCost(productionChoices) +
     productionChoices.shootingBudgetAmount +
-    computeMarketingCost(marketingChoices);
+    computeMarketingCost(marketingChoices) +
+    prepCost +
+    (productionTeam?.typicalSalary ?? 0);
   const cost = fullCost * studioShareOf(rival);
-  if (cost > rival.cash) return null;
+  // The reserve has to be there too (the player's gate counts it), though it is
+  // only spent if the shoot needs it.
+  if (cost + (productionChoices.contingencyReserveAmount ?? 0) * studioShareOf(rival) > rival.cash) return null;
 
   // Per-assignment, not per-role-then-profession: Lead Actor and Supporting
   // Actor share the same 'Actor' pool, so looping MANDATORY_TALENT_ROLES and
@@ -1269,6 +1297,12 @@ function startRivalProductionFromWonScript(
       releaseDay,
       genreIdentity: productionGenreIdentity,
       franchiseId,
+      productionTeam,
+      prepLengthFactor: prepPolicy.lengthFactor,
+      // The studio's situation weighs its prep decisions: money is dearer the more of its cash this film takes.
+      prepCashPressure: clamp(cost / Math.max(1, rival.cash), 0, 1),
+      prepDays,
+      prepCost,
     },
     talentPool: updatedPool,
     cost,
@@ -1299,7 +1333,7 @@ export function resolveRivalProduction(
   // profile and plan (engine/rivalExecution.ts), then feed both through the
   // exact same release pipeline the player uses - a rival's film is now shaped
   // by how its shoot went, not a flat neutral profile.
-  const { events, shootingRatio } = resolveRivalExecution(production, rng);
+  const { events, shootingRatio, prepSpend } = resolveRivalExecution(production, rng);
   const recommendedDays = computeRecommendedShootDays(production.talent, production.script, production.productionChoices);
   const dailyBurn = computeDailyShootBurn(production.productionChoices.shootingBudgetAmount, recommendedDays);
   const photographyCost = Math.round(dailyBurn * recommendedDays * shootingRatio);
@@ -1321,6 +1355,9 @@ export function resolveRivalProduction(
       events,
       postProductionEvents: [],
       photographyCost,
+      // What its prep really spent (the start-of-prep estimate was charged to its cash; the difference - fixes, days a fix added - is reported here, as a player's prep is).
+      preProductionCost: prepSpend,
+      productionTeamFee: production.productionTeam?.typicalSalary ?? 0,
       shootingRatio,
       studioBrand,
       studioGenreIdentity,
@@ -1364,6 +1401,8 @@ export interface RivalMarketUpdate {
   talentPool: Record<TalentProfession, Person[]>;
   /** Milestone: Opportunity Market bidding - the shared pool, already settled for expiry/generation/this-week's-resolutions by the caller (engine/opportunities.ts:settleOpportunities) before being handed in here. */
   opportunities: Opportunity[];
+  /** The world's line producer & 1st AD teams, which rivals hire from too (Phase 6). Read only. */
+  productionTeamPool?: ProductionTeam[];
 }
 
 /**
@@ -1433,6 +1472,8 @@ export function settleRivalMarket(
       rng,
       undefined,
       peopleUsedBy(current.rivalFilmsReleased, rival.name),
+      current.rivalFilmsReleased,
+      current.productionTeamPool,
     );
     if (!started) {
       opportunities = reopenForfeitedOpportunity(opportunities, resolved.opportunity);
@@ -1471,7 +1512,7 @@ export function settleRivalMarket(
     if (franchise && franchise.genre) {
       const knownUpcoming = [...playerScheduled, ...productionsInProgress.map(rivalAsUpcomingRelease)];
       const sequelScript = generateSequelScript(franchise, franchise.genre, rng);
-      const started = startRivalProductionFromWonScript(rival, scale, sequelScript, 0, totalDays, talentPool, knownUpcoming, rng, franchise.id, peopleUsedBy(current.rivalFilmsReleased, rival.name));
+      const started = startRivalProductionFromWonScript(rival, scale, sequelScript, 0, totalDays, talentPool, knownUpcoming, rng, franchise.id, peopleUsedBy(current.rivalFilmsReleased, rival.name), current.rivalFilmsReleased, current.productionTeamPool);
       if (started) {
         productionsInProgress = [...productionsInProgress, started.production];
         talentPool = started.talentPool;

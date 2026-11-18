@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { makePrep } from './testFixtures';
 import { collectPersonAwards, computeReportedLegs, computeProjectSpendSoFar, countActivePlayerProjects, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveReputationHistory, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
 import { openCastingCall } from '../engine/castingCalls';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
@@ -176,7 +177,7 @@ describe('deriveProjectStage - Projects page (components/ProjectsPage.tsx)', () 
       ...draft,
       photography: null,
       shootStartsOnDay: 500,
-      preProduction: { status: 'scheduled', recommendedDays: 30, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
+      preProduction: makePrep({ status: 'scheduled', recommendedDays: 30 }),
     });
     expect(deriveProjectStage(held, draft.id)).toBe('in-development');
     expect(deriveProjectStage(held, null)).toBe('in-development'); // stays distinct even backgrounded

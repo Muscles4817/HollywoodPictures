@@ -59,7 +59,10 @@ function baseInputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSi
     marketingSpend: 20_000_000,
     directorFame: 50,
     leadFame: 50,
-    studioBrand: 50,
+    // 33, was 50: the marketing-efficiency range narrowed to 0.55-0.85
+    // (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3). Brand 33 gives the
+    // 0.65 efficiency these archetypes were calibrated at; Brand is incidental here.
+    studioBrand: 33,
     scriptAccessibility: 50,
     scriptHookStrength: 50,
     scriptCrossoverPotential: 40,
@@ -232,7 +235,10 @@ describe('named archetype regression scenarios', () => {
     // against), so a genuine, non-token marketing spend now produces a real
     // (if still small) awareness share - ~2.8% by real diagnostic, still
     // clearly "small," just no longer artificially near-zero.
-    expect(r.fixed.initialAwareCount).toBeLessThan(r.fixed.totalAddressableAudience * 0.05);
+    // 6%, was 5%: this is a Brand-15 studio, and since the marketing range
+    // narrowed (market realism, Phase 3) an unknown studio's campaign reaches
+    // about 1.5 times as far as it did (efficiency 0.60 against 0.41) - ~5.2%.
+    expect(r.fixed.initialAwareCount).toBeLessThan(r.fixed.totalAddressableAudience * 0.06);
     // Durable run - genuinely uses most/all of the available runway, not a quick flame-out.
     expect(r.runWeeks).toBeGreaterThanOrEqual(MAX_SIMULATION_WEEKS - 2);
     // Acclaim is doing real work - the run climbs to a peak clearly above its

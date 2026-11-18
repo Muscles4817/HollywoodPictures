@@ -64,24 +64,27 @@ describe('computeRecommendedPreProductionDays', () => {
     expect(epicDays).toBeGreaterThan(mediumDays);
   });
 
-  it('a bigger cast needs more pre-production than a smaller one, all else equal', () => {
+  // Prep follows the film's moving parts, not its budget or its hire count
+  // (docs/DESIGN_REVIEW_preproduction_realism.md §4.1, engine/prep/demands.ts):
+  // a bigger SPEAKING cast and a heavier effects SCRIPT lengthen it; buying more
+  // effects money or hiring more crew does not.
+  it('a bigger speaking cast needs more pre-production than a smaller one, all else equal', () => {
     const script = baseScript(3, { scale: 'Medium' });
+    const talent = assignmentsOfSize(3, 6);
     const choices = baseChoices();
-    const smallCastDays = computeRecommendedPreProductionDays(assignmentsOfSize(3, 6), script, choices);
-    const bigCastDays = computeRecommendedPreProductionDays(assignmentsOfSize(3, 12), script, choices);
-    expect(bigCastDays).toBeGreaterThan(smallCastDays);
+    const small = { ...script, cast: script.cast.slice(0, 2) };
+    const big = { ...script, cast: Array.from({ length: 24 }, (_, i) => ({ ...script.cast[i % script.cast.length], name: `Part ${i}` })) };
+    expect(computeRecommendedPreProductionDays(talent, big, choices)).toBeGreaterThan(computeRecommendedPreProductionDays(talent, small, choices));
   });
 
-  it('heavier effects ambition (practical + VFX) needs more pre-production than a minimal-effects plan, all else equal', () => {
+  it('a script heavy with effects needs more pre-production than one without, and effects money alone does not move it', () => {
     const script = baseScript(4, { scale: 'Medium' });
     const talent = assignmentsOfSize(4, 6);
-    const minimalDays = computeRecommendedPreProductionDays(talent, script, baseChoices());
-    const ambitiousDays = computeRecommendedPreProductionDays(
-      talent,
-      script,
-      baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.max, vfxAmount: VFX_RANGE.max }),
-    );
-    expect(ambitiousDays).toBeGreaterThan(minimalDays);
+    const plain = { ...script, productionRequirements: { ...script.productionRequirements, vfx: 0, practicalEffects: 0, stunts: 0 } };
+    const heavy = { ...script, productionRequirements: { ...script.productionRequirements, vfx: 1, practicalEffects: 1, stunts: 1 } };
+    expect(computeRecommendedPreProductionDays(talent, heavy, baseChoices())).toBeGreaterThan(computeRecommendedPreProductionDays(talent, plain, baseChoices()));
+    const moneyed = baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.max, vfxAmount: VFX_RANGE.max });
+    expect(computeRecommendedPreProductionDays(talent, plain, moneyed)).toBe(computeRecommendedPreProductionDays(talent, plain, baseChoices()));
   });
 
   it('does not read runtimeIntensity or contingency/setQuality spend at all - only scale, cast size, and effects ambition drive it', () => {

@@ -109,16 +109,8 @@ export interface ReleaseComputationInput {
   stuntTeamSkill?: number;
   /** The Stunt Team's per-film fee, folded into productionCost exactly like producerFees. Optional; defaults to 0. */
   stuntTeamFee?: number;
-  /**
-   * Coverage-unification cutover (docs/DESIGN_production_requirements_model.md):
-   * when true, Cinematography/Score/Editing quality is realised from the hired
-   * heads (person-driven craft). Set on the PLAYER's release + forecast paths
-   * only; rivals leave it absent (→ false) so their films keep the flat model and
-   * the rival-driven box-office distribution/variance gates stay byte-identical
-   * until the funnel/scale recalibration. Sets/VFX/Practical stay person-driven
-   * for everyone regardless.
-   */
-  personDrivenCraft?: boolean;
+  /** The production team's (line producer & 1st AD) per-film fee, folded into productionCost exactly like the stunt team's. Optional; defaults to 0. */
+  productionTeamFee?: number;
   /**
    * The net quality swing from creative demands the player accepted during
    * development (Phase 2b - engine/creativeDemands.ts), frozen onto the draft at
@@ -233,7 +225,6 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     producerEffects.postProductionDelta, // Creative
     executionProfile,
     input.stuntTeamSkill, // the Practical facet's skill axis (undefined → fallback)
-    input.personDrivenCraft ?? false, // player films realise DP/Composer/Editor craft; rivals keep the flat model
     input.developmentQualityDelta ?? 0, // accepted creative demands' net swing (Phase 2b)
   );
   const criticScore = computeCriticScore(quality, script, input.postProductionChoices, input.genre);
@@ -341,7 +332,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // price.
   const productionCost = Math.max(
     0,
-    talentCost + productionBudgetCost + (input.preProductionCost ?? 0) + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees + (input.stuntTeamFee ?? 0),
+    talentCost + productionBudgetCost + (input.preProductionCost ?? 0) + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees + (input.stuntTeamFee ?? 0) + (input.productionTeamFee ?? 0),
   );
   // The press tour is a promotional expense - folded into the reported
   // marketingCost (and therefore totalCost) so it reads as part of the campaign.
@@ -379,6 +370,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     directorFame: averageFame(input.talent, 'Director'),
     leadFame: averageFame(input.talent, 'Lead Actor'),
     studioBrand: input.studioBrand,
+    exhibitorStanding: input.studioBrand / 100, // the hold: exhibitors trust a known name (Phase 3)
     studioGenreIdentity: input.studioGenreIdentity,
     scriptAccessibility: commercialProfile.accessibility,
     scriptHookStrength: commercialProfile.hookStrength,

@@ -26,7 +26,8 @@ export function productionRequirementTags(script: Script): string[] {
   const setting = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
   const tags: string[] = [];
 
-  if (req.periodSetting) tags.push('Period Costumes', 'Period Sets');
+  // The setting archetype is the one source of truth for "is this a period film" (prep length, sets, the requirement profile all read it).
+  if (setting.periodSetting) tags.push('Period Costumes', 'Period Sets');
   if (setting.vfxEnvironmentDemand >= HEAVY) tags.push('Constructed Worlds');
   if (setting.containedProductionAffinity < NOTABLE && req.locations >= HEAVY) tags.push('Remote Locations');
 

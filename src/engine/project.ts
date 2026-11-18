@@ -1,4 +1,4 @@
-import type { Asset, AuditionRecord, CastingCall, DirectorPitch, Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
+import type { Asset, AuditionRecord, CastingCall, DirectorPitch, Film, FilmDraft, Project, RivalProductionInProgress, Studio } from '../types';
 import { castingCallsAwaitingReview } from './castingCalls';
 import { directorPitchesAwaitingReview } from './directorPitches';
 
@@ -131,7 +131,18 @@ export interface InboxItems {
   nowPlaying: Film[];
   /** The player's own films whose theatrical run has ended but whose final breakdown the player hasn't reviewed yet (Film.boxOfficeRun.acknowledged === false). Informational catch-up: it replaces the old blocking BoxOfficeFinishedPopup, and the Inbox routes it to the film's own dossier (components/common/FilmDetailModal.tsx) rather than reproducing the numbers. Unread until the player opens that dossier, which sets acknowledged (ACKNOWLEDGE_BOX_OFFICE_RESULTS). */
   boxOfficeFinished: Film[];
+  /** Backgrounded productions whose PRE-PRODUCTION is paused on a decision (PreProductionState.pendingChoice) - the prep twin of `awaitingChoice`, which only ever covered the shoot and the test screening. Resolved in place from the Inbox via RESOLVE_PREPRODUCTION_CHOICE (it takes a productionId), so like awaitingChoice it needs no read state: the project is its record. */
+  prepAwaitingChoice: FilmDraft[];
+  /** Films whose prep is paused at a checkpoint the player must answer (PreProductionState.pendingCheckpoint, engine/prep/run.ts). One card per film; it routes to that film's prep briefing, where answering it clears the card. Includes the focused film: focus survives leaving the prep screen, and a paused prep the player cannot see must still reach them. */
+  prepCheckpoints: FilmDraft[];
+  /** Films that lost people when their start slipped (FilmDraft.crewChanges, engine/prep/slips.ts) that the player has not acknowledged. Informational; cleared by ACKNOWLEDGE_CREW_CHANGES from the card. Includes the focused film. */
+  crewChanges: FilmDraft[];
+  /** The studio's name fading or recovering through drift (Studio.brandNotice, docs/IMPLEMENTATION_PLAN_market_realism.md Phase 3) while the studio overview has not yet shown it; null otherwise. Only present when the caller passes the studio's notice. */
+  brandNotice: BrandNotice | null;
 }
+
+/** Studio.brandNotice's shape. */
+export type BrandNotice = NonNullable<Studio['brandNotice']>;
 
 /**
  * Whether a parked film (photography wrapped, post-production choices locked)
@@ -148,7 +159,7 @@ export function isParkedActionable(p: FilmDraft): boolean {
   return p.testScreeningResolved && p.postProductionEditingUntilDay == null;
 }
 
-export function deriveInboxItems(projects: Project[], excludeId: string | null, totalDays: number = Number.NEGATIVE_INFINITY): InboxItems {
+export function deriveInboxItems(projects: Project[], excludeId: string | null, totalDays: number = Number.NEGATIVE_INFINITY, brandNotice?: BrandNotice): InboxItems {
   const productions = backgroundedPlayerDrafts(projects, excludeId);
   // The three Cast & Crew beats below (new applicants, landed director pitches,
   // completed screen tests) deliberately include the FOCUSED draft too, unlike
@@ -174,6 +185,9 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null, 
     // Post-Production screen) - see components/common/Inbox.tsx, which picks
     // whichever of the two a given production actually has pending.
     awaitingChoice: productions.filter((p) => p.photography?.status === 'awaiting-choice' || p.testScreeningPendingChoice),
+    prepAwaitingChoice: productions.filter((p) => p.preProduction?.status === 'awaiting-choice' && !!p.preProduction.pendingChoice),
+    prepCheckpoints: backgroundedPlayerDrafts(projects, null).filter((p) => p.preProduction?.status === 'awaiting-checkpoint' && !!p.preProduction.pendingCheckpoint),
+    crewChanges: backgroundedPlayerDrafts(projects, null).filter((p) => p.crewChanges?.some((c) => !c.acknowledged)),
     wrapped: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && !p.postProductionChoices),
     parked: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && p.postProductionChoices),
     casting: castingDrafts
@@ -208,14 +222,20 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null, 
     boxOfficeFinished: playerReleasedFilms(projects).filter(
       (f) => f.boxOfficeRun.status === 'finished' && !f.boxOfficeRun.acknowledged,
     ),
+    // The studio's name moving through drift alone - informational, cleared
+    // when the studio overview (Dashboard) has shown it.
+    brandNotice: brandNotice && !brandNotice.acknowledged ? brandNotice : null,
   };
 }
 
 /** The Inbox badge count (components/common/Header.tsx) - the sum of every category deriveInboxItems groups that the player still needs to see. Mostly ACTIONABLE items; parked films still waiting on their test screening (or mid-recut) are deliberately excluded (they render an informational Inbox card but there is nothing the player can do, so they must not keep the badge lit). boxOfficeFinished is the one purely-informational category counted here: an unreviewed finished run is a "you missed a result" signal that should keep the badge lit until the player opens its dossier, the same way an unwatched premiere (nowPlaying) does. Awards highlights are counted separately in Header.tsx since they need the awards/acknowledgement state deriveInboxItems doesn't take. */
-export function inboxBadgeCount(projects: Project[], excludeId: string | null, totalDays: number = Number.NEGATIVE_INFINITY): number {
-  const items = deriveInboxItems(projects, excludeId, totalDays);
+export function inboxBadgeCount(projects: Project[], excludeId: string | null, totalDays: number = Number.NEGATIVE_INFINITY, brandNotice?: BrandNotice): number {
+  const items = deriveInboxItems(projects, excludeId, totalDays, brandNotice);
   return (
     items.awaitingChoice.length +
+    items.prepAwaitingChoice.length +
+    items.prepCheckpoints.length +
+    items.crewChanges.length +
     items.wrapped.length +
     items.parked.filter(isParkedActionable).length +
     // One badge point per casting CALL, not per production - each is its own
@@ -225,7 +245,8 @@ export function inboxBadgeCount(projects: Project[], excludeId: string | null, t
     items.auditionsReady.length +
     items.pressTourIncidents.length +
     items.nowPlaying.length +
-    items.boxOfficeFinished.length
+    items.boxOfficeFinished.length +
+    (items.brandNotice ? 1 : 0)
   );
 }
 

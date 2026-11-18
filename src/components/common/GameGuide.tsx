@@ -1,5 +1,6 @@
 import { Button } from './Button';
 import './GameGuide.css';
+import { BRAND_EXPLANATION } from '../../engine/reputation';
 
 interface FaqItem {
   q: string;
@@ -207,7 +208,7 @@ const FAQ: FaqCategory[] = [
       {
         q: 'What’s the difference between Brand and Prestige?',
         a: [
-          'Brand Recognition is how commercially bankable you are with general audiences - it moves with profit relative to cost and feeds back into Buzz on your next film, so commercial success compounds. Prestige is how respected you are by critics - it moves with critical reception alone, independent of money. A beloved flop builds Prestige; a profitable but panned film builds Brand. They’re free to diverge, and neither is strictly better.',
+          BRAND_EXPLANATION + ' It moves with profit relative to cost and with how many people saw your films. Prestige is how respected you are by critics - it moves with critical reception alone, independent of money. A beloved flop builds Prestige; a profitable but panned film builds Brand. They’re free to diverge, and neither is strictly better.',
         ],
       },
       {

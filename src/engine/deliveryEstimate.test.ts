@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { makePrep } from '../state/testFixtures';
 import { createRng } from './random';
 import { buildReadyDraft } from '../state/testFixtures';
 import {
@@ -41,7 +42,7 @@ describe('estimateDelivery', () => {
 
   it('does not charge a shot film for prep or photography again', () => {
     const shot = inDevelopment({
-      preProduction: { status: 'finished', recommendedDays: 30, daysElapsed: 30, events: [], runningCost: 0, pendingChoice: null },
+      preProduction: makePrep({ status: 'finished', recommendedDays: 30, daysElapsed: 30 }),
       photography: { status: 'finished', recommendedDays: 40, daysElapsed: 40, events: [], runningCost: 0, pendingChoice: null },
     });
     expect(estimateDelivery(shot, TODAY).remaining.map((s) => s.label)).toEqual(['Post-production']);

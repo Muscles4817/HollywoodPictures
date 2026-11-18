@@ -170,6 +170,16 @@ export function deriveProductionSheet(draft: FilmDraft): SheetGroup[] {
     section: 'production',
   });
 
+  belowTheLine.push({
+    id: 'production-team',
+    label: 'Line Producer & 1st AD',
+    state: draft.productionTeamId ? 'set' : 'optional',
+    occupant: draft.productionTeamId ? 'Attached' : null,
+    cost: null,
+    note: draft.productionTeamId ? null : 'Optional - the studio office runs prep',
+    section: 'production',
+  });
+
   const producerCount = draft.attachedProducerIds?.length ?? 0;
   belowTheLine.push({
     id: 'producers',

@@ -1,5 +1,7 @@
+import type { PrepFixKind } from '../data/prep';
 import type { IndustryNotice } from '../engine/careerTurnover';
 import type {
+  PrepPlan,
   TalentDatabase,
   Asset,
   AwardsState,
@@ -25,6 +27,7 @@ import type {
   Screen,
   Studio,
   StuntTeam,
+  ProductionTeam,
   TalentProfession,
   ProductionRole,
   TargetAudience,
@@ -103,6 +106,8 @@ export interface GameState {
    * `[]` (no migration - see state/persistence.ts).
    */
   stuntTeamPool?: StuntTeam[];
+  /** Hireable line producer & 1st AD teams (engine/productionTeams.ts). */
+  productionTeamPool?: ProductionTeam[];
   // Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md) -
   // world-level and shared, same reasoning as talentPool: an Opportunity
   // isn't anyone's property yet, so it can't live inside one Studio. Not
@@ -261,6 +266,7 @@ export function createDraftFromAsset(
     talent: [],
     attachedProducerIds: [],
     stuntTeamId: null,
+    productionTeamId: null,
     talentTargetPriceByRole,
     castingCalls: [],
     environmentStrategy: null,
@@ -351,6 +357,13 @@ export type GameAction =
   // Attach/clear the Stunt Team for the focused film (docs/DESIGN_REVIEW_production_redesign.md §5.2).
   // One team per film; stuntTeamId: null clears it. Charged (per-film fee) only at RELEASE_FILM.
   | { type: 'SET_STUNT_TEAM'; stuntTeamId: string | null }
+  // One production team (line producer & 1st AD) per film; null = the studio's own production office. Fee charged at release.
+  | { type: 'SET_PRODUCTION_TEAM'; productionTeamId: string | null }
+  // Pre-production (docs/IMPLEMENTATION_PLAN_preproduction_realism.md Phase 4).
+  | { type: 'SET_PREP_PLAN'; plan: PrepPlan }
+  | { type: 'RESOLVE_PREP_CHECKPOINT'; productionId: string; choices: Record<string, PrepFixKind> }
+  | { type: 'SET_PREP_DELEGATION'; productionId: string; delegated: boolean }
+  | { type: 'ACKNOWLEDGE_CREW_CHANGES'; productionId: string }
   // Workstream II, Layer 2 - set the producer's Execution Strategy method(s) for
   // the focused film. Merges the patch into FilmDraft.executionStrategy (partial;
   // unset axes follow the script's lean-derived default). Re-routes requirements
@@ -584,6 +597,10 @@ export type GameAction =
   | { type: 'COMMIT_CAMPAIGN'; amount: number }
   | { type: 'SCHEDULE_RELEASE'; releaseDay: number }
   | { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS'; filmId: string }
+  /** The studio overview has shown the player the latest Brand notice (Studio.brandNotice) - it leaves the Inbox. */
+  | { type: 'ACKNOWLEDGE_BRAND_NOTICE' }
+  /** The Opportunity Market has shown these lapsed contested scripts (no offers came in) - their note goes. */
+  | { type: 'ACKNOWLEDGE_LAPSED_CONTESTS'; opportunityIds: string[] }
   | { type: 'VIEW_PREMIERE'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }

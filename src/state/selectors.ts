@@ -1,9 +1,11 @@
 import { unreadIndustryNoticeCount } from '../engine/careerTurnover';
-import type { AncillaryWindow, AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, StuntTeam, TalentAssignment, WizardStep } from '../types';
+import type { AncillaryWindow, AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, StuntTeam, ProductionTeam, TalentAssignment, WizardStep } from '../types';
 import { yearOf } from '../engine/calendar';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
+import { estimatedPrepSpend, remainingPrepSpend } from '../engine/prepLength';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { stuntTeamById, stuntTeamFee } from '../engine/stuntTeams';
+import { productionTeamById, productionTeamFee } from '../engine/productionTeams';
 import { computeBoxOfficeBump, computeStudioAwardDeltas } from '../engine/awards';
 import { awardShow } from '../data/awardsShows';
 import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
@@ -70,7 +72,7 @@ export function deriveFocusedFilm(state: GameState): Film | null {
  * this preview's caller is about to subtract a second time from a cash
  * figure that's already down that amount.
  */
-export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Person[] = [], stuntTeamPool: StuntTeam[] = []): number {
+export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Person[] = [], stuntTeamPool: StuntTeam[] = [], productionTeamPool: ProductionTeam[] = []): number {
   if (!draft) return 0;
 
   let total = 0;
@@ -81,19 +83,24 @@ export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Per
   total += totalAttachedPerFilmFees(producerPool, draft.attachedProducerIds ?? []);
   // The attached Stunt Team's fee - same release-time-cost treatment as producers.
   total += stuntTeamFee(stuntTeamById(stuntTeamPool, draft.stuntTeamId));
-  if (!draft.photography) {
-    // Not charged yet - BEGIN_PHOTOGRAPHY is what actually deducts these,
-    // so until then this is a pure "what would this cost" projection. Uses
-    // the full planned contingency reserve (what it costs to shoot the
-    // recommended schedule, see engine/production.ts:computeRecommendedShootDays)
-    // as the estimate - the same number ProductionPlanning.tsx shows
-    // directly, so this stays consistent with what the player can already
-    // see on screen.
+  // Once greenlit, the team contracted then (the fee release charges); before, the one chosen.
+  total += productionTeamFee(draft.preProduction ? (draft.preProduction.team ?? undefined) : productionTeamById(productionTeamPool, draft.productionTeamId));
+  if (!draft.preProduction) {
+    // Not charged yet - GREENLIGHT_PROJECT is what deducts these, so until
+    // then this is a pure "what would this cost" projection. Uses the full
+    // planned contingency reserve as the estimate - the same number
+    // ProductionPlanning.tsx shows directly. Prep's burn is estimated too
+    // (engine/prepLength.ts): it is paid day by day after greenlight.
     total += computeTalentCost(draft.talent);
+    total += estimatedPrepSpend(draft);
     if (draft.productionChoices) {
       total += computeProductionBudgetCost(draft.productionChoices);
       total += draft.productionChoices.shootingBudgetAmount + (draft.productionChoices.contingencyReserveAmount ?? 0);
     }
+  } else if (!draft.photography) {
+    // Greenlit and prepping: the greenlight commitment has left cash already;
+    // what is still to come is the rest of prep's burn.
+    total += remainingPrepSpend(draft);
   } else {
     total += computeEventsCostDelta(draft.photography.events);
   }
@@ -528,7 +535,7 @@ export function unacknowledgedAwardHighlights(state: GameState): RecentAwardHigh
  */
 export function attentionBadgeCount(state: GameState): number {
   return (
-    inboxBadgeCount(state.projects, state.focusedProjectId, state.totalDays) +
+    inboxBadgeCount(state.projects, state.focusedProjectId, state.totalDays, state.studio.brandNotice) +
     unreadBidCount(state.bidNotifications ?? []) +
     unreadIndustryNoticeCount(state.industryNotices) +
     unacknowledgedAwardHighlights(state).length
@@ -980,6 +987,8 @@ export interface GreenlightCommitment {
   talentCost: number;
   productionCost: number;
   contingency: number;
+  /** Expected prep burn, paid day by day over prep (not at greenlight). */
+  prepCost: number;
   totalCommitment: number;
   cashAfter: number;
   canAfford: boolean;
@@ -993,9 +1002,15 @@ export function deriveGreenlightCommitment(draft: FilmDraft, studioCash: number)
   const contingency = draft.productionChoices
     ? draft.productionChoices.shootingBudgetAmount + (draft.productionChoices.contingencyReserveAmount ?? 0)
     : 0;
+  // Prep's burn, spent over prep rather than at greenlight, but counted: the
+  // studio has to carry it (engine/prepLength.ts:estimatedPrepSpend).
+  // Not part of what leaves cash at greenlight (totalCommitment / cashAfter),
+  // but the studio must be able to carry it too, so it is in canAfford - the
+  // same read the readiness gate makes.
+  const prepCost = estimatedPrepSpend(draft);
   const totalCommitment = talentCost + productionCost + contingency;
   const cashAfter = studioCash - totalCommitment;
-  return { talentCost, productionCost, contingency, totalCommitment, cashAfter, canAfford: cashAfter >= 0 };
+  return { talentCost, productionCost, contingency, prepCost, totalCommitment, cashAfter, canAfford: cashAfter - prepCost >= 0 };
 }
 
 /**

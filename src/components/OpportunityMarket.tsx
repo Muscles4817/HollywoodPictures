@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { formatGameDateWithMonth } from '../engine/calendar';
 import { WEEK_LENGTH_DAYS, highestBid } from '../engine/opportunities';
@@ -449,8 +449,20 @@ export function OpportunityMarket() {
   }
 
   function bidAmountFor(opportunity: Opportunity): number {
-    return bidAmounts[opportunity.id] ?? Math.round(bidFloorFor(opportunity) * 1.1);
+    // A first offer on a contested script starts just above the asking price.
+    const opening = opportunity.contested && !highestBid(opportunity) ? 1.05 : 1.1;
+    return bidAmounts[opportunity.id] ?? Math.round(bidFloorFor(opportunity) * opening);
   }
+
+  // Contested scripts nobody offered on (Phase 5) say so until the player has
+  // seen the card: the ids are snapshotted when the market opens, so the note
+  // stays up for this visit while being marked seen for the next.
+  const [lapsedOnOpen] = useState<Set<string>>(
+    () => new Set(state.opportunities.filter((o) => o.contested === false && !o.lapseSeen).map((o) => o.id)),
+  );
+  useEffect(() => {
+    if (lapsedOnOpen.size > 0) dispatch({ type: 'ACKNOWLEDGE_LAPSED_CONTESTS', opportunityIds: [...lapsedOnOpen] });
+  }, [lapsedOnOpen, dispatch]);
 
   const daysUntilResolution = Math.max(0, state.nextOpportunityCheckDay - state.totalDays);
 
@@ -637,6 +649,7 @@ export function OpportunityMarket() {
                     <span className="classified-kind">
                       {opportunity.source}
                       {isNew && <span className="classified-new"> · New this week</span>}
+                      {opportunity.contested && <span className="badge" style={{ marginLeft: 6 }}>Contested</span>}
                     </span>
                     <span className="classified-expiry">
                       Closes {formatGameDateWithMonth(opportunity.expiresOnDay)}
@@ -677,19 +690,32 @@ export function OpportunityMarket() {
                     showCost={false}
                   />
 
-                  {leader ? (
+                  {opportunity.contested && (
+                    <p style={{ margin: '8px 0 0', fontSize: '0.85em' }}>
+                      Several studios are circling this one. It goes to the best offer when the week closes.
+                    </p>
+                  )}
+                  {lapsedOnOpen.has(opportunity.id) && !opportunity.contested && (
+                    <p style={{ margin: '8px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                      No offers came in. It can be bought outright now.
+                    </p>
+                  )}
+
+                  {leader || opportunity.contested ? (
                     <>
                       <div
                         className="row-between"
                         style={{ marginTop: 8 }}
                       >
                         <span className="stat-label">
-                          {playerIsLeading
-                            ? 'You Are Leading'
-                            : `Leading: ${leader.bidderName}`}
+                          {!leader
+                            ? 'Asking Price'
+                            : playerIsLeading
+                              ? 'You Are Leading'
+                              : `Leading: ${leader.bidderName}`}
                         </span>
 
-                        <Money amount={leader.amount} />
+                        <Money amount={leader?.amount ?? opportunity.acquisitionCost} />
                       </div>
 
                       {playerIsLeading ? (
@@ -701,7 +727,7 @@ export function OpportunityMarket() {
                           <div className="row" style={{ marginTop: 8, gap: 8 }}>
                             <input
                               type="number"
-                              min={leader.amount + 1}
+                              min={bidFloorFor(opportunity) + 1}
                               step={1000}
                               value={bidAmount}
                               onChange={(e) =>
@@ -733,7 +759,7 @@ export function OpportunityMarket() {
                                 });
                               }}
                             >
-                              Outbid
+                              {leader ? 'Outbid' : 'Make an offer'}
                             </Button>
                           </div>
                           <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '0.85em' }}>
@@ -741,7 +767,7 @@ export function OpportunityMarket() {
                           </p>
                           {!bidValid && bidAmount <= state.studio.cash && (
                             <p style={{ color: 'var(--red)', marginTop: 6 }}>
-                              Must exceed the current leading bid.
+                              {leader ? 'Must exceed the current leading bid.' : 'An offer must be above the asking price.'}
                             </p>
                           )}
                           {bidAmount > state.studio.cash && (

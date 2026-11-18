@@ -1,0 +1,1223 @@
+# Design review: pre-production as it really works
+
+Status: **proposal for the owner.** Nothing here is built. It replaces the
+pre-production part of `docs/IMPLEMENTATION_PLAN_market_realism.md` (Phase 6),
+which is withdrawn: Phase 6 re-weighted dice and was the wrong kind of change.
+
+Sources: `docs/domain/04-preproduction.md` (cited as **04 §n**),
+`06-principal-photography.md` (**06**), `03-financing-and-dealmaking.md` (**03**),
+`05-departments-and-crew.md`, `docs/SIMULATION_PHILOSOPHY.md` (**Principle n**),
+`docs/DESIGN_REVIEW_production_redesign.md` (the facet model), and a full read of
+the current code (file references below are as of this branch).
+
+---
+
+## 0. The short version
+
+**What real prep is.** Pre-production is where a film's problems are found and
+dealt with while they are still cheap. A script quietly demands things — a car,
+a crowd, rain, a set that takes eight weeks to build, a costume that cannot be
+started until the actor is signed, a permit that takes three months. Prep is the
+race to discover those demands and settle them before 120 people are standing on
+a set at £200,000 a day. Whatever prep does not catch, the shoot pays for, at
+shoot prices. "Almost every problem that appears on set was either created or
+prevented here" (04, opening).
+
+**What the game does.** Prep is a fixed-length countdown. Each day there is an
+18% chance of drawing one of 13 cards, uniformly at random. Most cards hand out
+or take away quality points ("the table read went well, +3"). Nothing about the
+film — its locations, period, cast, stunts, effects — and nothing about the
+people hired changes which cards come up. The player cannot lengthen or shorten
+prep, and prep decisions never reach the Inbox. Rivals pay nothing for prep and
+make no prep decisions.
+
+**What this note proposes.** Prep becomes the discovery-and-repair process it
+really is:
+
+1. Every film carries **hidden problems**, and how many it carries, and of what
+   kind, follows from **its own moving parts** (the script's demands and the
+   production plan), not from dice alone.
+2. Prep **finds** problems. What it finds depends on **time**, on **which prep
+   work was done** (scouting, tests, rehearsal, previs), and on **who was
+   hired** to do it.
+3. Each problem found comes with the **real options** studios have — spend
+   money, spend time, cut or simplify, rewrite, recast, or carry the risk — at
+   their real relative costs.
+4. Problems prep does not catch **become specific things that go wrong on the
+   shoot**: lost hours and days, a set handed over unfinished, a sequence that
+   cannot be covered. They reach the finished film through the existing
+   machinery (schedule → coverage → edit; department quality), never as a flat
+   quality number.
+5. **Prep does not add quality.** It protects what the film could be. Upside
+   comes from the people and the plan; prep's job is to stop it leaking away
+   (Principle "What this looks like in practice", first bullet).
+6. **Rivals face the same problems with the same options**, and choose among
+   them the way their kind of studio would — with their own prep time, prep
+   cost and contingency, which today they do not have.
+
+How often films run over, how badly, and so how many blockbusters a year
+there are, should then **come out of** this — and be checked against what the
+industry reference says actually happens, not tuned to a target.
+
+---
+
+## 1. How real pre-production works
+
+### 1.1 Prep exists to buy certainty cheaply
+
+The single fact everything else hangs on (04 §1.4, §10):
+
+| | Mid-budget studio film | Tentpole |
+|---|---|---|
+| One extra week of prep for the core team | $50–150K | more, but small against the shoot |
+| One lost shooting day | $150–400K | $500K–1M+ |
+
+So "buying one extra prep week to avoid half a lost shooting day pays for
+itself" — and line producers "lose that argument often, because prep money is
+spent before there is any footage to show for it." Prep is cut not because
+anyone thinks it is unnecessary, but because **a date became immovable** and
+the front end was the only flexible thing left (04 §16).
+
+### 1.2 What prep must achieve
+
+A well-prepped production, on day one of photography, has (04 §12):
+
+- a locked script;
+- a schedule everyone believes;
+- an approved budget;
+- every location for the first fortnight permitted and scouted;
+- sets built for the first block, drawings signed off for the rest;
+- principal cast signed, fitted and tested;
+- department heads hired and their orders placed.
+
+"Films regularly start with several of these missing. It shows."
+
+### 1.3 What goes wrong, and why
+
+Problems are not random. They are latent in the script and the plan, and prep
+either finds them or does not. The reference's own catalogue, grouped:
+
+| Kind of problem | Where it comes from | Who finds it, and how | What it costs if it reaches the shoot |
+|---|---|---|---|
+| **The implied element** — the car, the crowd, the rain, the dog, the cleared TV footage that the script assumes but never names (04 §2.6) | Scripts with many physical demands | The 1st AD's breakdown and the line producer's costing, in the first weeks | Half a day to a full day lost, each time; or the shot is simplified on the day |
+| **The long-lead item** — a hero set (6–12 weeks, up to 6 months), a bespoke costume (6–10 weeks), a prosthetic (10–20 weeks), a creature (6–12 months), picture vehicles, trained animals, permits (days to 6 months) (04 §1.3) | Period, fantasy, creatures, effects, heavy builds, specific locations | The production designer and department heads, as soon as there is a set list | The set handed over wet on the shooting morning; leads in rented approximations; the gag simplified |
+| **Casting blocks everything bespoke** — nothing can be made until the actor is signed (04 §1.3, §7) | Leads cast late, or recast | Costume and makeup, immediately | No fittings, no rehearsal, the actor arrives cold |
+| **Locations** — permits refused, the owner withdraws, neighbours revolt, no power, unusable sound (04 §5.4) | Location-heavy, multi-location, urban, remote | The location manager's scouting and the tech scout | Days and money; every line becomes dubbing; hours lost daily |
+| **The budget doesn't fit** — the first scheduled budget is routinely 10–30% over (04 §4.3) | Ambition against money | The line producer, in week 2–3 | Resolved by "taking a pass for budget" (§1.5) or by spending contingency in prep — which leaves nothing for the shoot (03 §13) |
+| **The schedule was built to the budget, not the work** (03 §13) | Too few days for the pages and the action | The line producer and 1st AD — who often knew and were overruled | Behind from day one, "a quarter to a half day per day" (06 §16) |
+| **The script isn't locked** — scenes that die at the table read, characters who vanish, a film that is too long (04 §10.2) | Weak or unfinished scripts | The table read and the director's prep | The single most reliable predictor of an overrun, 5–25% (03 §13); departments prep twice |
+| **The departments are making different films** — "two departments with different understandings of the same word" (04 §11.2); PD and DP with two visual plans (04 §9.7) | Creative heads who don't share a vision; a director who won't decide | Concept art, camera and costume tests, the production meeting | Re-lighting, regrading, reshoots; "the film has two visual plans and neither wins" |
+| **Performances aren't ready** — no rehearsal, lines not known, a pairing with no chemistry (04 §10.1, 06 §5.5) | Rehearsal cut (always the first thing cut); late casting | Rehearsal, chemistry reads | 30–60 minutes per scene, compounding; a lead who doesn't know lines costs 1–3 hours a day |
+| **Action not prepared** — stunts need 2–8 weeks of rehearsal, rigs tested, performers trained (04 §10.5) | Stunt- and action-heavy scripts | The stunt coordinator, stuntvis | Unsafe or simplified gags; 15 minutes to 3 hours per reset |
+| **Effects not planned** — VFX methodology undecided, no previs (04 §10.4; 08) | VFX-heavy films | The VFX supervisor and previs | Decided on the floor ("the most expensive place"); VFX shot count grows in post, 5–40% (03 §13) |
+| **The start date slips** — 2–4 weeks and "the good ones" take other jobs; 6+ weeks is effectively a re-crew (04 §9.6) | Prep extended or the start pushed | Everyone | Second-choice crew; across a season the exteriors no longer match |
+| **The director won't decide** (04 §13.4) | An indecisive director | Every department waiting on a decision | Departments default to "the most expensive interpretation"; 15–45 minutes per occurrence on set (06 §5.6) |
+
+How much of this a film faces scales with its **moving parts**, not its budget:
+"A $40M two-hander in one house needs less prep than a $6M period film with
+forty speaking parts, and treating budget as the proxy is how the second one
+gets wrecked" (04 §16).
+
+### 1.4 Who catches problems
+
+Skill shows up as **seeing problems early** and **saying what they cost**:
+
+- A good 1st AD reads for the implied element, flags cost drivers in week one,
+  and resolves ambiguity in a conversation (04 §2.7).
+- A good line producer answers the cost of a request in under a minute, knows
+  which budget lines are soft, and protects the shooting day (04 §4.6).
+- A good production designer designs for the camera and the schedule, decides
+  fast, and finds the location that removes a build (04 §6.5).
+- A good casting director knows the 200 actors who could play the part and
+  judges chemistry before the read (04 §8.2).
+- A good HOD says "yes, and it costs a day", and is honest about lead times
+  while things are still fixable (04 §9.7).
+- A crew that has worked together is **10–25% faster** on setups (04 §9.4).
+- A director who arrives with a shot list makes decisions in prep "at zero
+  marginal cost" instead of on set (06 §5.6).
+
+### 1.5 The options real productions have
+
+When a problem is found, the menu is consistent across the reference:
+
+| Option | Real cost | Notes |
+|---|---|---|
+| **Spend money** — rush orders, a second build crew, more costume multiples, pre-rigging | Money | "Always the first choice if the money exists" (06 §16.2) |
+| **Spend prep time** — extend prep, push the start | Prep burn per week, plus the risk of losing booked crew and cast (04 §9.6) | Cheap in money, expensive in availability |
+| **Take a pass for budget** — merge locations, kill company moves, night to day, smaller crowds, merge characters, simplify set pieces, cut a set, cut effects, trim pages (04 §4.5) | Scope, in a strict order from "usually nothing, often improves the film" to "the film starts to feel smaller" | The top of the list often makes the film better |
+| **Rewrite** | The writer's time and fee; departments re-prep | Cheap if early, compounding if late |
+| **Recast or rehire** | Fees, delay, and starting that department's prep again | |
+| **Spend contingency in prep** | Nothing now; nothing left for the shoot | The classic mistake (03 §7.5) |
+| **Carry it** | Nothing now; the shoot pays at shoot prices | Sometimes right: not every risk fires |
+
+And when prep is short, professionals protect and sacrifice in a known order
+(04 §16): protect the breakdown and schedule, the leads' casting, the first
+block's locations and sets, tech scouts, tests on the principals, the
+production meeting, costume multiples; sacrifice rehearsal first, then extra
+concept art, previs for non-action scenes, later-block design, boarding of
+dialogue scenes, second-unit prep.
+
+### 1.6 How often things go wrong (what to check the model against)
+
+The reference gives sizes, not a single rate, and that is what the model should
+be judged by (03 §13.1):
+
+| Mechanism | Typical overrun |
+|---|---|
+| Script not locked at greenlight | 5–25% (the root cause of most others) |
+| Schedule built to the budget | 5–20% |
+| Prep too short | 3–10% |
+| Contingency spent in prep | up to all of it |
+| Weather and location loss | 1–8% |
+| Cast illness or unavailability | 1–5% |
+| Reshoots during the shoot | 2–10% |
+| VFX shot-count growth | 5–40% on a VFX-heavy film |
+
+"Overruns are not random. They arrive through a small number of mechanisms ...
+and most of them are visible in advance to anyone who knows what to look at."
+And **"almost every overrun is paid for twice"** — once in money, once in the
+film, "because the standard remedy for being over is descoping".
+
+---
+
+## 2. What the game does today
+
+From a full read of the code (references are to `src/`).
+
+### 2.1 The prep phase
+
+- **Length** (`engine/production.ts:127-168`): 21 days + scale + "cast size" +
+  effects money + setting + period. Fixed at greenlight. "Cast size" is
+  `talent.length`, which counts crew: hiring a production designer lengthens
+  prep by 2.5 days. Genre, script complexity, the location/studio/digital
+  strategy and every person's attributes are ignored.
+- **The player cannot shorten, extend or skip prep.** The one pre-greenlight
+  lever, the design-prep slider, can lengthen it but not shorten it; set below
+  the formula it only lowers set quality (`ProductionPlanning.tsx:549-559`,
+  `studioReducer.ts:2327-2334`). "Begin principal photography" just runs the
+  remaining days.
+- **Events** (`data/productionEvents.ts:2932-3057`, rolled at
+  `engine/production.ts:857-894`): 13 templates, 9 positive and 4 negative, an
+  18% flat daily chance, picked **uniformly**. Each fires at most once, so a long
+  prep simply draws more of the same 13 cards. The film's moving parts and the
+  hired people change nothing about which cards are possible — except one
+  personality trait on the lead, and the writer's and director's skill shifting
+  two choices' outcomes.
+- **Prep hands out quality.** "Table read revelation" +3–7, "rehearsal
+  chemistry" +2–6, "design breakthrough" +2–6, "commission the rewrite" +2–8,
+  "build the set" +4–9. That breaks the philosophy's own rule that preparation
+  protects potential but does not manufacture it.
+- **Prep's effect on the shoot** is one number added to **all four** risk
+  dimensions equally (`applyPrepRiskDelta`): a safety walkthrough lowers morale
+  risk.
+- **Delays never delay anything.** A prep "delay" spends prep days the film was
+  going to spend anyway; the start never moves; `committedStartDay` is display
+  only.
+- **Costs.** Prep burns cash daily (`engine/cost.ts:52-77`), but the burn is
+  capped so that above roughly £6–24M of negative it is a token amount, and no
+  affordability check covers it.
+
+### 2.2 Things that are simply broken
+
+| Problem | Where |
+|---|---|
+| Prep decisions never appear in the Inbox or the badge, despite the reducer comment saying they can be answered from there | `engine/project.ts:181`, `Inbox.tsx:252-284`, `studioReducer.ts:2552` |
+| The prep decision card says "Filming is paused until you pick" | `OnSetDecisionCard.tsx:118` |
+| A film held waiting for its cast never starts on its own; its bookings lapse while it waits | `productionsInProgress.ts:109-111`, `PreProductionRun.tsx:64` |
+| Bookings are fixed at greenlight and never extended; once a booking's end passes, rivals can hire the person while the player's film still has them | `studioReducer.ts:2361-2369`, `person.ts:164-166` |
+| A second film's prep freezes while the player is on a wizard screen, though the calendar moves | `studioReducer.ts:1144`, `App.tsx:84-101` |
+| The greenlight dialog and delivery estimate show a prep length that ignores the design-prep slider | `GreenlightConfirmation.tsx:28`, `deliveryEstimate.ts:93` |
+| The greenlight gate leaves out the contingency reserve the button includes | `projectReadiness.ts:170-176` vs `selectors.ts:988-999` |
+| Two different "is this a period film" flags that can disagree | `production.ts:166` vs `requirementProfile.ts:206` |
+| The location/studio/digital strategy and the execution strategy affect nothing in prep or the shoot | `productionChoicesAdapter.ts`; `types/index.ts:2841-2850` |
+| `productionRequirements` (extras, locations, vehicles, animals, stunts, crowd) is unused outside scaffolding | `types/index.ts:741-752` |
+
+### 2.3 What already exists that this should build on (Principle 7)
+
+- **The facet model** (`engine/facetModel.ts`, `setsFacet.ts`, and the
+  production redesign doc §3): each craft facet's quality comes from money ×
+  time × the head's skill against an ambition target, with floors and
+  diminishing returns. Set quality already depends on granted prep days. This
+  is the right model for **how good a department's work is**; it stays.
+- **The requirement profile** (`engine/requirementProfile.ts`): a derived
+  breakdown of a script into 17 demands — location work, period architecture,
+  studio build, period costume, prosthetics, creatures, combat stunts, vehicle
+  action, crowd work, extras, animals — each with magnitude, frequency,
+  complexity and criticality. It is the game's version of 04 §2's breakdown, and
+  today it feeds nothing that matters.
+- **Department workload** (`engine/departmentWorkload.ts`): turns requirements
+  into workload for design, VFX and stunts; costume, makeup and the AD team are
+  deliberately unrouted.
+- **The shoot machinery**: delays → shooting ratio → coverage → the edit
+  ceiling; typed impacts to performances, script, post and each facet;
+  escalation and resilience (`engine/productionExecution.ts`). Problems carried
+  out of prep should arrive through this, not beside it.
+- **People data**: skill, reliability, experience, professionalism, ego,
+  temperament, pressure handling, adaptability; director `productionStyle` and
+  `handsOn`; crew philosophy and creative tension; pairing history
+  (`TalentPairing`); producers with specialties (a "Line" producer already
+  exists, as a cost discount).
+- **Bookings** (`availability.commitments`) — the substrate for "the start
+  slipped and the good ones left".
+
+---
+
+## 3. Design rules for this rewrite
+
+1. **Cause before chance.** A problem exists because something about the film,
+   the plan or the people makes it likely. Chance decides *whether* a likely
+   problem materialises and *when* it is found — never *what kind of film* has
+   it.
+2. **Prep protects; it does not add.** No prep outcome raises a film above what
+   its script, people and plan could deliver. A good prep's reward is **money
+   and days kept, and potential preserved**.
+3. **Costs in the currencies the industry uses**: money, prep time, start-date
+   risk to bookings, scope (which costs quality in a named department), and
+   shoot time (which costs coverage, money and morale).
+4. **Every risk is legible before greenlight** (Principle 3): the player can see
+   *why* this film will be hard to prep, in words.
+5. **The same model for everyone.** Rivals' films carry the same problems,
+   choose from the same options, and pay the same costs.
+6. **Few, meaningful decisions.** A real prep has hundreds of decisions; the
+   game should surface the handful that change the film, at the moments a real
+   producer would face them.
+7. **Check against the industry, not against market targets.** The model is
+   right when overrun sizes, the effect of short prep, and the difference
+   between a two-hander and a period epic look like §1.6. Box-office results are
+   then observed; if they look wrong, investigate the cause.
+
+---
+
+## 4. The model
+
+### 4.1 The film's demands (the breakdown)
+
+At greenlight the film's **demands** are derived (pure, not stored —
+Principle 8) from data that already exists, fixed so it is consistent:
+
+- **From the script**: the requirement profile's leaves (`requirementProfile.ts`),
+  the setting archetype's profile (`data/settings.ts` — construction, location
+  complexity, travel, logistics, extras, period, vehicles), the cast (speaking
+  parts by prominence; characters with high physical or transformation demand;
+  creatures), `productionRequirements`, structural soundness (the script's
+  structure and character craft: a weaker script carries more "not really
+  locked" risk), and runtime.
+- **From the plan**: the environment strategy (location / studio / digital —
+  wired at last, since it decides whether prep is a construction problem or a
+  logistics problem, 04 §14), effects strategy and ambition, set and effects
+  money, the shooting budget against the days the work needs, the contingency
+  reserve.
+- **From the dates**: how much prep time there is, and whether the release date
+  is already fixed.
+
+One "period" flag (the setting archetype's) is kept and the other derived from
+it. "Cast size" counts actors, not crew.
+
+The demands are grouped into **prep fronts** — the parallel chains of 04 §1.3 —
+each owned by a department:
+
+| Front | Owner (in the game) | Driven by |
+|---|---|---|
+| **Breakdown, schedule and budget** | The producer team (a Line producer if attached) and the director | Number of physical demands, script soundness, shooting budget vs work |
+| **Design and build** | Production designer (or no one) | Studio builds, period architecture, creatures, set ambition |
+| **Costume, hair and makeup** | No head today; the director and PD stand in | Period costume, prosthetics, transformation, cast size |
+| **Locations** | No head today; the producer team stands in | Location work, travel, logistics, urban/remote setting |
+| **Casting and performance** | Casting director (if hired) and director | Speaking parts, chemistry-critical pairings, late or recast leads |
+| **Action and stunts** | Stunt team | Combat, vehicles, heights, fire, water, physical demand |
+| **Effects** | VFX supervisor | VFX ambition, creature animation, digital environments |
+| **Visual plan** | Director with DP and PD | Creative tension between the heads; director decisiveness |
+
+Fronts with no demand cost nothing and carry no problems. A chamber drama has
+two or three live fronts; a period war epic has all eight.
+
+### 4.2 Hidden problems
+
+At greenlight each live front is given its **problems**: concrete, named things
+that will go wrong if nobody catches them. They are drawn once (seeded per
+film, deterministic thereafter) from a catalogue built on §1.3, with the
+**expected number and severity set by the front's demand** and by the plan:
+
+- more demand → more problems (a crowd scene, rain and a picture car are three
+  implied elements; a two-hander has none);
+- ambition stretched against money or time → more and worse (the facet model's
+  "stretch" already measures this);
+- a fixed, near release date and a short prep → more of the "schedule built to
+  the budget" kind;
+- an unsound script → "not really locked" problems that surface at the table
+  read.
+
+Each problem has:
+
+| Field | Meaning |
+|---|---|
+| **Front and kind** | e.g. Design · "hero set's lead time exceeds prep"; Locations · "permit for the bridge"; Breakdown · "implied crowd in the stadium scene" |
+| **Severity** | What it costs **on the shoot** if never addressed: hours lost per affected day, whole days, a facet's execution swing, a coverage loss, a performance loss |
+| **Visibility** | How hard it is to see. Some are obvious once anyone looks (the set list shows the hero set); some need specific work (only a tech scout finds the power problem; only a chemistry read finds the dead pairing) |
+| **Fixes** | The subset of §1.5's menu that applies, each with a cost in this film's own money and days |
+| **Deadline** | The latest point at which each fix is still available — a rush order works in week 3, not week 9; a rewrite is cheap before the table read and expensive after |
+
+The player never sees the hidden list. They see, before greenlight, a
+**qualitative outlook per front** ("The design front is heavy: three builds with
+long lead times, and your designer has asked for more time than the schedule
+gives"), which is what a real producer would be told (Principle 3). A
+pre-greenlight forecast reads only the **expected** problem load, never the
+draw.
+
+### 4.3 Prep time, and what it is spent on
+
+**Recommended prep** is derived from the fronts, not the budget: each owner
+states how long their chain needs (the production redesign's "per-head ask",
+already decided as the time model, §6.1 there), and prep is as long as the
+longest chain plus the fixed core (breakdown, schedule, budget, production
+meeting). A two-hander comes out at 3–5 weeks; a creature-heavy tentpole at
+months, matching 04 §1.
+
+**The player chooses** (before greenlight, adjustable until the shoot starts):
+
+- **Prep length** — the recommended length, longer, or shorter. Longer costs
+  prep burn and pushes the start (§4.6). Shorter is allowed: it is how real
+  films are made when a date is fixed.
+- **Prep work**, as a short list of real activities, each with a cost in money
+  and days and a front it serves:
+  - **Scouting and tech scouts** (locations; finds the power, sound, access,
+    permit problems);
+  - **Camera, costume and makeup tests** (visual plan, costume; ends the "in
+    dailies it looked…" argument);
+  - **Rehearsal** (performance; finds chemistry and line problems; costs actor
+    days and, for some material, a little spontaneity — 04 §10.1);
+  - **Previs and stuntvis** (effects and action; turns an unpriceable sequence
+    into a schedulable one);
+  - **The production meeting** (all fronts; the last cheap chance — always on,
+    but can be shortened).
+
+  Each defaults sensibly for the film (no previs on a dinner-party drama). When
+  prep is shortened, activities are dropped in **the reference's order of
+  sacrifice** (04 §16): rehearsal first, then extra design depth, then
+  non-action previs — unless the player chooses otherwise. This is what makes
+  "cut prep" a decision with legible consequences instead of a slider.
+
+### 4.4 Finding problems
+
+Prep runs as a calendar of weeks. Each week, for each live front, each unfound
+problem has a chance of being found that depends on:
+
+- **whether the work that reveals it is being done** (a tech-scout problem is
+  only found by a tech scout; a chemistry problem only by rehearsal or a
+  chemistry read);
+- **the owner's skill** — the head's craft skill and, for the breakdown front,
+  the attached Line producer's (a weak or missing owner finds less, and finds it
+  later);
+- **familiarity** — a director and head who have worked together find
+  disagreements earlier (pairing history, which today is only recorded for a few
+  role pairs and should be recorded for all heads);
+- **how late it is** — the real prep calendar (04 §1.2) puts the breakdown and
+  budget problems in weeks 1–3, design and location problems in weeks 3–7, and
+  test, rehearsal and safety problems in the last three weeks.
+
+Chance decides only whether a findable problem is found *this week or next*.
+The outcome of a well-run prep is that almost everything severe is found in
+time; of a rushed or under-staffed one, that the shoot meets the rest.
+
+### 4.5 Deciding what to do about them — the game's prep rhythm
+
+Problems are not presented one a day. They arrive in batches at the four real
+moments a producer faces them (04 §1.2), which become the game's **prep
+checkpoints**:
+
+1. **The first budget and board** (end of week 2–3 of a ten-week prep). The
+   breakdown's finds: implied elements, the schedule that doesn't fit the work,
+   **the budget gap**. The decision here is the reference's "find $4M": cover
+   it from studio money, **take a pass for budget** (the ordered menu of 04
+   §4.5, offered as concrete cuts — "merge the two apartment scenes into one
+   location", "the stadium becomes 80 people shot tight", "cut the hospital
+   set" — each with its saving and the department whose quality it costs), or
+   **spend contingency** (shown for what it is).
+2. **Design and locations lock** (mid-prep). Long-lead items that cannot be
+   ready, locations at risk, casting that is blocking costume. Options: pay to
+   rush, extend prep, simplify or substitute (stock costumes, a backlot street,
+   a set extension instead of a build), rewrite to remove or merge.
+3. **Tests, rehearsal and scouts** (the last three weeks). Visual plans that
+   disagree, performances that aren't ready or a pairing with no chemistry,
+   action that isn't safe yet, sites that don't work. Options: settle it now
+   (a decision by the director, a reshoot of the test, more rehearsal days), a
+   recast or rehire (late, expensive), simplify the gag, or carry the risk.
+4. **The production meeting** (the final week). Everything still open is listed
+   once, honestly, with the readiness checklist of 04 §12 in plain words
+   ("Script: locked. Schedule: nobody believes it. Locations: the first
+   fortnight is secured…"). The final choice is the real one: **start on the
+   date** and carry what is left, **slip the start** (§4.6), or **cut** to fit.
+
+Each option shows its cost in money and days and names what it costs the film
+in words, never a quality number (CLAUDE.md presentation rule). Decisions not
+taken by the deadline default to **carry it**, which is also what an
+inattentive studio does. Each checkpoint is a notification under the
+notification contract (§5.3).
+
+### 4.6 Time costs real things: the start date and bookings
+
+Extending prep or slipping the start moves the shoot, and bookings move with
+it. Following 04 §9.6:
+
+- a few days: absorbed;
+- about a week: people with a hard commitment elsewhere are lost and replaced
+  from a similar tier;
+- 2–4 weeks: department heads start dropping, and **the best are the likeliest
+  to have somewhere else to be** (a person's availability already lives in
+  `availability.commitments`; the existing rival booking and career "taking
+  work" logic decides who leaves);
+- 6+ weeks: most of the crew re-forms from second choices.
+
+Leads who leave are recast through the existing recast machinery. This fixes
+two current bugs (bookings that never extend, and a held film that never
+starts) by making bookings follow the film's real dates, and makes "the slow,
+cheap road" carry its real cost, which the production redesign doc called for
+(§6.3 item 2 there) and left open.
+
+### 4.7 What reaches the shoot
+
+Every problem still open when the cameras roll becomes a **scheduled shoot
+incident**: it fires on the shoot when the part of the film it belongs to is
+being shot (early for the first block, later for later fronts), with the
+consequence its severity describes, routed through the machinery that already
+exists:
+
+| Kind of consequence | How it reaches the film (existing code) |
+|---|---|
+| Hours lost per day at a set or location; whole days lost | Shoot days → shooting ratio → coverage → the edit ceiling; and the daily burn, against contingency |
+| A set or effect simplified on the day | The facet's execution swing (sets, VFX, practical) |
+| Performances under-rehearsed, a dead pairing | Performance capture |
+| Script changing during the shoot | Script execution, plus compounding schedule loss |
+| Two visual plans | Post execution (the grade has to pick one) |
+| A safety near-miss | The existing safety bank and escalation |
+
+The existing **random** shoot events stay for what is genuinely random on a set
+— weather, illness, equipment failure, a public that won't stay quiet — and
+their rates continue to read the static risk dimensions. Prep's effect on those
+becomes **targeted**: scouting lowers location and weather exposure (cover sets
+planned), stunt prep lowers safety, a locked script lowers morale and script
+risk. The single shared "prep risk delta" goes.
+
+The upshot is the causal chain Principle 4 asks for, told by the game:
+*"The stadium crowd was never in the budget. On the day, 80 extras stood in for
+2,000, the sequence took two extra days, the edit had less to work with, and the
+finale feels small."*
+
+### 4.8 Who you hired
+
+| Front | Skill that finds and fixes problems | Today in the game |
+|---|---|---|
+| Breakdown, schedule, budget | 1st AD and line producer | No such hires. Proposed: the attached **Line** producer's skill does this job (it is a producer specialty already); with no Line producer, a competent-but-ordinary production office. A hireable 1st AD is an open question (§9) |
+| Design and build | Production designer | Exists |
+| Costume, hair, makeup | Costume designer, makeup head | No such hires; deliberately unrouted today. Stand-in: director and PD, at a penalty for heavy period or prosthetic films. Open question (§9) |
+| Locations | Location manager | No such hire. Stand-in: the producer team. Open question |
+| Casting | Casting director | Exists |
+| Action | Stunt coordinator / team | Exists (stunt teams) |
+| Effects | VFX supervisor | Exists |
+| Visual plan, decisions | Director, DP, PD together | Exists; needs a **decisiveness** reading of the director, derived from existing data (production style, adaptability, ego) rather than a new stored stat |
+
+Familiarity (pairing history) and reliability apply across all fronts:
+reliable heads report bad news early (04 §9.7 "honesty about lead times").
+
+### 4.9 What the player feels
+
+- **Before greenlight**: an honest outlook per front, and a recommended prep
+  length they can accept, extend or cut, with the activities that cut would
+  drop.
+- **During prep**: four checkpoints a film, each a short, specific briefing
+  with real options and costs — not a daily stream of cards. Between them the
+  prep runs on its own.
+- **On the shoot**: incidents they can trace back to a choice ("you cut the tech
+  scout"), alongside a smaller amount of genuine bad luck.
+- **After release**: the story report names the chain.
+
+Difficulty sits in **the trade-offs**, which are the real ones: money now or
+risk later; a fixed date or a prepared film; a bigger vision or one that can
+actually be shot. A careful player who preps properly should finish most
+shoots close to schedule; a player who greenlights an ambitious film on a short
+prep with a weak team should feel it.
+
+---
+
+## 5. Rivals, and the rest of the world
+
+### 5.1 Rivals use the same model
+
+A rival's film gets the same demands, problems and checkpoints. What differs is
+**who decides**: at each checkpoint a rival chooses by a policy that reads its
+situation and character, not by a fixed 70%-sensible rule:
+
+- **money on hand** (a cash-tight studio cuts scope or carries risk; a rich one
+  pays);
+- **its release date** (a tentpole with a dated release protects the date and
+  pays or cuts; a small film slips);
+- **its kind** (a prestige house protects rehearsal and design; a genre house
+  protects the date and the budget);
+- **its own record** (§5.2).
+
+Rivals also need what they lack today (`rivalStudios.ts:1160-1190`): a
+contingency reserve, prep time on their calendar, prep cost, and bookings that
+cover prep. Without these no prep model can treat them like the player.
+
+### 5.2 Rivals that learn
+
+The owner has asked that rival studios adapt, and they do not: genre, budget
+level and risk appetite come from fixed tables (`GENRE_TIER_BIAS`,
+`SCALE_SPEND_RANGE`, `deriveRivalSpendPlan`). A full design for adaptive rivals
+is a companion note (§8 step 6). The hooks this note needs from it:
+
+- a rival remembers its recent productions' **overruns and their causes**;
+- a rival that kept losing days to short prep **preps longer and carries more
+  contingency** on its next films, and one that over-prepared and lost its
+  release window does the reverse — bounded, so it moves within its character
+  rather than becoming a different studio.
+
+### 5.3 Notifications
+
+Each checkpoint, and each problem that becomes urgent, resolves on the
+background tick and so owes the player a notification
+(`docs/DESIGN_notification_contract.md`): a category in `deriveInboxItems`,
+counted in the badge, one card per checkpoint naming the film, routing to that
+film's prep briefing, cleared when the briefing has been read. This also fixes
+today's bug where prep decisions never reach the Inbox.
+
+---
+
+## 6. What goes away
+
+- The 13-card prep bank's **quality payouts** and the uniform daily draw. The
+  card texts are good material and many become catalogue entries (a permit
+  snag, an understaffed department, a difficult star clashing early), now with
+  causes.
+- The single prep risk delta applied to all four risk dimensions.
+- The withdrawn Phase 6 table changes (never merged).
+- Rivals' "70% sensible" prep choice rule.
+
+---
+
+## 7. How we will know it is right
+
+Not by box-office targets. In order:
+
+1. **Mechanism tests** (unit level): a film with more demands carries more
+   problems; a missing activity never finds its problems; a skilled owner finds
+   more and earlier; a cut prep drops rehearsal first; a slipped start loses
+   people with competing bookings, the best first; no prep outcome raises a
+   facet above its funded potential.
+2. **Shape checks against the reference**, on a population of player and rival
+   films:
+   - a two-hander needs 3–5 weeks and rarely overruns; a period epic needs
+     months and overruns badly when cut (04 §1, §16);
+   - overrun sizes by cause land in §1.6's ranges (script not locked 5–25%,
+     short prep 3–10%, weather/location 1–8%);
+   - well-prepped films finish near schedule most of the time; rushed ones lose
+     days early ("week one is diagnostic", 06 §16.1);
+   - overrun is paid twice: in money, and in a named department of the film.
+3. **Then the market is observed** with the existing harnesses (career gate,
+   box-office gates). If anything looks wrong — too few blockbusters, careers
+   too easy — the next step is to find out **why** from the films themselves,
+   and ask how the real industry behaves, before anything is changed.
+
+---
+
+## 8. Order of work
+
+Each step leaves the game playable, tested and measurable.
+
+1. **Fix what is broken** (§2.2): prep decisions in the Inbox and the badge;
+   the decision card's wording; bookings that follow the film's dates; held
+   films that start; other films' prep advancing on every calendar move; one
+   prep length shown everywhere; the greenlight gate including contingency;
+   one period flag; "cast size" counting actors. No design change.
+2. **The breakdown**: derive demands and fronts from existing data, wire the
+   environment strategy and `productionRequirements`; show the qualitative
+   outlook before greenlight. Recommended prep from the fronts.
+3. **Problems, finding them, and what reaches the shoot**: the catalogue, the
+   weekly finding, scheduled shoot incidents, targeted risk. The 13-card bank's
+   quality payouts go.
+4. **The four checkpoints and their options**, with notifications; prep length
+   and activities as player choices.
+5. **Time costs**: start slips moving bookings, people leaving, recasts.
+6. **Rivals**: contingency, prep time and cost, the same problems, a
+   checkpoint policy by situation and character; then the companion note on
+   adaptive rivals.
+7. **Measure** (§7), and investigate before changing anything else.
+
+---
+
+## 9. Decisions for the owner
+
+1. **Missing heads.** The reference's key prep roles — 1st AD, line producer,
+   location manager, costume designer — are not hireable. Options: (a) keep
+   them out and let existing roles stand in (the producer team for breakdown and
+   locations; director and PD for costume), at a stated disadvantage on films
+   that lean on those fronts; (b) add **one** new hire, a **line producer / 1st
+   AD** pairing, because the breakdown front touches every film; (c) add all
+   four. Recommendation: **(b)** now, the others only if playtests show the
+   stand-ins feel wrong.
+2. **How much the player manages.** Four checkpoints per film is the
+   recommendation. With several films in flight that is a lot of briefings;
+   an option to **delegate a film's prep** to the attached producer (who then
+   decides by their own judgement, with the same costs) keeps it manageable.
+3. **How hard.** The earlier decision was "kinder than the real industry". The
+   lever for that in this model is honest and visible: how often a properly
+   prepped film still meets bad luck, and how forgiving the fixes are — not
+   hidden bonuses.
+4. **Shoot-side rewrite.** This note keeps the existing random shoot events
+   for genuinely random trouble. The shoot itself (overtime, coverage choices,
+   catching up — 06 §7, §16) deserves the same treatment as prep; it is the
+   natural next note.
+
+---
+
+## 10. As built
+
+Implemented from `docs/IMPLEMENTATION_PLAN_preproduction_realism.md`. Each
+phase was checked by an independent reviewer agent; what it found and what was
+done about it is recorded here, along with what still looks wrong.
+
+### 10.1 Phase 1 — fixes
+
+As planned: a paused prep reaches the Inbox; one prep length everywhere
+(`engine/prepLength.ts`); the greenlight gate counts the contingency; cast size
+counts actors; one period flag; a backgrounded prep is advanced by the days the
+calendar moves (`withPrepCalendar`); bookings follow a film whose dates move
+(`withBookingsFollowFilms`). The reviewer found that a held film was credited
+prep days from before it started, and that one cast-size test passed for the
+wrong reason. Both were fixed, and tests were added for a long calendar jump,
+for advancing to the shoot start, and for bookings when a shoot overruns.
+
+### 10.2 Phase 2 — the breakdown
+
+`engine/prep/demands.ts` gives each film a demand on each of eight fronts,
+taken from data the game already has. Recommended prep = the core plus the
+slowest chain. The reviewer found:
+
+- **A units bug in the design window (fixed).** Every planning edit writes the
+  designer's ask (6–40 days, in the Sets facet's units) into
+  `designPrepDays`. That number then *replaced* a design chain measured in
+  different units, so any slider edit could quietly cut prep by up to 85 days.
+  The window granted is now read as a share of the ask and applied to the
+  chain: granting the ask changes nothing, half the ask halves the chain, and
+  the Sets facet pays for the rush.
+- **Director decisiveness read experience on the wrong scale (fixed).** It
+  divided a 0–100 stat by 15. It now reads professionalism, handling of
+  pressure, low adaptability (a director who keeps options open) and experience.
+  The plan named `productionStyle`, but that field holds only environment and
+  effects methods, so it has nothing to say about deciding.
+- **The plan's own inputs were not read (fixed where they exist).**
+  - The player's environment strategy now overrides the screenplay's lean.
+  - VFX and practical ambition now feed effects and action.
+  - A lead who is hard to work with now feeds casting.
+  - Shooting budget against the work is *not* read: the game has no norm for
+    what a film's work should cost. A budget gap is instead a problem the
+    breakdown can find.
+- **Costume dominated almost every film — investigated, cause found.**
+  - The requirement profile's `prostheticsMakeup` leaf is driven by
+    characters' `transformationDemand`. That is an *acting* trait (an arc to
+    play), and it averages 58 in generated casts, so the leaf put prosthetic
+    makeup on 86% of generated films, ordinary dramas included.
+  - Prep now reads prosthetic lead time only where the film really has makeup
+    effects: a creature, or a horror film.
+  - **The profile itself is unchanged, and still wrong in the same way for the
+    Prosthetics facet's ambition. That needs its own fix and a re-measure of the
+    facet model; it is outside this plan.**
+- **Grounding after the fixes** (generated scripts, 60 per genre). Medians are
+  close to the reference (04 §1):
+
+  | Film type | Median prep | p10 | p90 | Reference |
+  |---|---|---|---|---|
+  | Intimate | 8 weeks | 5 weeks | 14 weeks | indie 6–10 weeks |
+  | Medium | 11.6 weeks | 6 weeks | 22 weeks | studio mid-budget 8–12 weeks |
+  | Epic | 25 weeks | 14 weeks | 45 weeks | tentpole 4–12 months |
+  | Period | 16 weeks (about 3.7 months) | — | — | heavy-build period 4–9 months, so slightly short |
+
+  The tails are long: about one Medium film in five preps for over five months.
+  The live threshold (0.15) also counts many fronts as "light" on a small film
+  (6.3 live on average), which the outlook shows honestly as light.
+- **Tests tightened.**
+  - The chamber drama is now really a chamber drama (low-action tone): 3 live
+    fronts at most, and 5 weeks.
+  - Each source is tested to raise its own front.
+  - The core-plus-slowest test now checks behaviour instead of copying the
+    formula.
+  - Medians are checked by scale.
+
+### 10.3 Phase 3 — the production team
+
+As planned: a world roster of line producer & 1st AD teams, chosen on the
+planning screen, frozen at greenlight, with the fee charged once, at release.
+The reviewer found no fee bug. Fixed from its findings:
+
+- the team can no longer be swapped after greenlight;
+- the committed spend reads the contracted team;
+- the save version was bumped (to 109, together with Phase 4);
+- tests were added for greenlight with no team, the frozen snapshot, and a
+  proper "clears it" check.
+
+### 10.4 Phase 4 — problems, finding them, checkpoints, delegation, the shoot
+
+**Engine** (`src/engine/prep/`):
+
+- **`problems.ts`** draws each film's problems once, from its own seed. There
+  are fourteen kinds, catalogued in `data/prep.ts` with the reference's sizes.
+  - Count and severity scale with the front's demand.
+  - A shorter prep worsens long-lead problems and a longer one eases them.
+  - A difficult lead brings the casting problem that the old bank's clash stood
+    for.
+- **`discovery.ts`** finds problems during their window.
+  - A problem that only scouting, tests, rehearsal or previs reveals is never
+    found without that work.
+  - The owner's skill, the team's reliability, severity and obviousness raise
+    the chance; so does a director who has worked with that owner before.
+  - Rolls are hashes of the film's seed, so nothing is taken from a shared
+    stream and prep replays.
+- **`checkpoints.ts`** handles four checkpoints, at 25%, 55%, 80% and 95% of
+  prep.
+  - Each fix is priced in the film's own units: shooting days of money, prep
+    days, a typed scope cut, or the contingency.
+  - Deadlines close a rush order late in prep.
+  - Carrying a problem is always an option.
+- **`delegation.ts`**: one rule for teams, rivals and the bot. Each option is
+  costed in shooting days.
+  - A strong team keeps the contingency for the shoot.
+  - A weak team misjudges, and underrates what carrying a problem costs.
+  - Tested: a better team pays less, in true cost, for the same problems.
+- **`handoff.ts`** schedules every problem still standing onto a shoot day.
+  Carried incidents fire as that day's event before the random roll, on the
+  focused shoot, the backgrounded shoot and the rival synthesiser alike.
+- **`run.ts`** holds one day of prep, the headless run, and the starting-risk
+  adjustments per dimension, which replace the old uniform delta.
+
+**Game:**
+
+- **Greenlight** builds the prep from the plan set before greenlight (length,
+  revealing work, delegated by default).
+- **The day tick** is one function for the focused screen, the background and
+  rivals.
+- **Actions:** `RESOLVE_PREP_CHECKPOINT`, `SET_PREP_DELEGATION` (handing over a
+  paused checkpoint lets the team answer it at once), and `SET_PREP_PLAN`.
+- **Contingency** drawn in prep is a cost of the film and comes off the refund
+  at wrap.
+- **Removed:** the 13-card prep bank, `rollPreProductionDayEvent`,
+  `computePrepRiskDelta`, and `chooseRivalOption`, which had been used only for
+  prep.
+- **Left in place, now unreachable:** the `awaiting-choice` prep path (and its
+  Inbox card). Nothing generates a prep `pendingChoice` any more.
+
+**UI:**
+
+- **Planning screen:** prep length (shorter / as recommended / longer), naming
+  what a short prep drops in the reference's sacrifice order; the activities,
+  each with its purpose; and the delegation switch.
+- **Prep screen:** a readiness checklist, the prep log, and the checkpoint
+  briefing. Each found problem is described in words with every open option and
+  what it costs in money, days, or "costs the sets noticeably". The screen also
+  has a hand-over button.
+
+**Notification contract** (`docs/DESIGN_notification_contract.md`):
+
+- **Find out:** a paused checkpoint is an Inbox card (`prepCheckpoints`) and is
+  counted in the badge. It includes the focused film, because focus survives
+  leaving the prep screen. The Dashboard row reads "Decision required".
+- **Act in one click:** the card goes to the film's prep screen, where the
+  briefing is shown (`GO_TO_PREPRODUCTION` if focused, `RESUME_PROJECT`
+  otherwise).
+- **The message stops:** answering, or handing over, clears it.
+- **Delegated checkpoints** are logged ("what your production team decided")
+  rather than notified, because there is nothing to act on.
+
+**Rivals** run the same engine headless with the studio office and recommended
+prep. Phase 6 gives them teams, contingency, prep time in the calendar, and
+memory.
+
+**Not yet measured:** what the problems do to the market and to careers. That
+is Phase 7.
+
+**What the Phase 4 reviewer found, and what was done:**
+
+- **Discovery found less than half what it was built to find (fixed).**
+  - The daily roll hashed the film's seed, the problem and the day with
+    FNV-1a, which has no final mixing step. Keys that differed only in the day
+    landed within about 1/256 of each other, so a problem was found on its
+    first eligible day or never. A designed find share of 0.98 came out as
+    0.42, and the owner's skill barely mattered.
+  - Rolls now go through `engine/prep/roll.ts:keyedRoll`, which seeds
+    mulberry32 with the hash.
+  - Two tests guard it. Days are uniform and independent, and a window now
+    finds a problem at its designed share, ±6%.
+- **An early wrap dodged carried problems (fixed).** A problem scheduled after
+  the wrap day now lands at wrap. It costs no extra shoot days but keeps its
+  quality and overrun money (`handoff.ts:unfiredAtWrap`).
+- **Rivals got more events than an equivalent player film (fixed).** A
+  player's incident days replace that day's roll. A rival's random event
+  count now drops by the rolls those days would have made.
+- **Handing over a paused checkpoint that finished prep left the screen behind
+  (fixed).** The screen now moves on to the shoot.
+- **The briefing said "if it happens" about a carried problem (fixed).** A
+  carried problem always happens, so it now reads "On the shoot: …".
+- **Tests strengthened.**
+  - A paid fix leaves cash.
+  - The wrap refund after a contingency draw equals the reserve, less the
+    shoot's spend, less the draw.
+  - A backgrounded shoot fires carried problems.
+  - Handing over the last checkpoint moves to the shoot.
+- **Accepted deviations, recorded:**
+  - Problems do not read the facet stretch, and a player's release is never
+    "already dated". Rivals' releases are dated.
+  - A scope cut saves no money.
+  - A difficult lead raises casting demand, which lengthens prep, and also
+    brings its own problem. These are two separate effects of one fact.
+  - Delegation defaults to on, as the owner decided.
+  - A checkpoint card shows only a note while another film is focused. This
+    is the same rule every other card follows.
+- **Measured** (`src/engine/prep.diagnostic.test.ts`, `PREP_DIAGNOSTIC=1`, 200
+  generated films, recommended prep, owners' skill 20 / 50 / 80):
+
+  | | Skill 20 | Skill 50 | Skill 80 |
+  |---|---|---|---|
+  | Problems generated per film | about 7.4 | about 7.4 | about 7.4 |
+  | Breakdown problems found | 68% | 92% | 99% |
+  | Locations problems found (needs scouting) | 48% | 71% | 95% |
+  | Shoot days lost to carried problems | 4.3% | 1.8% | 0.4% |
+  | Money over from carried problems (share of shooting budget) | 1.7% | 0.7% | 0.2% |
+  | Quality left on the film (shoot-event units) | −9 | −7 | −5 |
+
+  - A short prep (×0.75) at skill 50 loses **3.7%** of shoot days (p90 7.7%),
+    inside 03 §13's "short prep: 3–10% over".
+  - A long prep (×1.25) is no better than the recommendation (1.8%). Only the
+    long-lead problems ease with extra time.
+  - Fixes taken at skill 50: about 54% pay, 39% cut, 5% rewrite, 2% take more
+    time.
+  - **Prep burn is 3.6% of the negative.** That is far under the "15–25%" of
+    11 §8.1. The difference is deliberate: the burn is only the core prep
+    team, priced as 04 §1.4 prices it. Builds, costumes and effects are the
+    production budget's own lines, paid at greenlight.
+  - **What to watch:** the quality left even by a strong team (−5) is mostly
+    the scope cuts its decisions chose. Whether that is the right size against
+    the shoot's own events needs the box-office gates (Phase 7).
+
+### 10.5 Phase 5 — time costs real things
+
+- **Prep cost from the film's own shooting day.**
+  `cost.ts:computeDailyPrepBurn(dailyShootBurn)` makes a prep week cost 0.4
+  of the film's shooting day (04 §1.4: $50–150K a prep week against
+  $150–400K a lost day).
+  - This replaces a share of the negative capped per scale. That cap made a
+    prep week on a large film cost a whole shooting day or more.
+  - The revealing work adds its own burn on top.
+  - The greenlight read (`deriveGreenlightCommitment`, the readiness gate)
+    now counts the expected prep spend. It is paid day by day, but the studio
+    has to carry it.
+  - The harness bot's prep allowance became a share of the negative (9%).
+- **A slip moves people** (`engine/prep/slips.ts`, `withSlipsMovePeople` in
+  the reducer).
+  - When prep grows, the film's window moves. Anyone whose next job now
+    overlaps it leaves.
+  - Of those booked elsewhere, a share also take the confirmed job. The share
+    grows with the total slip: none under a week, 10% at one week, 35% at two
+    weeks, 75% at six or more (04 §9.6). The best-booked go first.
+  - Replacements come from people free for the new window, nearest the fee.
+  - Cast and the director are pay-or-play: the studio owes the departed and
+    pays the replacement too, so a lead leaving is expensive and says so.
+  - Crew are paid for the time they worked; the unworked part of the fee
+    comes back.
+  - If nobody is free, the production buys the person out of their other job
+    (40% of their fee) and keeps them.
+  - Bookings for those who stay are extended by the existing
+    `withBookingsFollowFilms`.
+- **Notification.**
+  - Each change is logged on the prep and appears as an Inbox card. It names
+    who left, why, who replaced them and the cost.
+  - The card is counted in the badge. "Noted" clears it
+    (`ACKNOWLEDGE_CREW_CHANGES`).
+- **Tests** (`src/state/prepSlips.test.ts`):
+  - A three-week slip into the director's next job loses and replaces the
+    director, and it costs money.
+  - A two-day slip that clashes with nobody loses nobody.
+  - The leave share rises with the slip.
+  - The notice appears, is counted in the badge, and clears.
+  - Bookings extend for those who stay.
+- **Not modelled:** a held start (a film waiting on its cast) does not trigger
+  departures. It is already the cast's own booking that holds it.
+
+**What the Phase 5 reviewer found, and what was done:**
+
+- **Departures compounded with every later slip (fixed).** The leave share was
+  applied afresh on each slip, so a 14-day slip followed by four 1-day slips
+  replaced everyone. Now each person has one fixed roll for the film, scaled
+  by how booked they are, against the share for the total slip. The share
+  leaving rises to the table's figure and never past it. Tested.
+- **A buyout repeated, and left the person double-booked (fixed).** Buying
+  someone out now releases the clashing job, so it is paid once. Someone who
+  only "moves on" with no clash stays if nobody can replace them. Tested.
+- **Replacements skipped the casting gates (fixed).**
+  - A replacement actor must meet the character's gender and age, and gets an
+    age at casting.
+  - The writer no longer "leaves" mid-prep, because their work is done.
+  - Tested.
+- **The film's books missed what a slip cost (fixed).** What the departed is
+  still owed (all of it for pay-or-play; the worked share for crew), plus any
+  buyout, is now added to prep's running cost. The film's total cost then
+  agrees with the cash.
+- **Bookings did not follow a time fix until the next day (fixed).**
+  `withBookingsFollowFilms` now also runs when a film's prep grew with no day
+  passing. A test goes through a real checkpoint answer.
+- **The greenlight figures disagreed (fixed).**
+  - The total commitment and the cash after greenlight are what leaves cash
+    at greenlight.
+  - Pre-production is a separate line, "paid day by day as it runs", on the
+    confirmation and Finance screens.
+  - Affordability counts both.
+  - The committed spend includes the prep estimate before greenlight, and
+    what is left of prep while prepping.
+- **The Inbox card is now capped at three changes**, and it says "cost $X"
+  rather than showing a signed amount.
+- **Save version 110.**
+- **The diagnostic's "fixed" column** is renamed "answered (not carry)". A
+  fix can leave some severity behind, which is then also counted as carried.
+
+### 10.6 Phase 6 — rivals on the same model
+
+- **Contingency.** A rival's productions now carry a contingency reserve: 10%
+  of the shooting budget for an indie or mid-size studio, 8% for a major
+  (`RIVAL_CONTINGENCY_SHARE`). The reserve counts in its affordability check,
+  and it feeds the same risk and resilience reads a player's reserve does.
+- **Production team.** A rival hires from the same roster: the most skilled
+  team whose fee fits 2% of the negative. The fee is in its books.
+- **Calendar and books.** Prep is in the calendar: release day = today + prep
+  + shoot + post + marketing lead, with the campaign start moved to match.
+  Prep's expected burn is in its cost and its film's books.
+- **Same engine.** `synthesizeRivalPrep` runs the player's engine headless with
+  the rival's team, its prep length, its contingency, a dated release, and its
+  own money pressure: the share of its cash this film took when it started.
+- **Memory** (`engine/prep/rivalPrep.ts:rivalPrepPolicy`).
+  - From its last five released films, a rival reads the shoot days lost and
+    money over to carried prep problems.
+  - It compares them with what a competently prepped film normally carries:
+    about 2% of shoot days and 0.7% of the shooting budget, from the harness
+    at middling skill.
+  - Above that it preps longer and holds more contingency. Below it, it preps
+    leaner and holds less.
+  - The response is smooth, so one film either side of a line cannot flip the
+    policy. Prep length is bounded to 0.85–1.25; contingency to −3 to +8 points
+    of the tier's share.
+  - **Deviation:** the plan said "stored on RivalStudio". It is derived from
+    the rival's own released films' events instead, so it can never drift from
+    what happened and needs no bookkeeping.
+- **Tests** (`src/engine/prep/rivalPrep.test.ts`):
+  - **Parity:** a rival prep with a real team, a 1.1 prep length and 0.6 cash
+    pressure matches a prep built independently and run day by day through
+    `advancePrepDay`, the function the player's reducer calls. Problems,
+    findings, decisions, cuts and final length are identical.
+  - A rival with a strong team carries less.
+  - Memory moves the right way and stays bounded both ways.
+  - A rival reads only its own and its latest films.
+  - The team choice is the best that fits.
+
+**What the Phase 6 reviewer found, and what was done:**
+
+- **What a rival's prep really spent was thrown away (fixed in the books).**
+  The film's results now report the prep's real spend: its burn over the days
+  it actually ran, plus its fixes. Its cash was charged the start-of-prep
+  estimate and is not reconciled. A fix that adds days does not move a rival's
+  release date or bookings. Both are recorded gaps.
+- **A rival's situation was not read (fixed for money).**
+  - The cash pressure in its prep decisions is now the share of its cash the
+    film took.
+  - Every rival release counts as dated, which is true: rivals announce a
+    date before they shoot.
+  - Tier character is not read beyond the contingency share and the team
+    budget.
+- **The memory could flip back and forth, and contingency could only rise
+  (fixed).** It is now smooth around the normal loss and moves both ways. The
+  unused "main cause" was removed.
+- **The parity test re-typed the function it tested (fixed).** See above.
+- **Replacements could be lost again to the same slip band, and a person's
+  odds changed with each new booking (fixed).**
+  - A replacement weighs only the slip since they joined.
+  - "The good ones go first" now reads fame, which is stable.
+  - Tested.
+- **The project overview omitted prep, and the committed spend counted
+  greenlight money twice while prepping (fixed).**
+  - The overview shows prep as its own line.
+  - Before greenlight, the committed spend is the projection plus the prep
+    estimate. While prepping, it is only what is left of prep. The double
+    count predates this work.
+- **The rival market shrank, and this is not tuned.**
+  - Measured by the reviewer on the distribution gate, 6 seeds × 8 years,
+    before and after Phase 6. Films fell from 6654 to 5463 (−18%). Wide
+    releases per major per year fell from 7.9 to 7.2 (band 8–20). Specialty
+    films fell from 4.8 to 3.7 a year (band 5–15).
+  - Per film, results rose: the wide median from 111 to 121, the wide mean
+    from 168 to 202 (the reviewer's run; not re-checked from saved logs). The
+    final gate run (§10.7) reads the wide median at 119.5, just under its band.
+  - The cause is mechanical and realistic. A rival production now spends its
+    prep in the calendar before it shoots, so each of a studio's production
+    slots turns over more slowly. Prep also adds cost and the contingency gate.
+  - Real studios run more films in parallel than they have in release. The
+    rivals' slot rules (`startableScales`, `SPAWN_CHECK_INTERVAL_DAYS`) were
+    set when a film went straight from greenlight to shoot. **That is the next
+    thing to investigate** — how many productions a studio of each tier has
+    in prep and shoot at once — before touching any calibration.
+- **Recorded, not changed:**
+  - Production teams have no availability, so one team can work on many films
+    at once. Availability is not modelled by plan (Phase 3).
+  - The bot picks its team before it trims an unaffordable plan, so after a
+    trim the fee can exceed 2% of the smaller film.
+
+### 10.7 Phase 7 — the bot, the measurements, and what they say
+
+**Bot.**
+
+- Careful and Steady hire the best line producer & 1st AD they can afford, by
+  the same rule rivals use.
+- Scout, Swing big and Careless use the studio's own office. The plan named
+  only Careless.
+- Every strategy hands prep's decisions to whoever runs it.
+
+**How it was measured.**
+
+- Each gate was run twice: on `e9abc1e`, the code before any prep work, and on
+  `8cb9f56`, everything through the Phase 6 review fixes. Both runs used frozen
+  copies of the code.
+- The distribution gate was also run on `4136373` (after Phase 3) and on
+  `ed25b88` (Phase 4 as first committed, with the weak discovery hash).
+- Two ablations then show what causes what, each switching off one mechanism
+  on a scratch copy:
+  - the new prep model's carried incidents, cuts and risk;
+  - the old 13-card prep bank.
+- Gate settings: box-office gates 6 seeds × 8 years; career gate 5 seeds
+  (101–105) × 10 years at Indie and Mid-Major. The Major and Garage tiers were
+  not run (time).
+
+**Box office (distribution gate, wide releases).**
+
+| | Before (e9abc1e) | After Ph.3 | After Ph.4 (weak hash) | Now (8cb9f56) |
+|---|---|---|---|---|
+| Films (6 seeds × 8 years) | 6642 | 6744 | 6612 | 5494 |
+| Wide median gross ($M) [120–190] | **161.5** | 160.9 | 87.4 | **119.5** |
+| Wide mean gross ($M) [200–300] | 257.4 | 254.7 | 125.2 | 201.0 |
+| Wide over $100M a year [55–70] | 53.6 | 51.4 | 30.7 | 34.9 |
+| Wide over $500M a year [10–15] | 10.3 | — | — | 5.2 |
+| Wide releases per major a year [8–20] | 9.6 | 9.4 | 6.6 | 7.1 |
+| Bombs % [4–14] | 10.0 | 10.7 | 23.1 | 14.5 |
+| Major hits % [2–14] | 14.0 | 12.8 | 3.7 | 7.3 |
+| Specialty films a year [5–15] | 4.1 | — | — | 3.8 |
+
+**Why the box office fell: the old prep bank gave every film free upside.**
+
+| Ablation | Wide median gross ($M) |
+|---|---|
+| Before (old bank on) | 161 |
+| After Phase 3 (4136373, median 160.9), old bank switched off | **127** |
+| Now, new prep's incidents, cuts and risk all switched off | 140 |
+| Now, as built | 120 |
+
+- **About $34M of the $41M drop was free quality from the old bank.** Removing
+  that bank alone, on the code just before Phase 4 (4136373), takes the median
+  from $161M to $127M. The ablation outputs were read off the console and not
+  saved; the before/after gate logs were.
+- The bank rolled positive events that did nothing but help: a table read
+  "revelation" adding quality, a "design breakthrough", logistical events that
+  cut the shoot's starting risk by up to 25 points. The market calibration had
+  absorbed that bonus.
+- The design forbids it (§3 rule 2: prep protects the downside, it never
+  manufactures upside).
+- What the new model costs is honest and small: carried incidents take the
+  median from $131M (no incidents) to $120M. Cuts and risk add a few million
+  more.
+- The 4136373 → ed25b88 step (161 → 87) shows the weak discovery hash. Almost
+  every problem was carried unseen; fixing it recovered much of that.
+- **This plan does not tune toward the targets.** The calibration gates are
+  now further from their bands than before. The next step is the
+  box-office recalibration work: re-ground what a well-made film earns, now
+  that prep no longer hands out quality. Prep's numbers should not be bent to
+  win the old free quality back.
+
+**Why fewer rival films.**
+
+- Rival productions now spend their prep in the calendar before they shoot,
+  and prep costs them money and a contingency check. Each production slot
+  therefore turns over more slowly: films fell 17% (6642 → 5494), and wide
+  releases per major per year fell from 9.6 to 7.1.
+- Real studios run more films in parallel than this. The rivals' slot rules
+  (`startableScales`, `SPAWN_CHECK_INTERVAL_DAYS`) predate prep in the
+  calendar. **Investigate how many productions a studio of each tier has in
+  prep and shoot at once before changing calibration.**
+
+**Other gates.**
+
+- The variance gate passes before and after: most-exposed third CV 0.435 →
+  0.407; least-exposed 0.102 → 0.101; correlation 0.66 → 0.65.
+- The buzz gate is unchanged and passes.
+
+**Player careers (career gate: median end cash ÷ start; share of films losing
+money all-in).**
+
+| | Before | Now |
+|---|---|---|
+| Indie, Careful | 0.25 · 54% losing | 0.82 · 38% losing |
+| Indie, Steady | 0.07 · 50% losing | 1.23 · 37% losing |
+| Mid-Major, Careful | 0.95 · 44% losing · largest 5.8× | 0.94 · 55% losing · largest 1.3× |
+| Mid-Major, Steady | 1.95 · 35% losing · largest 7.0× | 1.54 · 34% losing · largest 8.8× |
+
+- **Indie studios no longer collapse.** Before, 3–4 of 5 careers fell below a
+  quarter of their start; now none do. But Careful still ends below its start
+  in 4 of 5 careers, and its median misses its band. The main cause is the
+  price of prep:
+  - Before: a prep day cost 0.4% of the negative, up to a cap per scale, about
+    a fifth of a small film's budget.
+  - Now: 0.4 of a shooting day, about 4% of the negative.
+  - Weaker rival films also help.
+  - Whether 4% is right is the open question. 04 §1.4 prices only the core
+    prep team, and builds are paid in the production budget. 11 §8.1's
+    "15–25%" may count more than that. **Investigate what 11 §8.1 includes
+    before touching the burn.**
+- **At Mid-Major, Careful loses more films (44% → 55%) and never breaks out.**
+  The share losing money fits a weaker market. Steady's median falls (1.95 →
+  1.54) while its best career rises (7.0× → 8.8×).
+
+**Prep itself** (PREP_DIAGNOSTIC, 300 films, recommended length).
+
+| Owner skill | Shoot days lost to carried problems | Money over (share of shooting budget) | Prep burn (share of negative) |
+|---|---|---|---|
+| 20 | 4.3% (p90 8.3%) | 1.8% | 3.6% |
+| 50 | 1.9% | 0.8% | 3.6% |
+| 80 | 0.4% | 0.2% | 3.7% |
+
+- At skill 50 a shortened prep lost 3.7% of shoot days when measured before
+  Phase 5 (§10.4), inside 03 §13's 3–10%. It was not re-run on the final code.
+- Median prep: Intimate 9.4 weeks, Medium 12.4, Epic 23.4.
+
+**Open items, for the owner.**
+
+1. **Box-office recalibration** without prep's free upside: the market is now
+   honest about prep but below the target bands.
+2. **Rival concurrency:** how many films a studio of each tier has in prep and
+   shoot at once.
+3. **Prep burn against 11 §8.1** (above).
+4. **The requirement profile's prosthetics leaf** reads an acting trait
+   (§10.2). It also sets the Prosthetics facet's ambition, so the facet needs a
+   re-measure once it is fixed.
+5. **The production team is the only new hire.** The other prep roles stand in
+   (decided). Teams have no availability.
+6. **Not done from the plan's Phase 7:** the big-studio anatomy and the
+   player-economy harness were not run (time). The prep harness reports by
+   front over generated films rather than over rival and player films by
+   cause.
+7. **Unreachable code:** the old prep decision path (`RESOLVE_PREPRODUCTION_CHOICE`
+   and its Inbox card) remains, though nothing generates a prep decision any
+   more. It can be removed.
+
+**Undeclared deviations, now declared:**
+
+- `shootIncidents.ts` was folded into `handoff.ts` (`incidentEvent`).
+- The plan kept the old prep roller and `pendingChoice` for a difficult star's
+  clash. Instead, the roller was removed outright and the clash became the
+  `difficult-star` casting problem.
+- The Phase 2 test asserts that a period war epic has at least seven of the
+  eight fronts live, not all eight.
+
+**Release:** delivered as one pull request into `master`, merged. The PR also
+carries this branch's earlier market-realism work (§7 of
+`docs/DESIGN_REVIEW_market_realism.md`).

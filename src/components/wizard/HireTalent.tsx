@@ -509,7 +509,7 @@ export function HireTalent() {
     (role) => talentsForRole(role).length < effectiveRoleCapacity(role, draft.script).min,
   );
   const filledMandatoryCount = MANDATORY_TALENT_ROLES.length - missingMandatory.length;
-  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []);
+  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? [], state.productionTeamPool ?? []);
   const canAfford = state.studio.cash >= committedSpend;
 
   function handleMasterBudgetChange(value: number) {

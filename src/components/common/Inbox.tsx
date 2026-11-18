@@ -1,11 +1,16 @@
 import { useStudio } from '../../state/StudioContext';
 import { Button } from './Button';
+import { Money } from './Money';
 import { formatMoney } from './Money';
 import { ActivityCard } from './ActivityCard';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
 import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '../../engine/project';
 import { wasPulledFromTheatres } from '../../engine/boxOfficeRun';
+import { brandNoticeText } from '../../engine/reputation';
+import { PREP_PAUSED_MESSAGE } from './decisionText';
+import { checkpointTitle } from '../../engine/prep/checkpoints';
+import { crewChangeText } from '../../engine/prep/slips';
 import { unseenApplicants } from '../../engine/castingCalls';
 import { derivePostProductionStatus, describePostProductionWait } from '../../engine/postProductionStatus';
 import { highestBid } from '../../engine/opportunities';
@@ -140,7 +145,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // which point at drawers that aren't on screen. The exact same derivation
   // Header.tsx's badge count reads (engine/project.ts:inboxBadgeCount), so the
   // two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays);
+  const { awaitingChoice, prepAwaitingChoice, prepCheckpoints, crewChanges, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished, brandNotice } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays, state.studio?.brandNotice);
   // Recently-resolved award ceremonies the player hasn't clicked through yet
   // (state/selectors.ts) - awards settle silently in the background tick, so
   // this is the Inbox's "Awards night" catch-up beat.
@@ -210,6 +215,9 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   const auditionCards = auditionsReady.flatMap(({ production, auditions }) => groupAuditionsByCharacter(production, auditions, state.talentPool.Actor));
   const needsYouCount =
     awaitingChoice.length +
+    prepAwaitingChoice.length +
+    prepCheckpoints.length +
+    crewChanges.length +
     pressTourIncidents.length +
     wrapped.length +
     parked.length +
@@ -221,7 +229,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // The year's arrivals and departures (engine/careerTurnover.ts) - stored,
   // newest first; read when the Inbox opens, gone when dismissed.
   const industryNotices = state.industryNotices ?? [];
-  const updatesCount = boxOfficeFinished.length + awardHighlights.length + updateBids.length + industryNotices.length;
+  const updatesCount = boxOfficeFinished.length + awardHighlights.length + updateBids.length + industryNotices.length + (brandNotice ? 1 : 0);
   const nothingAtAll = needsYouCount === 0 && updatesCount === 0;
 
   const groupHeading = (label: string, count: number) => (
@@ -284,6 +292,73 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
               }
               return null;
             })}
+
+            {prepAwaitingChoice.map((production) => (
+              // A prep decision, answered in place - the prep twin of the on-set
+              // card above. Prep is paused until it is answered.
+              <div className="stack" key={`${production.id}-prep`}>
+                <h4 style={{ margin: 0 }}>{production.title || 'Untitled Film'} · pre-production</h4>
+                <OnSetDecisionCard
+                  pendingChoice={production.preProduction!.pendingChoice!}
+                  talent={production.talent.map((a) => a.person)}
+                  talentPool={state.talentPool}
+                  script={production.script}
+                  totalDays={state.totalDays}
+                  pausedMessage={PREP_PAUSED_MESSAGE}
+                  showChoiceCosts
+                  onChoose={(choiceId) => dispatch({ type: 'RESOLVE_PREPRODUCTION_CHOICE', choiceId, productionId: production.id })}
+                />
+              </div>
+            ))}
+
+            {prepCheckpoints.map((production) => (
+              // A prep checkpoint: several problems, each with priced options -
+              // answered on the film's own prep screen (the briefing), which is
+              // where the card routes. Answering it there clears this card.
+              <div className="card stack" key={`${production.id}-prep-checkpoint`} style={{ gap: 6 }}>
+                <h4 style={{ margin: 0 }}>{production.title || 'Untitled Film'} · pre-production</h4>
+                <p style={{ margin: 0 }}>
+                  {checkpointTitle(production.preProduction!.pendingCheckpoint!.index)}: prep has found{' '}
+                  {production.preProduction!.pendingCheckpoint!.problemIds.length === 1 ? 'a problem' : `${production.preProduction!.pendingCheckpoint!.problemIds.length} problems`} and is
+                  waiting on your decisions.
+                </p>
+                {state.focusedProjectId === production.id ? (
+                  // Still the focused film (focus survives leaving the prep screen): go straight back to it.
+                  <div className="row">
+                    <Button variant="primary" onClick={routed(() => dispatch({ type: 'GO_TO_PREPRODUCTION' }))}>Open the briefing</Button>
+                  </div>
+                ) : state.focusedProjectId ? (
+                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>{BUSY_NOTE}</p>
+                ) : (
+                  <div className="row">
+                    <Button variant="primary" onClick={routed(() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id }))}>Open the briefing</Button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {crewChanges.map((production) => (
+              // People who left when the film's start slipped, and who replaced
+              // them - informational; read here, cleared by acknowledging.
+              <div className="card stack" key={`${production.id}-crew-changes`} style={{ gap: 6 }}>
+                <h4 style={{ margin: 0 }}>{production.title || 'Untitled Film'} · the start slipped</h4>
+                {production.crewChanges!.filter((c) => !c.acknowledged).slice(0, 3).map((c, i) => (
+                  <p key={i} style={{ margin: 0 }}>
+                    {crewChangeText(c)}{' '}
+                    {c.cost > 0 && <span style={{ color: 'var(--text-muted)' }}>(cost <Money amount={c.cost} />)</span>}
+                    {c.cost < 0 && <span style={{ color: 'var(--text-muted)' }}>(<Money amount={-c.cost} /> back)</span>}
+                  </p>
+                ))}
+                {production.crewChanges!.filter((c) => !c.acknowledged).length > 3 && (
+                  <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                    ...and {production.crewChanges!.filter((c) => !c.acknowledged).length - 3} more - see the film's prep log.
+                  </p>
+                )}
+                <div className="row">
+                  <Button onClick={() => dispatch({ type: 'ACKNOWLEDGE_CREW_CHANGES', productionId: production.id })}>Noted</Button>
+                </div>
+              </div>
+            ))}
 
             {pressTourIncidents.map((production) => {
               const incident = production.pressTourIncident!;
@@ -500,6 +575,28 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
           <div className="stack">
             {groupHeading('While you were away', updatesCount)}
 
+            {brandNotice && (
+              // The studio's name drifting (Phase 3 Brand reversion): routes to
+              // the studio overview, which shows Brand and marks this read when
+              // it displays it (Dashboard.tsx) - never on Inbox open.
+              <ActivityCard
+                key="brand-notice"
+                activity={{
+                  id: `brand-notice-${brandNotice.day}`,
+                  tone: brandNotice.direction === 'fading' ? 'warning' : 'positive',
+                  category: 'update',
+                  eyebrow: 'Your studio',
+                  title: brandNotice.direction === 'fading' ? 'Your name is fading' : 'Your name is recovering',
+                  detail: brandNoticeText(brandNotice.direction),
+                }}
+                action={
+                  state.focusedProjectId
+                    ? { label: 'See your studio', note: BUSY_NOTE }
+                    : { label: 'See your studio', onClick: routed(() => dispatch({ type: 'RETURN_TO_DASHBOARD' })) }
+                }
+              />
+            )}
+
             {boxOfficeFinished.map((film) => {
               // Informational catch-up: the run is over, nothing is blocked.
               // Brief qualitative summary, then route to the film's own dossier
@@ -644,6 +741,9 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                     title: `“${n.scriptTitle || 'Untitled script'}”`,
                     detail,
                   }}
+                  // A won script is an Asset now: one click to where it lives
+                  // (market realism Phase 5 - contested scripts are won this way).
+                  action={n.kind === 'won' ? { label: 'Open Asset Library', onClick: routed(() => dispatch({ type: 'VIEW_ASSET_LIBRARY' })) } : undefined}
                   onDismiss={() => dispatch({ type: 'DISMISS_BID_NOTIFICATION', id: n.id })}
                 />
               );

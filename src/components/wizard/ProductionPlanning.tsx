@@ -38,6 +38,11 @@ import { facetConfidence, type FacetOutlook } from '../../engine/facetModel';
 import { stuntTeamById, stuntTeamEffectiveSkill, stuntTeamFitsGenre } from '../../engine/stuntTeams';
 import { STUNT_SPECIALTY_LABEL } from '../../data/stuntTeams';
 import { DistributionEditor } from '../common/DistributionEditor';
+import { PrepOutlook } from '../common/PrepOutlook';
+import { PrepPlanControls } from '../prep/PrepPlanControls';
+import { productionTeamById } from '../../engine/productionTeams';
+import { PRODUCTION_TEAM_SPECIALTY_LABEL } from '../../data/productionTeams';
+import { effectivePreProductionDays } from '../../engine/prepLength';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
 import { ScoreBar } from '../common/ScoreBar';
@@ -424,9 +429,11 @@ export function ProductionPlanning() {
     strongHire: 'A dedicated Stunt Team would make the same bet worth taking.',
   });
   const stuntTeamOptions = [...(state.stuntTeamPool ?? [])].sort((a, b) => b.skill - a.skill);
+  const productionTeam = productionTeamById(state.productionTeamPool, draft.productionTeamId);
+  const productionTeamOptions = [...(state.productionTeamPool ?? [])].sort((a, b) => b.skill - a.skill);
 
   const estimatedCost = computeProductionBudgetCost(currentChoices);
-  const canAfford = state.studio.cash - computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []) >= 0;
+  const canAfford = state.studio.cash - computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? [], state.productionTeamPool ?? []) >= 0;
   const genreProfile = GENRE_PROFILES[genre];
   const recommendedDays = computeRecommendedShootDays(draft.talent, script, currentChoices);
   const dailyShootCost = computeDailyShootBurn(currentChoices.shootingBudgetAmount, recommendedDays);
@@ -564,6 +571,44 @@ export function ProductionPlanning() {
           <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>{setsOutlookText}</p>
         )}
       </div>
+
+      {/* Pre-production at a glance (docs/DESIGN_REVIEW_preproduction_realism.md
+          §4.1-4.2): how long prep will run on this plan and what it will have
+          to deal with, front by front - in words, before anything is committed. */}
+      {draft.productionChoices && (
+        <div className="card stack">
+          <div className="row-between">
+            <h3 style={{ margin: 0 }}>Pre-production</h3>
+            <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>About {Math.round(effectivePreProductionDays(draft) / 7)} weeks</span>
+          </div>
+          <PrepOutlook script={script} talent={draft.talent} choices={draft.productionChoices} />
+          <p style={{ margin: 0 }}>
+            A line producer and 1st AD run the prep: they break the script down, build the schedule and the budget, and
+            find the problems while they are still cheap to fix. A stronger team finds more of them, sooner - and if you
+            hand them the film's prep, they make its calls for you.
+          </p>
+          <label className="stack" style={{ gap: 4 }}>
+            <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>Line producer & 1st AD</span>
+            <select
+              value={draft.productionTeamId ?? ''}
+              onChange={(e) => dispatch({ type: 'SET_PRODUCTION_TEAM', productionTeamId: e.target.value || null })}
+            >
+              <option value="">— The studio's own production office —</option>
+              {productionTeamOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} · {skillWord(t.skill)} · {formatMoney(t.typicalSalary)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {productionTeam && (
+            <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>
+              Known for: {productionTeam.specialties.map((s) => PRODUCTION_TEAM_SPECIALTY_LABEL[s]).join(', ')}. Fee <Money amount={productionTeam.typicalSalary} /> (charged at release).
+            </p>
+          )}
+          <PrepPlanControls draft={draft} />
+        </div>
+      )}
 
       <RecommendationCard
         title="Effects Strategy"

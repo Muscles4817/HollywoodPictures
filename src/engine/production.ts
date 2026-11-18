@@ -1,4 +1,6 @@
 import type {
+  Distribution,
+  EnvironmentMethodKey,
   ChemistryDimension,
   EventChoiceTemplate,
   EventSeverity,
@@ -23,7 +25,6 @@ import {
   GENRE_EVENT_TEMPLATES,
   RISK_DIMENSION_EVENT_TEMPLATES,
   TRAIT_EVENT_TEMPLATES,
-  PRE_PRODUCTION_EVENT_TEMPLATES,
   type ProductionEventTemplate,
 } from '../data/productionEvents';
 import { deriveTraits } from './personTraits';
@@ -38,7 +39,11 @@ import { findCandidatesNearPrice } from './talentFilter';
 import { professionForProductionRole, filterAssignedPeople, findAssignedPerson } from '../data/helpers';
 import { getCareerForRole, getCrewCareer, getTypicalSalaryForRole } from './person';
 import { classifyEventImpact } from './productionExecution';
-import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
+import { derivePrepDemands, designAskDays, recommendedPrepDays } from './prep/demands';
+import { applyPrepRiskAdjustments, prepRiskAdjustments } from './prep/run';
+import { carriedIncidentsFor } from './prep/handoff';
+import { computePitchExecutionRiskDelta } from './directorPitch';
+import { clamp, pick, pickMany, randFloat, weightedPick, type RandomFn } from './random';
 
 // --- Stage durations (Timeline Recalibration) ---------------------------
 // Every stage below is built to reflect the *particulars of that specific
@@ -58,7 +63,17 @@ const MAX_CAST_SIZE_DAYS = 18; // a large ensemble is far slower to schedule and
 const MAX_RUNTIME_DAYS = 22; // a three-hour epic photographs far more material than a lean 90-minute film
 const MAX_EFFECTS_DAYS = 22; // practical rigs, stunts and effects units slow the shoot down on the day
 const MAX_SETTING_DAYS = 16; // a travel-heavy, many-location shoot loses days moving; a single interior loses none
-const CAST_SIZE_BASELINE = 6; // roughly the mandatory-roles floor before any multi-hire roles kick in
+// Cast size counts ACTORS. It used to be talent.length, which counts crew too, so
+// hiring a production designer or a VFX supervisor lengthened prep and the shoot
+// as if another actor had joined. One actor beyond the baseline is exactly what
+// the old count gave the minimum package (seven mandatory roles, one lead, one
+// supporting part), so that package reads as it always did.
+const CAST_SIZE_BASELINE = 1;
+
+/** The number of acting roles filled - a lead and supporting parts, not the crew. */
+function castCount(talent: TalentAssignment[]): number {
+  return talent.filter((a) => a.role === 'Lead Actor' || a.role === 'Supporting Actor').length;
+}
 const SHOOT_CAST_DAYS_PER_MEMBER = 2; // extra shoot days each cast member beyond the baseline adds, before the cap
 
 /**
@@ -76,7 +91,7 @@ const SHOOT_CAST_DAYS_PER_MEMBER = 2; // extra shoot days each cast member beyon
  */
 export function computeRecommendedShootDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
   const complexityDays = (script.complexity / 100) * MAX_COMPLEXITY_DAYS;
-  const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * SHOOT_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_DAYS);
+  const castDays = clamp((castCount(talent) - CAST_SIZE_BASELINE) * SHOOT_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_DAYS);
   const runtimeDays = choices.runtimeIntensity * MAX_RUNTIME_DAYS;
   const effectsDays = (practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) * (MAX_EFFECTS_DAYS / 2);
   const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
@@ -99,8 +114,28 @@ export function beginPhotographyFromPrep(draft: FilmDraft): FilmDraft {
   const recommendedDays = computeRecommendedShootDays(draft.talent, draft.script!, draft.productionChoices!);
   return {
     ...draft,
-    photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
+    photography: {
+      status: 'in-progress',
+      recommendedDays,
+      daysElapsed: 0,
+      events: [],
+      runningCost: 0,
+      pendingChoice: null,
+      // Every problem prep left standing, scheduled onto its shoot day (engine/prep/handoff.ts).
+      carriedIncidents: carriedIncidentsFor(draft.preProduction, recommendedDays),
+    },
   };
+}
+
+/**
+ * The static risk a film's shoot begins with: its plan's, moved per dimension
+ * by what its prep left standing and the work it did (engine/prep/run.ts:
+ * prepRiskAdjustments), plus a bold director pitch's execution-risk delta.
+ * One reading for the focused shoot, the backgrounded one and the readiness gate.
+ */
+export function shootStartingRisk(draft: FilmDraft): StaticProductionRisk {
+  const base = computeStaticProductionRisk(draft.talent, draft.script!, draft.productionChoices!, draft.genre!);
+  return applyPrepRiskDelta(applyPrepRiskAdjustments(base, prepRiskAdjustments(draft.preProduction)), computePitchExecutionRiskDelta(draft.selectedDirectorPitch));
 }
 
 /**
@@ -124,47 +159,23 @@ export function footageUpperBound(recommendedDays: number): number {
   return Math.round(recommendedDays * FOOTAGE_UPPER_RATIO);
 }
 
-const BASE_PREPRODUCTION_DAYS = 21;
-const MAX_SCALE_PREPRODUCTION_DAYS = 32;
-const MAX_CAST_SIZE_PREPRODUCTION_DAYS = 16;
-const MAX_AMBITION_PREPRODUCTION_DAYS = 28;
-const MAX_SETTING_PREPRODUCTION_DAYS = 18; // scouting locations and building sets before a frame is shot
-const PERIOD_SETTING_PREPRODUCTION_DAYS = 10; // recreating a real historical era adds research, costume and design lead time
-const PREPRODUCTION_CAST_DAYS_PER_MEMBER = 2.5; // extra prep days each cast member beyond the baseline adds, before the cap
-const SCALE_PREPRODUCTION_FRACTION: Record<Script['scale'], number> = { Intimate: 0, Medium: 0.5, Epic: 1 };
-
 /**
- * How many days of pre-production this film calls for - locking cast/crew
- * deals, scouting/building sets, previs for anything effects-heavy, before
- * a single day of Principal Photography. This is the *length* of the
- * pre-production phase, which the reducer then burns down day-by-day
- * (state/studioReducer.ts:ADVANCE_PREPRODUCTION_DAY, off the recommendedDays
- * this returns) - it is NOT a lump sum charged at Greenlight; Greenlight
- * only books talent and cash, and the phase's real prep window can be
- * stretched further still by a Production Designer's granted prep time
- * (studioReducer.ts:GREENLIGHT_PROJECT takes max(this, designPrepDays)).
- *
- * Driven by the particulars of this specific film: bigger scale, bigger
- * cast and heavier effects ambition all mean more to lock down, and - added
- * in the Timeline Recalibration - a build-heavy or hard-to-scout setting,
- * plus a period piece's extra research/costume lead time, push prep out
- * further still. Ranges from ~3 weeks for a small contained film to roughly
- * four months for a large, effects-heavy, period tentpole - first-draft,
- * tunable constants like every other numeric constant in this simulation.
+ * How many days of pre-production this film calls for: the core every prep has
+ * plus its slowest department's chain - derived from the film's moving parts
+ * (engine/prep/demands.ts, docs/DESIGN_REVIEW_preproduction_realism.md §4.1),
+ * not from its budget. The design chain is the production designer's own ask,
+ * or the design window granted (choices.designPrepDays), which may be shorter -
+ * a rushed design is a real choice whose cost lands on the sets. This is the
+ * length the reducer burns down day by day; it is not a lump sum.
  */
-export function computeRecommendedPreProductionDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
-  const scaleDays = SCALE_PREPRODUCTION_FRACTION[script.scale] * MAX_SCALE_PREPRODUCTION_DAYS;
-  const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * PREPRODUCTION_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_PREPRODUCTION_DAYS);
-  const ambitionDays = ((practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) / 2) * MAX_AMBITION_PREPRODUCTION_DAYS;
-  // Building the world before the shoot: heavy set construction and hard-to-scout
-  // locations both stretch prep, and a period piece adds its own research/costume
-  // lead time on top. A Single Interior Location sits near zero here; a
-  // Medieval Kingdom or Global Multi-Location shoot adds real weeks.
-  const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
-  const settingDays =
-    (settingProfile.setConstructionDemand * 0.6 + settingProfile.locationComplexity * 0.4) * MAX_SETTING_PREPRODUCTION_DAYS;
-  const periodDays = settingProfile.periodSetting ? PERIOD_SETTING_PREPRODUCTION_DAYS : 0;
-  return Math.round(BASE_PREPRODUCTION_DAYS + scaleDays + castDays + ambitionDays + settingDays + periodDays);
+export function computeRecommendedPreProductionDays(
+  talent: TalentAssignment[],
+  script: Script,
+  choices: ProductionChoices,
+  environmentStrategy?: Distribution<EnvironmentMethodKey> | null,
+): number {
+  const demands = derivePrepDemands({ script, talent, choices, environmentStrategy });
+  return recommendedPrepDays(demands, designAskDays(script, talent), choices.designPrepDays, script.scale);
 }
 
 // Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md
@@ -844,73 +855,13 @@ export function rollDayEvent(
   return pickShootEvent(fullRisk, avgRisk, genre, usedIds, talent, script, talentPool, rng, pairings);
 }
 
-// --- Pre-production (the day-by-day prep phase) -----------------------------
-// A lean sibling to the on-set roller above (types/index.ts:PreProductionState).
-// Prep has no live risk dimensions of its own, so selection is simpler: a flat
-// daily chance, then a uniform pick from the prep bank (minus anything already
-// fired this prep, and gated by the same trait rules on-set events use). The
-// prep history it builds then feeds the shoot two ways - computePrepRiskDelta
-// (starting risk) and prepQualityEvents (finished film).
-
-// Roughly one prep event every ~5-6 days - prep should feel eventful without a
-// decision every day. First-draft, tunable.
-const PREPROD_EVENT_CHANCE = 0.18;
-
-/** Rolls whatever happens on a single day of pre-production - usually nothing. Mirrors rollDayEvent's shape (an interactive template returns a pendingChoice to pause on), but without the on-set risk model. */
-export function rollPreProductionDayEvent(
-  talent: TalentAssignment[],
-  script: Script | null,
-  usedIds: ReadonlySet<string>,
-  rng: RandomFn,
-): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
-  if (rng() >= PREPROD_EVENT_CHANCE) return null;
-  const pool = PRE_PRODUCTION_EVENT_TEMPLATES.filter((t) => !usedIds.has(t.id) && traitSatisfied(t, talent));
-  if (pool.length === 0) return null;
-
-  const template = pool[randInt(rng, 0, pool.length - 1)];
-  if (!template.interactive) return { event: rollSimpleEvent(template, rng) };
-
-  const involved = template.involvesRole ? resolveInvolvedTalent(template.involvesRole, talent, rng, template.requiresTrait) : undefined;
-  if (template.involvesRole && !involved) return null;
-
-  const skillScore = involved ? talentSkillScore(involved, template.involvesRole, script) : 50;
-  const choices = involved ? prepareChoicesForInvolvedTalent(template.choices, involved.identity.name, skillScore) : template.choices;
-  const situation = involved ? interpolateName(template.situation, involved.identity.name) : template.situation;
-
-  return {
-    pendingChoice: {
-      templateId: template.id,
-      situation,
-      polarity: template.polarity,
-      severity: template.severity,
-      choices,
-      involvedTalentId: involved?.id,
-      involvedTalentName: involved?.identity.name,
-      involvedRole: template.involvesRole,
-      impact: template.impact ?? classifyEventImpact({ id: template.id }),
-      escalates: template.escalates ?? defaultEscalates(template.severity, template.polarity),
-    },
-  };
-}
-
-// The most prep can move the shoot's starting risk in either direction - bounded
-// so no amount of good (or bad) prep can trivialize or doom a shoot on its own.
-const MAX_PREP_RISK_SWING = 25;
-
-/** The net starting-risk adjustment a finished prep produces, from its events' riskDelta - negative = well-prepared, clamped to a bounded swing. */
-export function computePrepRiskDelta(preProduction: PreProductionState | null): number {
-  if (!preProduction) return 0;
-  const sum = preProduction.events.reduce((s, e) => s + (e.riskDelta ?? 0), 0);
-  return clamp(sum, -MAX_PREP_RISK_SWING, MAX_PREP_RISK_SWING);
-}
-
 /**
- * The prep events that carry a finished-film consequence (nonzero qualityDelta),
- * merged into the shoot's execution history at release so good/bad prep genuinely
- * reaches the film. Cost/buzz/delay are ZEROED on the copy: a prep event's cash
- * cost was already charged live during pre-production (studioReducer:
- * ADVANCE_PREPRODUCTION_DAY), so only its quality/impact should reach the
- * finished-film accounting - not a second charge.
+ * The typed events prep left on the film - the scope cuts its checkpoint
+ * decisions made (engine/prep/checkpoints.ts:applyFix), each a smaller, chosen
+ * loss in a named department - merged into the shoot's execution history at
+ * release. Prep never adds quality (docs/DESIGN_REVIEW_preproduction_realism.md
+ * §3): nothing here is ever positive. Cost/buzz/delay are zeroed on the copy -
+ * prep's money was charged as it was spent.
  */
 export function prepQualityEvents(preProduction: PreProductionState | null): ProductionEvent[] {
   if (!preProduction) return [];
@@ -919,7 +870,7 @@ export function prepQualityEvents(preProduction: PreProductionState | null): Pro
     .map((e) => ({ ...e, costDelta: 0, buzzDelta: 0, delayDaysDelta: 0 }));
 }
 
-/** Applies a prep starting-risk delta uniformly across the four static risk dimensions (each clamped 0-100) - good prep lowers what the shoot begins with, bad prep raises it. */
+/** Applies a uniform starting-risk delta across the four static risk dimensions (each clamped 0-100) - today only a director pitch's execution-risk delta (engine/directorPitch.ts). */
 export function applyPrepRiskDelta(risk: StaticProductionRisk, delta: number): StaticProductionRisk {
   if (delta === 0) return risk;
   const adj = (v: number) => clamp(Math.round(v + delta), 0, 100);

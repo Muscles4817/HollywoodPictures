@@ -124,6 +124,29 @@ function generateOpportunity(totalDays: number, rng: RandomFn, writers: Person[]
  * patterns elsewhere in this codebase already use) - their last offer stays
  * on the table and can still win if nobody else raises further.
  */
+/** How many of a week's new scripts are sold by bidding (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 5). */
+export const CONTESTED_PER_BATCH = 2;
+/** A script has to be at least this good to draw a crowd. */
+export const CONTESTED_MIN_HEAT = 62;
+
+/** How much the trade wants a script, 0-100: the mean of originality, hook, emotionalPremise, structure, characters and dialogue. */
+export function marketHeat(script: Script): number {
+  return (script.originality + script.hook + script.emotionalPremise + script.structure + script.characters + script.dialogue) / 6;
+}
+
+/** A fresh batch with its CONTESTED_PER_BATCH hottest scripts, if hot enough, flagged for bidding. Deterministic: ties keep batch order. */
+export function flagContested(batch: Opportunity[]): Opportunity[] {
+  const hottest = new Set(
+    batch
+      .map((o, index) => ({ id: o.id, heat: marketHeat(o.script), index }))
+      .filter((o) => o.heat >= CONTESTED_MIN_HEAT)
+      .sort((a, b) => b.heat - a.heat || a.index - b.index)
+      .slice(0, CONTESTED_PER_BATCH)
+      .map((o) => o.id),
+  );
+  return batch.map((o) => (hottest.has(o.id) ? { ...o, contested: true } : o));
+}
+
 export function placeBid(opportunities: Opportunity[], opportunityId: string, bid: OpportunityBid): Opportunity[] {
   return opportunities.map((o) => {
     if (o.id !== opportunityId) return o;
@@ -195,12 +218,14 @@ export function settleOpportunities(
     if (winner) {
       resolvedBids.push({ opportunity: o, winnerId: winner.bidderId, winnerName: winner.bidderName, amount: winner.amount, scale: winner.scale });
     } else {
-      stillOpen.push(o);
+      // A contested script nobody offered on becomes an ordinary listing and
+      // stays until it expires.
+      stillOpen.push(o.contested ? { ...o, contested: false } : o);
     }
   }
 
   const batchSize = randInt(rng, ...BATCH_SIZE);
-  const newOnes = Array.from({ length: batchSize }, () => generateOpportunity(totalDays, rng, writers, usedSynopses));
+  const newOnes = flagContested(Array.from({ length: batchSize }, () => generateOpportunity(totalDays, rng, writers, usedSynopses)));
   return {
     opportunities: [...stillOpen, ...newOnes],
     nextGenerationCheckDay: totalDays + WEEK_LENGTH_DAYS,

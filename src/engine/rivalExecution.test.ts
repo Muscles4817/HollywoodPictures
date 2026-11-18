@@ -4,7 +4,7 @@
 // contract: typed, deterministic, both-polarity histories fed through the exact
 // same pipeline, with a correctly-generated execution summary that persists.
 import { describe, it, expect } from 'vitest';
-import { resolveRivalExecution, type RivalExecutionInput } from './rivalExecution';
+import { resolveRivalExecution, rivalPrepRng, synthesizeRivalPrep, type RivalExecutionInput } from './rivalExecution';
 import { resolveRivalProduction } from './rivalStudios';
 import { computeExecutionProfile, summarizeExecution } from './productionExecution';
 import { buildReadyDraft } from '../state/testFixtures';
@@ -189,5 +189,49 @@ describe('(6) player execution path is unchanged by the shared extraction', () =
     const outcome = summarizeExecution(profile);
     expect(outcome.modifiers.performanceCapture).toBeGreaterThan(0);
     expect(outcome.stars).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// A rival's shoot is preceded by a pre-production on the player's own prep
+// engine (docs/IMPLEMENTATION_PLAN_preproduction_realism.md Phase 4).
+describe('synthesizeRivalPrep - the pre-production a rival film went through', () => {
+  it('is deterministic for a generator seed', () => {
+    const a = synthesizeRivalPrep(inputFor(), createRng(77));
+    const b = synthesizeRivalPrep(inputFor(), createRng(77));
+    expect(b).toEqual(a);
+  });
+
+  it('runs prep to the end, deciding every problem it found, and leaves only cuts (never gains) on the film', () => {
+    let found = 0;
+    for (let s = 0; s < 30; s++) {
+      const { prep } = synthesizeRivalPrep(inputFor(7000 + s), createRng(7000 + s));
+      expect(prep.status).toBe('finished');
+      expect(prep.nextCheckpoint).toBe(4);
+      for (const p of prep.problems) if (p.foundOnDay !== null && p.foundOnDay <= prep.checkpointDays[3]) expect(p.resolution).not.toBeNull();
+      expect(prep.events.every((e) => e.qualityDelta < 0)).toBe(true);
+      found += prep.problems.filter((p) => p.foundOnDay !== null).length;
+    }
+    expect(found).toBeGreaterThan(0);
+  });
+
+  it('takes exactly one draw from the generator passed to resolveRivalExecution, whatever the prep does', () => {
+    const input = inputFor();
+    const shared = createRng(321);
+    const { prep } = synthesizeRivalPrep(input, rivalPrepRng(shared));
+    const afterFork = shared();
+    const reference = createRng(321);
+    reference(); // the fork's single draw
+    expect(reference()).toBe(afterFork);
+    // ...and resolveRivalExecution's history carries that prep: its cuts, zeroed,
+    // and what it left standing as shoot incidents.
+    const { events } = resolveRivalExecution(input, createRng(321));
+    expect(events.filter((e) => e.id.startsWith('prep-cut-')).map((e) => e.id)).toEqual(prep.events.map((e) => e.id));
+    const standing = prep.problems.filter((p) => p.severity > 0.05).map((p) => `prep-incident-${p.id}`).sort();
+    expect(events.filter((e) => e.id.startsWith('prep-incident-')).map((e) => e.id).sort()).toEqual(standing);
+  });
+
+  it('varies from one execution of the same plan to the next', () => {
+    const preps = new Set([1, 2, 3, 4, 5, 6].map((seed) => JSON.stringify(synthesizeRivalPrep(inputFor(), rivalPrepRng(createRng(seed))).prep.problems)));
+    expect(preps.size).toBeGreaterThan(1);
   });
 });

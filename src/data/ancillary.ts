@@ -116,9 +116,46 @@ export const CATALOGUE = {
 } as const;
 
 /**
+ * How a film's standing lifts its life after cinemas: one bounded factor, read
+ * once (engine/ancillary.ts:computeRegard). It replaced six separate readings
+ * of audience score, critic score, prestige and awards that multiplied
+ * together, so a well-regarded player film earned about 1.0 per pound of
+ * cinema rentals after cinemas against the market's 0.38
+ * (docs/REVIEW_market_realism.md §2.2). Every window now reads the median
+ * film's values and is scaled by regard; a median film is exactly where it was.
+ *
+ * The neutral readings are measurements of the rival market's median film
+ * (procedure R in docs/IMPLEMENTATION_PLAN_market_realism.md §1.4 re-derives
+ * them when what rivals make changes).
+ */
+export const REGARD = {
+  /** The market's median audience score, all films (measured: whole-year dump, seeds 4000+; 64 in Phase 1, re-derived to 68 by procedure R in Phase 2 and to 65 in Phase 5 - docs/DESIGN_REVIEW_market_realism.md §7.1-7.2). */
+  neutralAudience: 65,
+  /** The market's median critic score, all films (measured as above; 54 in Phase 1, 55 after Phase 2's procedure R, 53 after Phase 5's). */
+  neutralCritic: 53,
+  neutralPrestige: 50,
+  /** Points from neutral that count as a full swing on each reading. */
+  audienceSpan: 30,
+  criticSpan: 30,
+  prestigeSpan: 50,
+  audienceWeight: 0.5,
+  criticWeight: 0.35,
+  prestigeWeight: 0.15,
+  /** What a full swing on every reading is worth, either way. */
+  span: 0.35,
+  /** Added at a full awards haul (awardsLift = 1). */
+  awards: 0.25,
+  min: 0.75,
+  max: 1.5,
+  /** Share of catalogue longevity a top-regard film earns from regard alone. */
+  longevityWeight: 0.45,
+} as const;
+
+/**
  * The reach base: how much post-theatrical value a film's theatrical run
- * establishes. `floor`/`audienceLift` are the word-of-mouth lift - a beloved
- * film over-indexes downstream relative to its box office.
+ * establishes. `floor`/`audienceLift` set its level, read at the market's
+ * median audience score (REGARD.neutralAudience): how far a beloved film
+ * over-indexes downstream is now carried by regard alone.
  *
  * `grossExponent` makes it CONCAVE in worldwide gross rather than proportional
  * to it - see engine/ancillary.ts:computeReachBase for why, and for the

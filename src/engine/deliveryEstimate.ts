@@ -17,9 +17,9 @@
 import type { FilmDraft, GameDay, ProductionChoices, Script } from '../types';
 import {
   computeRecommendedPostProductionDays,
-  computeRecommendedPreProductionDays,
   computeRecommendedShootDays,
 } from './production';
+import { effectivePreProductionDays } from './prepLength';
 import { adaptRecommendationsToProductionChoices } from './productionChoicesAdapter';
 import { SHOOTING_BUDGET_RANGE } from '../data/production';
 import { logAmount } from './interpolate';
@@ -90,7 +90,7 @@ function remainingWork(
   const shootDone = draft.photography !== null && draft.photography.status === 'finished';
 
   if (!prepDone && !shootDone) {
-    const prepTotal = computeRecommendedPreProductionDays(draft.talent, script, choices);
+    const prepTotal = draft.preProduction?.recommendedDays ?? effectivePreProductionDays(draft);
     const prepElapsed = draft.preProduction?.daysElapsed ?? 0;
     out.push({ label: 'Pre-production', days: Math.max(0, prepTotal - prepElapsed) });
   }

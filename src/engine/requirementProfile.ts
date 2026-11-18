@@ -203,7 +203,7 @@ const LEAF_DEFINITIONS: LeafDefinition[] = [
   {
     key: 'periodArchitecture', category: 'environments', label: 'Period architecture',
     permittedApproaches: ['studio', 'location', 'cg'], baseComplexity: 0.55, criticalTone: 'drama',
-    magnitude: (s) => (s.pr.periodSetting ? c01(0.45 + 0.4 * s.setting.setConstructionDemand + 0.2 * s.scaleWeight) : 0),
+    magnitude: (s) => (s.setting.periodSetting ? c01(0.45 + 0.4 * s.setting.setConstructionDemand + 0.2 * s.scaleWeight) : 0),
   },
   {
     key: 'studioBuild', category: 'environments', label: 'Constructed sets',
@@ -219,7 +219,7 @@ const LEAF_DEFINITIONS: LeafDefinition[] = [
   {
     key: 'periodCostume', category: 'transformation', label: 'Period costume',
     permittedApproaches: ['practical'], baseComplexity: 0.45, criticalTone: 'drama',
-    magnitude: (s) => (s.pr.periodSetting ? c01(0.5 + 0.3 * s.scaleWeight) : 0),
+    magnitude: (s) => (s.setting.periodSetting ? c01(0.5 + 0.3 * s.scaleWeight) : 0),
   },
   {
     key: 'prostheticsMakeup', category: 'transformation', label: 'Prosthetics & makeup',

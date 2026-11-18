@@ -35,7 +35,7 @@ export function SoundDirector({ onMainMenu, paused, timeCriticalUnread }: SoundD
   }, [track]);
 
   const arrivals =
-    inboxBadgeCount(state.projects, null, state.totalDays) +
+    inboxBadgeCount(state.projects, null, state.totalDays, state.studio.brandNotice) +
     unreadBidCount(state.bidNotifications ?? []) +
     unreadIndustryNoticeCount(state.industryNotices) +
     unacknowledgedAwardHighlights(state).length;

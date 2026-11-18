@@ -272,18 +272,18 @@ export function computeSetsFacetQuality(choices: ProductionChoices, talent: Tale
 // (cinematographyFacet/scoreFacet/editFacet), fixing the audit's
 // quality-from-choices-not-hires defect. Each enters as a DEVIATION from the
 // unhired-fallback baseline: the facet quality with the actual head minus the
-// same facet at the no-head fallback. So a film with no such head (every rival
-// had an identical flat post value before; every current scoring test fixture is
-// unstaffed for these roles) scores EXACTLY as before - deviation 0 - and a
-// hired head lifts (or a weak one dips) the film. The effect flows only through
-// the existing production/post -> quality -> legs channel (never reach/scale), so
-// "acclaim doesn't buy mass-market scale" still holds. Weights are modest and
-// kept so the rival box-office distribution stays put (box-office diagnostics).
+// same facet at the no-head fallback. So a film with no such head scores what
+// the old flat model gave it - deviation 0 - and a hired head lifts (or a weak
+// one dips) the film. Player and rival films alike since the market-realism
+// work (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 2): a rival's film is
+// scored exactly as a player's would be. The effect flows only through the
+// existing production/post -> quality -> legs channel (never reach/scale), so
+// "acclaim doesn't buy mass-market scale" still holds.
 const CINEMATOGRAPHY_PROD_WEIGHT = 0.3;
 const SCORE_POST_WEIGHT = 0.25;
 const EDIT_POST_WEIGHT = 0.25;
 
-export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script, execution?: ExecutionProfile, stuntTeamSkill: number = NO_STUNT_TEAM_SKILL, personDrivenCraft = false): number {
+export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script, execution?: ExecutionProfile, stuntTeamSkill: number = NO_STUNT_TEAM_SKILL): number {
   const profile = GENRE_PROFILES[genre];
   const contingency = shootingBudgetQuality(choices.shootingBudgetAmount);
   const style = shootingQualityFromRatio(shootingRatio);
@@ -306,16 +306,13 @@ export function computeProductionScore(choices: ProductionChoices, genre: Genre,
 
   // Cinematography: the DP's realised image, a person-driven deviation from an
   // unled camera department. Uses the facet's deterministic base (no camera event
-  // channel yet). Player films only (personDrivenCraft) - rivals keep the flat
-  // model until the funnel/scale recalibration that owns the box-office
-  // distribution gate. Zero when no Cinematographer is attached, so even a player
-  // film with no DP is byte-identical to before this term existed.
-  let cinematography = 0;
-  if (personDrivenCraft) {
-    const cine = computeCinematographyFacet(talent, genre, script, shootingRatio).quality;
-    const cineBaseline = computeCinematographyFacet([], genre, script, shootingRatio).quality;
-    cinematography = CINEMATOGRAPHY_PROD_WEIGHT * (cine - cineBaseline);
-  }
+  // channel yet). Every film, player's and rival's alike, is scored this way
+  // (docs/IMPLEMENTATION_PLAN_market_realism.md Phase 2). Zero when no
+  // Cinematographer is attached, so a film with no DP scores what the old flat
+  // model gave it.
+  const cine = computeCinematographyFacet(talent, genre, script, shootingRatio).quality;
+  const cineBaseline = computeCinematographyFacet([], genre, script, shootingRatio).quality;
+  const cinematography = CINEMATOGRAPHY_PROD_WEIGHT * (cine - cineBaseline);
 
   return clamp(contingency * 0.35 + style * 0.25 + sets * 0.2 + effectsScore * 0.2 + cinematography, 0, 100);
 }
@@ -620,14 +617,6 @@ export function computeQualityBreakdown(
   // rivals, older callers) falls back to NO_STUNT_TEAM_SKILL inside
   // computeProductionScore, scoring exactly as before.
   stuntTeamSkill: number = NO_STUNT_TEAM_SKILL,
-  // Coverage-unification cutover: when true (the player's films) Cinematography,
-  // Score and Editing realise quality from the hired heads; when false (rivals,
-  // the base model, and every calibration diagnostic) those three keep the flat
-  // brief/fallback value, so the rival-driven box-office distribution & variance
-  // gates stay byte-identical. Rivals adopt person-driven craft in the separate
-  // funnel/scale recalibration. Sets/VFX/Practical are person-driven for everyone
-  // regardless (unchanged by this flag).
-  personDrivenCraft = false,
   // The net quality swing from creative demands the player accepted during
   // development (Phase 2b - engine/creativeDemands.ts), frozen onto
   // FilmDraft.developmentQualityDelta at Greenlight. A flat, unamplified nudge to
@@ -640,7 +629,7 @@ export function computeQualityBreakdown(
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
-  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution, stuntTeamSkill, personDrivenCraft);
+  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution, stuntTeamSkill);
   // The sets facet quality on its own - the same value computeProductionScore
   // blends into its `sets` term (identical pure inputs), read out here so the
   // Production Design department has a craft score the award can judge. This is
@@ -654,21 +643,17 @@ export function computeQualityBreakdown(
   // binds below ratio 1, so a fully-covered shoot is judged on the edit's own
   // merits. Post-production interventions (the bonus, e.g. reshoots/re-edits)
   // are added after the cap - extra work that can lift a thin shoot back up.
-  // Score & Edit (coverage unification): post-production quality is now
-  // person-driven for player films - the Composer's and Editor's realisation of
+  // Score & Edit (coverage unification): post-production quality is
+  // person-driven for every film - the Composer's and Editor's realisation of
   // the brief, each a deviation from an unmanaged post (their no-head fallback).
-  // Zero when neither is attached (or for rivals/base model, personDrivenCraft
-  // false), so those films keep the old brief-only value. The whole cut (brief
-  // baseline + craft deviation) is still bounded by footage coverage: an
-  // under-shot film caps even a great editor.
-  let postCraftDeviation = 0;
-  if (personDrivenCraft) {
-    const scoreCraft = computeScoreFacet(talent, genre, script).quality;
-    const scoreBaseline = computeScoreFacet([], genre, script).quality;
-    const editCraft = computeEditFacet(talent, genre, script).quality;
-    const editBaseline = computeEditFacet([], genre, script).quality;
-    postCraftDeviation = SCORE_POST_WEIGHT * (scoreCraft - scoreBaseline) + EDIT_POST_WEIGHT * (editCraft - editBaseline);
-  }
+  // Zero when neither is attached, so such a film keeps the brief-only value.
+  // The whole cut (brief baseline + craft deviation) is still bounded by footage
+  // coverage: an under-shot film caps even a great editor.
+  const scoreCraft = computeScoreFacet(talent, genre, script).quality;
+  const scoreBaseline = computeScoreFacet([], genre, script).quality;
+  const editCraft = computeEditFacet(talent, genre, script).quality;
+  const editBaseline = computeEditFacet([], genre, script).quality;
+  const postCraftDeviation = SCORE_POST_WEIGHT * (scoreCraft - scoreBaseline) + EDIT_POST_WEIGHT * (editCraft - editBaseline);
   const cappedEdit = Math.min(computePostProductionScore(postProductionChoices) + postCraftDeviation, editCoverageCeiling(execution.coverageRatio));
   const postProductionScore = clamp(cappedEdit + postProductionScoreBonus, 0, 100);
   const eventsScore = computeEventsScore(events);
@@ -887,7 +872,9 @@ const SPECTACLE_SETS_WEIGHT = 0.4;
 // critic-adored/audience-rejected film exist at all.
 
 /** The qualityScore of a median film - MEASURED over a simulated slate. Every deviation below is taken from here, so retuning the blend means re-deriving this. */
-const QUALITY_REFERENCE = 51;
+// Re-derived by procedure R (docs/IMPLEMENTATION_PLAN_market_realism.md §1.4) after
+// rivals moved to the player's scoring model: 51 -> 54.
+const QUALITY_REFERENCE = 54;
 /** The originality of an ordinary film, and the span over which distinctiveness saturates. Measured. */
 const ORIGINALITY_REFERENCE = 71;
 const ORIGINALITY_SPAN = 25;
@@ -919,10 +906,6 @@ function softBound(raw: number, knee: number, scale: number, ceiling: number): n
   return raw <= knee ? raw : knee + (ceiling - knee) * (1 - Math.exp(-(raw - knee) / scale));
 }
 
-/** Compresses only the top - an exit poll's ceiling. An A and an A+ are not meaningfully different, but the bottom stays open so a betrayal can still reach the floor. */
-function topCompressed(raw: number, knee: number, scale: number): number {
-  return raw <= knee ? raw : knee + (100 - knee) * (1 - Math.exp(-(raw - knee) / scale));
-}
 
 const CRITIC_ANCHOR = 58;
 // Critics are craft-anchored. Held at the effective gain the old formula had,
@@ -1004,8 +987,20 @@ const AUD_SPECTACLE_TILT = 0.1;
 /** Self-selection. A narrow film is graded by the crowd that chose it, which is why CinemaScore has almost nothing below a C - and it makes target audience a real trade-off rather than a free reach lever. */
 const AUD_SELF_SELECTION = 6;
 const AUD_EDIT_GAIN = 0.1;
-const AUDIENCE_KNEE = 74;
+// A lower ceiling on audience score (docs/IMPLEMENTATION_PLAN_market_realism.md
+// Phase 4a): a careful player's quality-70 film read 91-96 with audiences, which
+// in a model where audience score follows quality one-for-one above the
+// reference made every good film a crowd-pleaser. Bounded below 100 like
+// critic score, with the knee two points lower; AUD_QUALITY_GAIN deliberately
+// left at 1 (below it the two voices decorrelate too far - a recorded finding).
+const AUDIENCE_KNEE = 72;
 const AUDIENCE_KNEE_SCALE = 13;
+const AUDIENCE_CEILING = 94;
+
+/** The audience score's top: unchanged up to AUDIENCE_KNEE, then soft-bounded toward AUDIENCE_CEILING. Exported for tests. */
+export function audienceTopBound(raw: number): number {
+  return softBound(raw, AUDIENCE_KNEE, AUDIENCE_KNEE_SCALE, AUDIENCE_CEILING);
+}
 
 export function computeAudienceScore(
   quality: QualityBreakdown,
@@ -1039,7 +1034,7 @@ export function computeAudienceScore(
     AUD_CONFUSION * (quality.structureReach ?? 0) * Math.max(0, -(quality.structureDelivery ?? 0)) +
     AUD_SPECTACLE_GAIN * (quality.spectacleReach ?? 0) * (quality.spectacleDelivery ?? 0);
 
-  return clamp(topCompressed(raw, AUDIENCE_KNEE, AUDIENCE_KNEE_SCALE), 0, 100);
+  return clamp(audienceTopBound(raw), 0, 100);
 }
 
 /**

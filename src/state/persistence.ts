@@ -4,6 +4,7 @@ import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { generateStuntTeamPool } from '../engine/stuntTeams';
+import { generateProductionTeamPool } from '../engine/productionTeams';
 import { randomSeed, withRng } from '../engine/random';
 import { firstDayOfYear } from '../engine/calendar';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
@@ -453,7 +454,13 @@ import { deleteSave, readSave, writeSave } from './saveDatabase';
 //   from fee - a v104 pool's skills mean something else.
 // v105 -> v106 (economy): a running film's marketing and total cost now grow
 //   as it expands to more screens (FilmResults.expansionCost).
-export const SAVE_VERSION = 106;
+// v106 -> v107 (market realism, Phase 3): Studio and RivalStudio gained
+//   brandDriftCarry (Brand now drifts toward recent grosses), Studio gained
+//   brandNotice and brandDriftSinceNotice, the audience fixed state gained
+//   exhibitorStanding, and a settled week can carry `held`.
+// v107 -> v108 (market realism, Phase 5): Opportunity gained `contested` and
+//   `lapseSeen` - the best scripts of each week are sold by bidding.
+export const SAVE_VERSION = 110;
 
 /** Every pre-v99 save lived in localStorage under a key with this prefix. */
 const LEGACY_SAVE_KEY_PREFIX = 'hollywood-pictures-save-v';
@@ -620,6 +627,7 @@ function freshState(): GameState {
     rivalStudios: generateRivalStudios(rng),
     producerPool: generateProducerPool(rng),
     stuntTeamPool: generateStuntTeamPool(rng),
+    productionTeamPool: generateProductionTeamPool(rng),
   }));
   return {
     studio: { ...createInitialStudio(DEFAULT_STARTING_CASH), assets: TEST_SCRIPT_ASSETS },
@@ -634,6 +642,7 @@ function freshState(): GameState {
     rivalStudios: result.rivalStudios,
     producerPool: result.producerPool,
     stuntTeamPool: result.stuntTeamPool,
+    productionTeamPool: result.productionTeamPool,
     opportunities: [],
     nextOpportunityCheckDay: 1,
     collaborations: [],
