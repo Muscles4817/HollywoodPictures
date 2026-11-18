@@ -1063,3 +1063,138 @@ is Phase 7.
     at once. Availability is not modelled by plan (Phase 3).
   - The bot picks its team before it trims an unaffordable plan, so after a
     trim the fee can exceed 2% of the smaller film.
+
+### 10.7 Phase 7 — the bot, the measurements, and what they say
+
+**Bot.**
+
+- Careful and Steady hire the best line producer & 1st AD they can afford, by
+  the same rule rivals use.
+- Scout, Swing big and Careless use the studio's own office. The plan named
+  only Careless.
+- Every strategy hands prep's decisions to whoever runs it.
+
+**How it was measured.**
+
+- Each gate was run twice: on `e9abc1e`, the code before any prep work, and on
+  `8cb9f56`, everything through the Phase 6 review fixes. Both runs used frozen
+  copies of the code.
+- The distribution gate was also run on `4136373` (after Phase 3) and on
+  `ed25b88` (Phase 4 as first committed, with the weak discovery hash).
+- Two ablations then show what causes what, each switching off one mechanism
+  on a scratch copy:
+  - the new prep model's carried incidents, cuts and risk;
+  - the old 13-card prep bank.
+- Gate settings: box-office gates 6 seeds × 8 years; career gate 5 seeds
+  (101–105) × 10 years at Indie and Mid-Major. The Major and Garage tiers were
+  not run (time).
+
+**Box office (distribution gate, wide releases).**
+
+| | Before (e9abc1e) | After Ph.3 | After Ph.4 (weak hash) | Now (8cb9f56) |
+|---|---|---|---|---|
+| Films (6 seeds × 8 years) | 6642 | 6744 | 6612 | 5494 |
+| Wide median gross ($M) [120–190] | **161.5** | 160.9 | 87.4 | **119.5** |
+| Wide mean gross ($M) [200–300] | 257.4 | 254.7 | 125.2 | 201.0 |
+| Wide over $100M a year [55–70] | 53.6 | 51.4 | 30.7 | 34.9 |
+| Wide over $500M a year [10–15] | 10.3 | — | — | 5.2 |
+| Wide releases per major a year [8–20] | 9.6 | 9.4 | 6.6 | 7.1 |
+| Bombs % [4–14] | 10.0 | 10.7 | 23.1 | 14.5 |
+| Major hits % [2–14] | 14.0 | 12.8 | 3.7 | 7.3 |
+| Specialty films a year [5–15] | 4.1 | — | — | 3.8 |
+
+**Why the box office fell: the old prep bank gave every film free upside.**
+
+| Ablation | Wide median gross ($M) |
+|---|---|
+| Before (old bank on) | 161 |
+| Same code, old bank switched off | **127** |
+| Now, new prep's incidents, cuts and risk all switched off | 140 |
+| Now, as built | 120 |
+
+- **About $34M of the $41M drop was free quality from the old bank.** Removing
+  that bank alone, on the old code, takes the median from $161M to $127M.
+- The bank rolled positive events that did nothing but help: a table read
+  "revelation" adding quality, a "design breakthrough", logistical events that
+  cut the shoot's starting risk by up to 25 points. The market calibration had
+  absorbed that bonus.
+- The design forbids it (§3 rule 2: prep protects the downside, it never
+  manufactures upside).
+- What the new model costs is honest and small: carried incidents take the
+  median from $131M (no incidents) to $120M. Cuts and risk add a few million
+  more.
+- The 4136373 → ed25b88 step (161 → 87) shows the weak discovery hash. Almost
+  every problem was carried unseen; fixing it recovered much of that.
+- **This plan does not tune toward the targets.** The calibration gates are
+  now further from their bands than before. The next step is the
+  box-office recalibration work: re-ground what a well-made film earns, now
+  that prep no longer hands out quality. Prep's numbers should not be bent to
+  win the old free quality back.
+
+**Why fewer rival films.**
+
+- Rival productions now spend their prep in the calendar before they shoot,
+  and prep costs them money and a contingency check. Each production slot
+  therefore turns over more slowly: films fell 18%, and wide releases per major
+  per year fell from 9.6 to 7.1.
+- Real studios run more films in parallel than this. The rivals' slot rules
+  (`startableScales`, `SPAWN_CHECK_INTERVAL_DAYS`) predate prep in the
+  calendar. **Investigate how many productions a studio of each tier has in
+  prep and shoot at once before changing calibration.**
+
+**Other gates.**
+
+- The variance gate passes before and after: most-exposed third CV 0.435 →
+  0.407; least-exposed 0.102 → 0.101; correlation 0.66 → 0.65.
+- The buzz gate is unchanged and passes.
+
+**Player careers (career gate: median end cash ÷ start; share of films losing
+money all-in).**
+
+| | Before | Now |
+|---|---|---|
+| Indie, Careful | 0.25 · 54% losing | 0.82 · 38% losing |
+| Indie, Steady | 0.07 · 50% losing | 1.23 · 37% losing |
+| Mid-Major, Careful | 0.95 · 44% losing · largest 5.8× | 0.94 · 55% losing · largest 1.3× |
+| Mid-Major, Steady | 1.95 · 35% losing · largest 7.0× | 1.54 · 34% losing · largest 8.8× |
+
+- **Indie studios now survive** (before, 3–4 of 5 careers fell below a quarter
+  of their start). The main cause is the price of prep:
+  - Before: a prep week cost 0.4% of the negative per day, up to a cap per
+    scale, about a fifth of a small film's budget.
+  - Now: 0.4 of a shooting day, about 4% of the negative.
+  - Weaker rival films also help.
+  - Whether 4% is right is the open question. 04 §1.4 prices only the core
+    prep team, and builds are paid in the production budget. 11 §8.1's
+    "15–25%" may count more than that. **Investigate what 11 §8.1 includes
+    before touching the burn.**
+- **At Mid-Major, Careful loses more films (44% → 55%) and never breaks out.**
+  The share losing money fits a weaker market. Steady is little changed.
+
+**Prep itself** (PREP_DIAGNOSTIC, 300 films, recommended length).
+
+| Owner skill | Shoot days lost to carried problems | Money over (share of shooting budget) | Prep burn (share of negative) |
+|---|---|---|---|
+| 20 | 4.3% (p90 8.3%) | 1.8% | 3.6% |
+| 50 | 1.9% | 0.8% | 3.6% |
+| 80 | 0.4% | 0.2% | 3.7% |
+
+- At skill 50 a shortened prep loses 3.7% of shoot days (§10.4), inside 03
+  §13's 3–10%.
+- Median prep: Intimate 9.4 weeks, Medium 12.4, Epic 23.4.
+
+**Open items, for the owner.**
+
+1. **Box-office recalibration** without prep's free upside: the market is now
+   honest about prep but below the target bands.
+2. **Rival concurrency:** how many films a studio of each tier has in prep and
+   shoot at once.
+3. **Prep burn against 11 §8.1** (above).
+4. **The requirement profile's prosthetics leaf** reads an acting trait
+   (§10.2). It also sets the Prosthetics facet's ambition, so the facet needs a
+   re-measure once it is fixed.
+5. **The production team is the only new hire.** The other prep roles stand in
+   (decided). Teams have no availability.
+6. **Unreachable code:** the old prep decision path (`RESOLVE_PREPRODUCTION_CHOICE`
+   and its Inbox card) remains, though nothing generates a prep decision any
+   more. It can be removed.

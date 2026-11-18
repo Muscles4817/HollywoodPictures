@@ -9,6 +9,8 @@ below; read it first). Owner's decisions, recorded so they are not reopened:
 | How hands-on prep is | A film's prep can be **delegated**; the film's production team (or, with none, the studio's own production office) then makes every checkpoint decision itself, with the same costs. "You run the studio; you don't produce every film up close" |
 | Method | No tuning toward market targets. If measurements look wrong, investigate the cause in the films first |
 
+**Status: built, Phases 1-7; see the design note's §10 "As built" for what was done, what reviewers found, and the measurements.**
+
 Delivered as one pull request, merged, with every phase green (`npm test`,
 `npm run lint`, `npm run build`) and checked by an independent reviewer agent
 before the next phase starts.
