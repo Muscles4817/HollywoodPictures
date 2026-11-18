@@ -2439,6 +2439,8 @@ export interface RivalProductionInProgress {
   /** Prep days in its calendar, and what that prep's burn costs. */
   prepDays?: number;
   prepCost?: number;
+  /** 0..1: how much of its cash this film took when it started - how hard money weighs in its prep decisions. */
+  prepCashPressure?: number;
 }
 
 // Architecture roadmap Phase 5: filmsReleased/productionsInProgress moved to

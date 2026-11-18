@@ -15,7 +15,7 @@
 // back. If nobody can replace someone, the production buys them out of the
 // other job and keeps them. Pure: the reducer applies the result.
 import type { FilmDraft, Person, PersonCommitment, ProductionRole, TalentAssignment, TalentProfession } from '../../types';
-import { PREP_SLIP_BOOKED_WEIGHT, PREP_SLIP_BUYOUT_RATE, PREP_SLIP_LEAVE_SHARE } from '../../data/prep';
+import { PREP_SLIP_BUYOUT_RATE, PREP_SLIP_FAME_WEIGHT, PREP_SLIP_LEAVE_SHARE } from '../../data/prep';
 import { personCastingAge, personMeetsCharacterAge, personMeetsCharacterGender } from '../casting';
 import { keyedRoll } from './roll';
 import { professionForProductionRole } from '../../data/helpers';
@@ -32,6 +32,9 @@ export interface CrewChange {
   reason: 'clash' | 'moved-on';
   /** True once the player has seen it (the Inbox card clears). */
   acknowledged: boolean;
+  /** Who came in, and the film's total slip when they did: they signed up to the moved dates, so only later slip can lose them. */
+  replacementId?: string;
+  atSlip?: number;
 }
 
 export interface SlipInput {
@@ -76,14 +79,18 @@ const overlaps = (c: PersonCommitment, start: number, end: number) => c.startDay
  * Whether someone in demand elsewhere takes the other job at this total slip.
  * Each person has one fixed roll for the film (keyed on its seed), so as the
  * slip grows the share leaving grows to exactly the table's share - a run of
- * small slips never compounds past it (Phase 5 review). The best-booked are
- * likelier to go: each other booking scales their roll down.
+ * small slips never compounds past it. Someone who joined as a replacement
+ * signed up to the dates as they then were, so only the slip since counts for
+ * them. The best known are likelier to go ("they are the good ones", 04 §9.6):
+ * fame scales the roll - a stable reading, so nobody flips with each new booking.
  */
-function movesOn(draft: FilmDraft, person: Person, otherBookings: number, totalSlip: number): boolean {
-  const share = leaveShareForSlip(totalSlip);
+function movesOn(draft: FilmDraft, person: Person, totalSlip: number): boolean {
+  const joinedAt = Math.max(0, ...(draft.crewChanges ?? []).filter((c) => c.replacementId === person.id).map((c) => c.atSlip ?? 0));
+  const before = leaveShareForSlip(joinedAt);
+  const share = (leaveShareForSlip(totalSlip) - before) / Math.max(1e-9, 1 - before);
   if (share <= 0) return false;
   const roll = keyedRoll(`${draft.preProduction?.seed ?? 0}|slip|${person.id}`);
-  return roll / (1 + PREP_SLIP_BOOKED_WEIGHT * Math.max(0, otherBookings - 1)) < share;
+  return roll * (1 + PREP_SLIP_FAME_WEIGHT * (0.5 - person.reputation.fame / 100)) < share;
 }
 
 export function applySlip(input: SlipInput): SlipResult {
@@ -102,7 +109,7 @@ export function applySlip(input: SlipInput): SlipResult {
     if (clashing.length > 0) leaving.push({ a, reason: 'clash', clashing });
     else {
       const upcoming = elsewhere.filter((c) => c.endDay >= today);
-      if (upcoming.length > 0 && movesOn(draft, p, upcoming.length, input.totalSlip)) leaving.push({ a, reason: 'moved-on', clashing: [] });
+      if (upcoming.length > 0 && movesOn(draft, p, input.totalSlip)) leaving.push({ a, reason: 'moved-on', clashing: [] });
     }
   }
   if (leaving.length === 0) return none;
@@ -153,7 +160,7 @@ export function applySlip(input: SlipInput): SlipResult {
     const replacedPerson = pool[profession].find((p) => p.id === replacement.id)!;
     const ageAtCasting = role ? personCastingAge(replacedPerson, today) : undefined;
     talent = talent.map((t) => (t === a ? { role: a.role, person: replacedPerson, ...(a.characterId ? { characterId: a.characterId } : {}), ...(ageAtCasting !== undefined ? { ageAtCasting } : {}) } : t));
-    changes.push({ day: today, role: a.role, leftName: a.person.identity.name, replacementName: replacement.identity.name, cost: fee - refund, reason, acknowledged: false });
+    changes.push({ day: today, role: a.role, leftName: a.person.identity.name, replacementName: replacement.identity.name, cost: fee - refund, reason, acknowledged: false, replacementId: replacement.id, atSlip: input.totalSlip });
   }
   if (changes.length === 0) return none;
   return { draft: { ...draft, talent, crewChanges: [...(draft.crewChanges ?? []), ...changes] }, pool, cash, booksCost, changes };

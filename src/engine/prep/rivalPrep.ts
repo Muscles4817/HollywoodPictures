@@ -20,8 +20,6 @@ export interface RivalPrepPolicy {
   lengthFactor: number;
   /** Contingency as a share of the shooting budget. */
   contingencyShare: number;
-  /** The front that cost it most lately, if any - for the dev inspector. */
-  mainCause: PrepFront | null;
 }
 
 const kindOfIncident = (id: string): PrepProblemKind | null => {
@@ -55,19 +53,13 @@ export function rivalPrepPolicy(rivalName: string, tier: StudioTier, films: Film
     .filter((f) => f.releasedBy === rivalName)
     .sort((a, b) => b.releasedOnDay - a.releasedOnDay)
     .slice(0, RIVAL_PREP_MEMORY.films);
-  if (own.length === 0) return { lengthFactor: 1, contingencyShare: base, mainCause: null };
+  if (own.length === 0) return { lengthFactor: 1, contingencyShare: base };
   const losses = own.map(filmPrepLosses);
   const meanLost = losses.reduce((s, l) => s + l.lostShare, 0) / losses.length;
   const meanOver = losses.reduce((s, l) => s + l.overShare, 0) / losses.length;
-  const fronts: Partial<Record<PrepFront, number>> = {};
-  for (const l of losses) for (const [f, v] of Object.entries(l.byFront)) fronts[f as PrepFront] = (fronts[f as PrepFront] ?? 0) + (v ?? 0);
-  const mainCause = (Object.entries(fronts).sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))[0]?.[0] as PrepFront | undefined) ?? null;
-  const clean = own.length >= RIVAL_PREP_MEMORY.films && meanLost < RIVAL_PREP_MEMORY.cleanBelow;
-  const lengthFactor = clean ? 1 - RIVAL_PREP_MEMORY.leanStep : 1 + RIVAL_PREP_MEMORY.lengthPerLost * meanLost;
   return {
-    lengthFactor: clamp(lengthFactor, ...RIVAL_PREP_MEMORY.lengthRange),
-    contingencyShare: base + clamp(RIVAL_PREP_MEMORY.contingencyPerOver * meanOver, ...RIVAL_PREP_MEMORY.contingencyRange),
-    mainCause,
+    lengthFactor: clamp(1 + RIVAL_PREP_MEMORY.lengthPerLost * (meanLost - RIVAL_PREP_MEMORY.normalLost), ...RIVAL_PREP_MEMORY.lengthRange),
+    contingencyShare: base + clamp(RIVAL_PREP_MEMORY.contingencyPerOver * (meanOver - RIVAL_PREP_MEMORY.normalOver), ...RIVAL_PREP_MEMORY.contingencyRange),
   };
 }
 

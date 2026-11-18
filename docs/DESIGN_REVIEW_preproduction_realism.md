@@ -988,24 +988,78 @@ is Phase 7.
   + shoot + post + marketing lead, with the campaign start moved to match.
   Prep's expected burn is in its cost and its film's books.
 - **Same engine.** `synthesizeRivalPrep` runs the player's engine headless with
-  the rival's team, its prep length, its contingency, a fixed money pressure
-  (0.3) and a dated release.
+  the rival's team, its prep length, its contingency, a dated release, and its
+  own money pressure: the share of its cash this film took when it started.
 - **Memory** (`engine/prep/rivalPrep.ts:rivalPrepPolicy`).
   - From its last five released films, a rival reads the shoot days lost and
     money over to carried prep problems.
-  - After losses it preps longer (+0.15 of the recommendation per 5% of shoot
-    days lost) and holds more contingency.
-  - After five clean films (under 1% lost) it preps leaner (×0.9).
-  - Prep length is bounded to 0.85–1.25. Contingency is bounded to −3 to +8
-    points of the tier's share.
-  - It also reads which front cost it most.
+  - It compares them with what a competently prepped film normally carries:
+    about 2% of shoot days and 0.7% of the shooting budget, from the harness
+    at middling skill.
+  - Above that it preps longer and holds more contingency. Below it, it preps
+    leaner and holds less.
+  - The response is smooth, so one film either side of a line cannot flip the
+    policy. Prep length is bounded to 0.85–1.25; contingency to −3 to +8 points
+    of the tier's share.
   - **Deviation:** the plan said "stored on RivalStudio". It is derived from
     the rival's own released films' events instead, so it can never drift from
     what happened and needs no bookkeeping.
 - **Tests** (`src/engine/prep/rivalPrep.test.ts`):
-  - **Parity:** a rival prep and a hand-built player prep with the same parts,
-    seed and decider give identical problems, findings, decisions and cuts.
+  - **Parity:** a rival prep with a real team, a 1.1 prep length and 0.6 cash
+    pressure matches a prep built independently and run day by day through
+    `advancePrepDay`, the function the player's reducer calls. Problems,
+    findings, decisions, cuts and final length are identical.
   - A rival with a strong team carries less.
   - Memory moves the right way and stays bounded both ways.
   - A rival reads only its own and its latest films.
   - The team choice is the best that fits.
+
+**What the Phase 6 reviewer found, and what was done:**
+
+- **What a rival's prep really spent was thrown away (fixed in the books).**
+  The film's results now report the prep's real spend: its burn over the days
+  it actually ran, plus its fixes. Its cash was charged the start-of-prep
+  estimate and is not reconciled. A fix that adds days does not move a rival's
+  release date or bookings. Both are recorded gaps.
+- **A rival's situation was not read (fixed for money).**
+  - The cash pressure in its prep decisions is now the share of its cash the
+    film took.
+  - Every rival release counts as dated, which is true: rivals announce a
+    date before they shoot.
+  - Tier character is not read beyond the contingency share and the team
+    budget.
+- **The memory could flip back and forth, and contingency could only rise
+  (fixed).** It is now smooth around the normal loss and moves both ways. The
+  unused "main cause" was removed.
+- **The parity test re-typed the function it tested (fixed).** See above.
+- **Replacements could be lost again to the same slip band, and a person's
+  odds changed with each new booking (fixed).**
+  - A replacement weighs only the slip since they joined.
+  - "The good ones go first" now reads fame, which is stable.
+  - Tested.
+- **The project overview omitted prep, and the committed spend counted
+  greenlight money twice while prepping (fixed).**
+  - The overview shows prep as its own line.
+  - Before greenlight, the committed spend is the projection plus the prep
+    estimate. While prepping, it is only what is left of prep. The double
+    count predates this work.
+- **The rival market shrank, and this is not tuned.**
+  - Measured by the reviewer on the distribution gate, 6 seeds × 8 years,
+    before and after Phase 6. Films fell from 6654 to 5463 (−18%). Wide
+    releases per major per year fell from 7.9 to 7.2 (band 8–20). Specialty
+    films fell from 4.8 to 3.7 a year (band 5–15).
+  - Per film, results rose. The wide median went from 111 to 121 and now
+    passes; the wide mean from 168 to 202.
+  - The cause is mechanical and realistic. A rival production now spends its
+    prep in the calendar before it shoots, so each of a studio's production
+    slots turns over more slowly. Prep also adds cost and the contingency gate.
+  - Real studios run more films in parallel than they have in release. The
+    rivals' slot rules (`startableScales`, `SPAWN_CHECK_INTERVAL_DAYS`) were
+    set when a film went straight from greenlight to shoot. **That is the next
+    thing to investigate** — how many productions a studio of each tier has
+    in prep and shoot at once — before touching any calibration.
+- **Recorded, not changed:**
+  - Production teams have no availability, so one team can work on many films
+    at once. Availability is not modelled by plan (Phase 3).
+  - The bot picks its team before it trims an unaffordable plan, so after a
+    trim the fee can exceed 2% of the smaller film.

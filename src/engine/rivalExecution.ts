@@ -66,6 +66,8 @@ export interface RivalExecutionInput {
   /** Its production team, and its prep length as a share of the recommendation (Phase 6); absent = the studio office, recommended length. */
   productionTeam?: ProductionTeam | null;
   prepLengthFactor?: number;
+  /** 0..1: how tight the studio's cash was against this film when it started it - how hard money weighs in its prep decisions. Absent = a middling 0.3. */
+  prepCashPressure?: number;
 }
 
 export interface RivalPrepResult {
@@ -75,7 +77,7 @@ export interface RivalPrepResult {
   spend: number;
 }
 
-/** A rival studio's money pressure in prep decisions: it has the film financed, but every studio watches its cash. */
+/** A rival's money pressure in prep decisions when its situation is unknown (tests, diagnostics): middling. */
 const RIVAL_PREP_CASH_PRESSURE = 0.3;
 
 /**
@@ -101,7 +103,7 @@ export function synthesizeRivalPrep(production: RivalExecutionInput, rng: Random
     dailyPrepBurn: computeDailyPrepBurn(dailyShootBurn),
     shootDays,
     contingencyAvailable: productionChoices.contingencyReserveAmount ?? 0,
-    cashPressure: RIVAL_PREP_CASH_PRESSURE,
+    cashPressure: production.prepCashPressure ?? RIVAL_PREP_CASH_PRESSURE,
     // A rival has announced its date before it shoots.
     datedRelease: true,
   });
@@ -136,6 +138,8 @@ export interface RivalExecutionResult {
   events: ProductionEvent[];
   /** daysElapsed / recommendedDays implied by the synthesized shoot (base planning variance + delays from events) - the same coverage signal the player's real shoot produces. */
   shootingRatio: number;
+  /** What the prep actually spent - its burn over the days it really ran (fixes can add days) plus its fixes (cash and contingency). Reported in the film's books in place of the start-of-prep estimate. */
+  prepSpend: number;
 }
 
 /**
@@ -148,7 +152,7 @@ export function resolveRivalExecution(production: RivalExecutionInput, rng: Rand
   const { talent, script, productionChoices, genre } = production;
   // A rival's shoot is preceded by a pre-production from the player's own prep
   // table; how it went moves the shoot's starting risk and joins the history.
-  const { prep } = synthesizeRivalPrep(production, rivalPrepRng(rng));
+  const { prep, spend: prepSpend } = synthesizeRivalPrep(production, rivalPrepRng(rng));
   const staticRisk = applyPrepRiskAdjustments(computeStaticProductionRisk(talent, script, productionChoices, genre), prepRiskAdjustments(prep));
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
   // What prep left standing happens on the shoot, as it does on a player's
@@ -222,5 +226,5 @@ export function resolveRivalExecution(production: RivalExecutionInput, rng: Rand
   const shootingRatio = clamp((recommendedDays * planningVariance + extraDays) / recommendedDays, 0.5, 2);
 
   const prepEvents = prepQualityEvents(prep);
-  return { events: [...prepEvents, ...events], shootingRatio };
+  return { events: [...prepEvents, ...events], shootingRatio, prepSpend };
 }

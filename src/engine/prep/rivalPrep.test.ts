@@ -6,13 +6,13 @@ import { chooseRivalProductionTeam, filmPrepLosses, rivalPrepPolicy } from './ri
 import { synthesizeRivalPrep, type RivalExecutionInput } from '../rivalExecution';
 import { buildPrepContext } from './context';
 import { derivePrepDemands } from './demands';
-import { createPreProduction, runPrepHeadless } from './run';
+import { advancePrepDay, createPreProduction } from './run';
+import { deriveTraits } from '../personTraits';
 import { computeDailyPrepBurn, computeDailyShootBurn } from '../cost';
 import { computeRecommendedPreProductionDays, computeRecommendedShootDays } from '../production';
 import { generateProductionTeamPool } from '../productionTeams';
 import { createRng, forkSeed, withRng } from '../random';
 import { buildReadyDraft } from '../../state/testFixtures';
-import { NO_PRODUCTION_TEAM_SKILL } from '../../data/productionTeams';
 
 const draft = withRng(31, (r) => buildReadyDraft(r)).result;
 const input: RivalExecutionInput = { talent: draft.talent, script: draft.script!, productionChoices: { ...draft.productionChoices!, contingencyReserveAmount: 2_000_000 }, genre: draft.genre! };
@@ -28,18 +28,26 @@ function filmWithIncidents(day: number, lostDays: number, name = 'Rival A'): Fil
 }
 
 describe('a rival prep and a player prep are the same engine', () => {
-  it('the same parts, prep and decider give the same problems, findings and decisions', () => {
-    const rival = synthesizeRivalPrep(input, createRng(5)).prep;
-    // Rebuild the player's side by hand from the same inputs.
+  it('the same parts, team, prep length and situation give the same problems, findings and decisions', () => {
+    const team = generateProductionTeamPool(createRng(9))[4];
+    const situated: RivalExecutionInput = { ...input, productionTeam: team, prepLengthFactor: 1.1, prepCashPressure: 0.6 };
+    const rival = synthesizeRivalPrep(situated, createRng(5)).prep;
+    // The player's side, assembled independently from the same parts with the
+    // engine's public pieces - nothing taken from the rival's output.
     const seed = forkSeed(createRng(5));
     const { talent, script, productionChoices, genre } = input;
     const shootDays = computeRecommendedShootDays(talent, script, productionChoices);
     const shootBurn = computeDailyShootBurn(productionChoices.shootingBudgetAmount, shootDays);
-    const ctx = buildPrepContext({ talent, genre, team: null, dailyShootBurn: shootBurn, dailyPrepBurn: computeDailyPrepBurn(shootBurn), shootDays, contingencyAvailable: 2_000_000, cashPressure: 0.3, datedRelease: true });
-    const start = createPreProduction({ demands: derivePrepDemands({ script, talent, choices: productionChoices }), plan: { lengthFactor: 1, activities: null, delegated: true }, prepDays: computeRecommendedPreProductionDays(talent, script, productionChoices), seed, team: null, status: 'in-progress', difficultLead: rival.problems.some((p) => p.kind === 'difficult-star') });
-    const player = runPrepHeadless(start, ctx, { skill: NO_PRODUCTION_TEAM_SKILL, seed }).prep;
+    const ctx = buildPrepContext({ talent, genre, team, dailyShootBurn: shootBurn, dailyPrepBurn: computeDailyPrepBurn(shootBurn), shootDays, contingencyAvailable: 2_000_000, cashPressure: 0.6, datedRelease: true });
+    const difficultLead = talent.some((a) => a.role === 'Lead Actor' && deriveTraits(a.person).includes('DifficultToWorkWith'));
+    const prepDays = Math.round(computeRecommendedPreProductionDays(talent, script, productionChoices) * 1.1);
+    const start = createPreProduction({ demands: derivePrepDemands({ script, talent, choices: productionChoices }), plan: { lengthFactor: 1.1, activities: null, delegated: true }, prepDays, seed, team, status: 'in-progress', difficultLead });
+    let player = start;
+    // Day by day through the same function the player's reducer calls.
+    for (let i = 0; i < 2000 && player.status === 'in-progress'; i++) player = advancePrepDay(player, ctx, { skill: team.skill, seed }).prep;
     expect(player.problems).toEqual(rival.problems);
     expect(player.events).toEqual(rival.events);
+    expect(player.recommendedDays).toBe(rival.recommendedDays);
   });
 
   it('a rival with a stronger team carries less', () => {
@@ -58,20 +66,25 @@ describe('a rival prep and a player prep are the same engine', () => {
 describe('a rival remembers its recent shoots', () => {
   it('preps longer and holds more contingency after losing days to carried problems', () => {
     const fresh = rivalPrepPolicy('Rival A', 'Mid-Size', []);
-    expect(fresh).toEqual({ lengthFactor: 1, contingencyShare: RIVAL_CONTINGENCY_SHARE['Mid-Size'], mainCause: null });
+    expect(fresh).toEqual({ lengthFactor: 1, contingencyShare: RIVAL_CONTINGENCY_SHARE['Mid-Size'] });
     const burned = rivalPrepPolicy('Rival A', 'Mid-Size', [1, 2, 3].map((d) => filmWithIncidents(d, 4)));
     expect(burned.lengthFactor).toBeGreaterThan(1);
     expect(burned.contingencyShare).toBeGreaterThan(fresh.contingencyShare);
-    expect(burned.mainCause).toBe('action');
   });
 
-  it('learns to prep leaner after a run of clean shoots, and stays bounded both ways', () => {
+  it('learns to prep leaner and hold less after a run of clean shoots, and stays bounded both ways', () => {
     const clean = rivalPrepPolicy('Rival A', 'Major', Array.from({ length: RIVAL_PREP_MEMORY.films }, (_, i) => filmWithIncidents(i, 0)));
     expect(clean.lengthFactor).toBeLessThan(1);
+    expect(clean.contingencyShare).toBeLessThan(RIVAL_CONTINGENCY_SHARE.Major);
     const disaster = rivalPrepPolicy('Rival A', 'Major', Array.from({ length: 5 }, (_, i) => filmWithIncidents(i, 200)));
     expect(disaster.lengthFactor).toBe(RIVAL_PREP_MEMORY.lengthRange[1]);
     expect(disaster.contingencyShare).toBeLessThanOrEqual(RIVAL_CONTINGENCY_SHARE.Major + RIVAL_PREP_MEMORY.contingencyRange[1]);
     expect(clean.lengthFactor).toBeGreaterThanOrEqual(RIVAL_PREP_MEMORY.lengthRange[0]);
+  });
+
+  it('moves smoothly: a film either side of the normal loss changes little', () => {
+    const near = (lost: number) => rivalPrepPolicy('Rival A', 'Indie', Array.from({ length: 5 }, (_, i) => ({ ...filmWithIncidents(i, 0), events: [{ id: 'prep-incident-unrehearsed-0', description: 'x', severity: 'low' as const, costDelta: 0, qualityDelta: 0, buzzDelta: 0, delayDaysDelta: lost }] }))).lengthFactor;
+    expect(Math.abs(near(1) - near(2))).toBeLessThan(0.2);
   });
 
   it('reads only its own films, its latest few', () => {

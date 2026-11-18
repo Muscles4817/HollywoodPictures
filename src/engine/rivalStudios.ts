@@ -1299,6 +1299,8 @@ function startRivalProductionFromWonScript(
       franchiseId,
       productionTeam,
       prepLengthFactor: prepPolicy.lengthFactor,
+      // The studio's situation weighs its prep decisions: money is dearer the more of its cash this film takes.
+      prepCashPressure: clamp(cost / Math.max(1, rival.cash), 0, 1),
       prepDays,
       prepCost,
     },
@@ -1331,7 +1333,7 @@ export function resolveRivalProduction(
   // profile and plan (engine/rivalExecution.ts), then feed both through the
   // exact same release pipeline the player uses - a rival's film is now shaped
   // by how its shoot went, not a flat neutral profile.
-  const { events, shootingRatio } = resolveRivalExecution(production, rng);
+  const { events, shootingRatio, prepSpend } = resolveRivalExecution(production, rng);
   const recommendedDays = computeRecommendedShootDays(production.talent, production.script, production.productionChoices);
   const dailyBurn = computeDailyShootBurn(production.productionChoices.shootingBudgetAmount, recommendedDays);
   const photographyCost = Math.round(dailyBurn * recommendedDays * shootingRatio);
@@ -1353,7 +1355,8 @@ export function resolveRivalProduction(
       events,
       postProductionEvents: [],
       photographyCost,
-      preProductionCost: production.prepCost ?? 0,
+      // What its prep really spent (the start-of-prep estimate was charged to its cash; the difference - fixes, days a fix added - is reported here, as a player's prep is).
+      preProductionCost: prepSpend,
       productionTeamFee: production.productionTeam?.typicalSalary ?? 0,
       shootingRatio,
       studioBrand,

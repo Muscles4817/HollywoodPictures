@@ -176,3 +176,18 @@ describe('the Phase 5 review', () => {
     throw new Error('no seed paused on a problem with a time fix');
   });
 });
+
+describe('a replacement signed up to the moved dates', () => {
+  it('is not lost to the slip that brought them in, only to later slip', () => {
+    const { s, d, end } = withDirectorBookedAfter(5);
+    const first = applySlip({ draft: d, oldEnd: end, newEnd: end + 14, totalSlip: 14, today: s.totalDays, worked: 0.1, pool: s.talentPool });
+    const change = first.changes.find((c) => c.role === 'Director')!;
+    expect(change.replacementId).toBeDefined();
+    // The new director then takes a job far ahead (in demand), and the film slips one more day.
+    const prof = professionForProductionRole('Director');
+    const pool = { ...first.pool, [prof]: first.pool[prof].map((p) => (p.id === change.replacementId ? { ...p, availability: { commitments: [...p.availability.commitments, { projectId: 'later', role: 'Director' as const, startDay: end + 300, endDay: end + 360 }] } } : p)) };
+    // 15 days is in the same band as 14: nothing new for them to weigh.
+    const again = applySlip({ draft: first.draft, oldEnd: end + 14, newEnd: end + 15, totalSlip: 15, today: s.totalDays, worked: 0.1, pool });
+    expect(again.changes.filter((c) => c.role === 'Director')).toEqual([]);
+  });
+});

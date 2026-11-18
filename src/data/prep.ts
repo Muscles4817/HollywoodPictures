@@ -393,8 +393,8 @@ export const PREP_SLIP_LEAVE_SHARE: readonly { minDays: number; share: number }[
   { minDays: 0, share: 0 },
 ];
 
-/** Each further booking elsewhere makes someone this much likelier to take the confirmed job ("the good ones" go first, 04 §9.6). */
-export const PREP_SLIP_BOOKED_WEIGHT = 0.3;
+/** How much fame tilts who goes first ("the good ones", 04 §9.6): the most famous are about this much likelier to take the confirmed job than the least. */
+export const PREP_SLIP_FAME_WEIGHT = 0.6;
 
 /** Keeping someone whose next job now clashes, when no one can replace them: the production buys them out of it (the shoot's own severance rate). */
 export const PREP_SLIP_BUYOUT_RATE = 0.4;
@@ -414,19 +414,22 @@ export const RIVAL_TEAM_FEE_SHARE = 0.02;
 
 /**
  * A rival's memory of its own recent shoots: how many of its last films it
- * reads, and how far it moves its next prep's length and contingency toward
- * what would have prevented the days it lost to carried prep problems.
- * Bounded both ways - a studio that keeps finishing clean learns to prep leaner.
+ * reads, and how its next prep's length and contingency follow what carried
+ * prep problems cost them, around what a competent prep normally leaves (the
+ * PREP_DIAGNOSTIC harness at middling skill: about 2% of shoot days lost, 0.7%
+ * of the shooting budget over). Above that it preps longer and holds more
+ * contingency; below it, leaner and less. Smooth, so a film either side of a
+ * line never flips the policy; bounded both ways.
  */
 export const RIVAL_PREP_MEMORY = {
   films: 5,
-  /** Prep length factor per unit of mean shoot-days-lost share (5% lost -> +0.15). */
+  /** The losses an ordinary, competently prepped film carries. */
+  normalLost: 0.02,
+  normalOver: 0.007,
+  /** Prep length factor per unit of lost share above (or below) normal: 5 points over normal -> +0.15. */
   lengthPerLost: 3,
   lengthRange: [0.85, 1.25] as [number, number],
-  /** Contingency share added per unit of mean money-over share. */
-  contingencyPerOver: 1,
+  /** Contingency share per unit of money-over share above (or below) normal. */
+  contingencyPerOver: 2,
   contingencyRange: [-0.03, 0.08] as [number, number],
-  /** Below this mean lost share, after at least `films` films, it trims prep. */
-  cleanBelow: 0.01,
-  leanStep: 0.1,
 } as const;

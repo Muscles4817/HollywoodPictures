@@ -85,22 +85,22 @@ export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Per
   total += stuntTeamFee(stuntTeamById(stuntTeamPool, draft.stuntTeamId));
   // Once greenlit, the team contracted then (the fee release charges); before, the one chosen.
   total += productionTeamFee(draft.preProduction ? (draft.preProduction.team ?? undefined) : productionTeamById(productionTeamPool, draft.productionTeamId));
-  if (!draft.photography) {
-    // Not charged yet - BEGIN_PHOTOGRAPHY is what actually deducts these,
-    // so until then this is a pure "what would this cost" projection. Uses
-    // the full planned contingency reserve (what it costs to shoot the
-    // recommended schedule, see engine/production.ts:computeRecommendedShootDays)
-    // as the estimate - the same number ProductionPlanning.tsx shows
-    // directly, so this stays consistent with what the player can already
-    // see on screen.
+  if (!draft.preProduction) {
+    // Not charged yet - GREENLIGHT_PROJECT is what deducts these, so until
+    // then this is a pure "what would this cost" projection. Uses the full
+    // planned contingency reserve as the estimate - the same number
+    // ProductionPlanning.tsx shows directly. Prep's burn is estimated too
+    // (engine/prepLength.ts): it is paid day by day after greenlight.
     total += computeTalentCost(draft.talent);
-    // Prep's burn, before greenlight an estimate (engine/prepLength.ts); once
-    // prepping it is charged day by day, so only what is left of it.
-    total += draft.preProduction ? remainingPrepSpend(draft) : estimatedPrepSpend(draft);
+    total += estimatedPrepSpend(draft);
     if (draft.productionChoices) {
       total += computeProductionBudgetCost(draft.productionChoices);
       total += draft.productionChoices.shootingBudgetAmount + (draft.productionChoices.contingencyReserveAmount ?? 0);
     }
+  } else if (!draft.photography) {
+    // Greenlit and prepping: the greenlight commitment has left cash already;
+    // what is still to come is the rest of prep's burn.
+    total += remainingPrepSpend(draft);
   } else {
     total += computeEventsCostDelta(draft.photography.events);
   }
