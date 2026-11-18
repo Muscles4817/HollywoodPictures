@@ -1048,8 +1048,9 @@ is Phase 7.
     before and after Phase 6. Films fell from 6654 to 5463 (−18%). Wide
     releases per major per year fell from 7.9 to 7.2 (band 8–20). Specialty
     films fell from 4.8 to 3.7 a year (band 5–15).
-  - Per film, results rose. The wide median went from 111 to 121 and now
-    passes; the wide mean from 168 to 202.
+  - Per film, results rose: the wide median from 111 to 121, the wide mean
+    from 168 to 202 (the reviewer's run; not re-checked from saved logs). The
+    final gate run (§10.7) reads the wide median at 119.5, just under its band.
   - The cause is mechanical and realistic. A rival production now spends its
     prep in the calendar before it shoots, so each of a studio's production
     slots turns over more slowly. Prep also adds cost and the contingency gate.
@@ -1108,12 +1109,14 @@ is Phase 7.
 | Ablation | Wide median gross ($M) |
 |---|---|
 | Before (old bank on) | 161 |
-| Same code, old bank switched off | **127** |
+| After Phase 3 (4136373, median 160.9), old bank switched off | **127** |
 | Now, new prep's incidents, cuts and risk all switched off | 140 |
 | Now, as built | 120 |
 
 - **About $34M of the $41M drop was free quality from the old bank.** Removing
-  that bank alone, on the old code, takes the median from $161M to $127M.
+  that bank alone, on the code just before Phase 4 (4136373), takes the median
+  from $161M to $127M. The ablation outputs were read off the console and not
+  saved; the before/after gate logs were.
 - The bank rolled positive events that did nothing but help: a table read
   "revelation" adding quality, a "design breakthrough", logistical events that
   cut the shoot's starting risk by up to 25 points. The market calibration had
@@ -1135,8 +1138,8 @@ is Phase 7.
 
 - Rival productions now spend their prep in the calendar before they shoot,
   and prep costs them money and a contingency check. Each production slot
-  therefore turns over more slowly: films fell 18%, and wide releases per major
-  per year fell from 9.6 to 7.1.
+  therefore turns over more slowly: films fell 17% (6642 → 5494), and wide
+  releases per major per year fell from 9.6 to 7.1.
 - Real studios run more films in parallel than this. The rivals' slot rules
   (`startableScales`, `SPAWN_CHECK_INTERVAL_DAYS`) predate prep in the
   calendar. **Investigate how many productions a studio of each tier has in
@@ -1158,10 +1161,12 @@ money all-in).**
 | Mid-Major, Careful | 0.95 · 44% losing · largest 5.8× | 0.94 · 55% losing · largest 1.3× |
 | Mid-Major, Steady | 1.95 · 35% losing · largest 7.0× | 1.54 · 34% losing · largest 8.8× |
 
-- **Indie studios now survive** (before, 3–4 of 5 careers fell below a quarter
-  of their start). The main cause is the price of prep:
-  - Before: a prep week cost 0.4% of the negative per day, up to a cap per
-    scale, about a fifth of a small film's budget.
+- **Indie studios no longer collapse.** Before, 3–4 of 5 careers fell below a
+  quarter of their start; now none do. But Careful still ends below its start
+  in 4 of 5 careers, and its median misses its band. The main cause is the
+  price of prep:
+  - Before: a prep day cost 0.4% of the negative, up to a cap per scale, about
+    a fifth of a small film's budget.
   - Now: 0.4 of a shooting day, about 4% of the negative.
   - Weaker rival films also help.
   - Whether 4% is right is the open question. 04 §1.4 prices only the core
@@ -1169,7 +1174,8 @@ money all-in).**
     "15–25%" may count more than that. **Investigate what 11 §8.1 includes
     before touching the burn.**
 - **At Mid-Major, Careful loses more films (44% → 55%) and never breaks out.**
-  The share losing money fits a weaker market. Steady is little changed.
+  The share losing money fits a weaker market. Steady's median falls (1.95 →
+  1.54) while its best career rises (7.0× → 8.8×).
 
 **Prep itself** (PREP_DIAGNOSTIC, 300 films, recommended length).
 
@@ -1179,8 +1185,8 @@ money all-in).**
 | 50 | 1.9% | 0.8% | 3.6% |
 | 80 | 0.4% | 0.2% | 3.7% |
 
-- At skill 50 a shortened prep loses 3.7% of shoot days (§10.4), inside 03
-  §13's 3–10%.
+- At skill 50 a shortened prep lost 3.7% of shoot days when measured before
+  Phase 5 (§10.4), inside 03 §13's 3–10%. It was not re-run on the final code.
 - Median prep: Intimate 9.4 weeks, Medium 12.4, Epic 23.4.
 
 **Open items, for the owner.**
@@ -1195,6 +1201,23 @@ money all-in).**
    re-measure once it is fixed.
 5. **The production team is the only new hire.** The other prep roles stand in
    (decided). Teams have no availability.
-6. **Unreachable code:** the old prep decision path (`RESOLVE_PREPRODUCTION_CHOICE`
+6. **Not done from the plan's Phase 7:** the big-studio anatomy and the
+   player-economy harness were not run (time). The prep harness reports by
+   front over generated films rather than over rival and player films by
+   cause.
+7. **Unreachable code:** the old prep decision path (`RESOLVE_PREPRODUCTION_CHOICE`
    and its Inbox card) remains, though nothing generates a prep decision any
    more. It can be removed.
+
+**Undeclared deviations, now declared:**
+
+- `shootIncidents.ts` was folded into `handoff.ts` (`incidentEvent`).
+- The plan kept the old prep roller and `pendingChoice` for a difficult star's
+  clash. Instead, the roller was removed outright and the clash became the
+  `difficult-star` casting problem.
+- The Phase 2 test asserts that a period war epic has at least seven of the
+  eight fronts live, not all eight.
+
+**Release:** delivered as one pull request into `master`, merged. The PR also
+carries this branch's earlier market-realism work (§7 of
+`docs/DESIGN_REVIEW_market_realism.md`).
